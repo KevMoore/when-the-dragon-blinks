@@ -212,37 +212,72 @@ export function drawDragonEye(game, c, day) {
     c.globalAlpha = 1;
     c.shadowBlur = 0;
 }
-// haze-tinted layered ridges + pagodas + torii + lantern strings + pines + fog.
+// AutoSprite parallax props (loaded lazily; transparent PNGs)
+const propImgs = {};
+const propReady = {};
+let propsInit = false;
+function ensureProps() {
+    if (propsInit)
+        return;
+    propsInit = true;
+    for (const n of ['pagoda', 'shishi', 'pine', 'stele', 'palace']) {
+        const im = new Image();
+        im.onload = () => (propReady[n] = true);
+        im.src = 'assets/sprites/props/' + n + '.png';
+        propImgs[n] = im;
+    }
+}
+function drawPropImg(c, name, cx, baseY, targetH, alpha) {
+    const img = propImgs[name];
+    if (!img || !propReady[name])
+        return;
+    const scale = targetH / img.height, w = img.width * scale;
+    c.globalAlpha = alpha;
+    c.drawImage(img, cx - w / 2, baseY - targetH, w, targetH);
+    c.globalAlpha = 1;
+}
+// smooth multi-octave ridgeline height at world-x
+function ridgeH(wx, layer) {
+    return Math.sin(wx * 0.006 + layer) * 0.6 + Math.sin(wx * 0.017 + layer * 2) * 0.28 + Math.sin(wx * 0.043 + layer) * 0.12;
+}
+// Layered rolling mountains (vertical + horizontal parallax) + sprite props + fog.
 export function drawParallax(game, c) {
     const th = theme(game), day = game.dayAmount;
     const haze = mixHex(th.hazeNight, th.haze, day);
     const ridge = mixHex(th.ridgeNight, th.ridge, day);
-    // far ridges, fading toward the haze colour with distance
+    const PARS = [0.05, 0.11, 0.2, 0.32], BASE = [300, 344, 392, 452], AMP = [72, 66, 60, 54];
     for (let layer = 0; layer < 4; layer++) {
-        const par = [0.06, 0.13, 0.22, 0.34][layer];
-        const baseY = [318, 356, 398, 452][layer];
-        const depth = 1 - layer / 4;
-        c.fillStyle = mixHex(ridge, haze, depth * 0.7);
+        const par = PARS[layer], sc = game.camera.x * par, voff = game.camera.y * par;
+        const y0 = BASE[layer] - voff, amp = AMP[layer], depth = 1 - layer / 4;
+        const col = mixHex(ridge, haze, depth * 0.72);
         c.globalAlpha = 0.72 + layer * 0.07;
+        c.fillStyle = col;
         c.beginPath();
-        c.moveTo(0, LOGICAL_H);
-        for (let x = -140; x <= LOGICAL_W + 200; x += 100) {
-            const wx = x - ((game.camera.x * par) % 100);
-            const peak = baseY - 80 - Math.sin((x + layer * 60) * 0.035) * (34 - layer * 5);
-            c.lineTo(wx, baseY);
-            c.lineTo(wx + 50, peak);
-            c.lineTo(wx + 100, baseY);
+        c.moveTo(-20, LOGICAL_H + 4);
+        for (let x = -20; x <= LOGICAL_W + 20; x += 12) {
+            const y = y0 - amp * (0.5 + 0.5 * ridgeH(x + sc, layer));
+            c.lineTo(x, y);
         }
-        c.lineTo(LOGICAL_W, LOGICAL_H);
+        c.lineTo(LOGICAL_W + 20, LOGICAL_H + 4);
         c.closePath();
         c.fill();
+        // crest rim-light
+        c.globalAlpha = (0.72 + layer * 0.07) * 0.35;
+        c.strokeStyle = mixHex(col, day > 0.5 ? '#ffcaa0' : '#a9c6ff', 0.5);
+        c.lineWidth = 1.3;
+        c.beginPath();
+        for (let x = -20; x <= LOGICAL_W + 20; x += 12) {
+            const y = y0 - amp * (0.5 + 0.5 * ridgeH(x + sc, layer));
+            x === -20 ? c.moveTo(x, y) : c.lineTo(x, y);
+        }
+        c.stroke();
     }
     c.globalAlpha = 1;
     // fog band across the ridges
     c.save();
     c.globalCompositeOperation = 'screen';
     for (let i = 0; i < 3; i++) {
-        const fy = 360 + i * 40 + Math.sin(game.time * 0.2 + i) * 6;
+        const fy = 358 + i * 40 + Math.sin(game.time * 0.2 + i) * 6;
         const fg = c.createLinearGradient(0, fy - 30, 0, fy + 30);
         fg.addColorStop(0, 'rgba(0,0,0,0)');
         fg.addColorStop(0.5, `rgba(${day > 0.5 ? '230,180,150' : '150,175,215'},0.10)`);
@@ -251,23 +286,25 @@ export function drawParallax(game, c) {
         c.fillRect(0, fy - 30, LOGICAL_W, 60);
     }
     c.restore();
-    // mid-ground pagoda skyline
-    const pagCol = mixHex('#0f0a16', ridge, 0.35);
-    for (let i = -1; i < 8; i++) {
-        const x = i * 260 - ((game.camera.x * 0.42) % 260);
-        drawPagoda(c, x + 40, 372, 0.9, pagCol, (i % 2));
+    // large sprite props scattered across two depth bands
+    ensureProps();
+    const names = ['pagoda', 'shishi', 'pine', 'stele', 'palace'];
+    const bands = [{ par: 0.24, baseY: 402, h: 108, alpha: 0.5, step: 470, seed: 7 }, { par: 0.4, baseY: 466, h: 158, alpha: 0.8, step: 560, seed: 23 }];
+    for (const b of bands) {
+        const sc = game.camera.x * b.par, voff = game.camera.y * b.par;
+        const first = Math.floor((sc - 280) / b.step), last = Math.ceil((sc + LOGICAL_W + 280) / b.step);
+        for (let i = first; i <= last; i++) {
+            if (hash(i * 13 + b.seed) > 0.62)
+                continue;
+            const name = names[Math.floor(hash(i * 7 + b.seed) * names.length)];
+            const sx = i * b.step + hash(i * 3 + b.seed) * 150 - sc;
+            drawPropImg(c, name, sx, b.baseY - voff, b.h * (0.82 + hash(i * 5 + b.seed) * 0.5), b.alpha);
+        }
     }
-    // a paifang archway landmark
-    drawPaifang(c, 300 - ((game.camera.x * 0.5) % (LOGICAL_W + 400)) + 200, 436, mixHex('#160812', th.ridge, 0.3), mixHex(th.accent, '#2a0a0c', 0.35));
-    // lantern string swagging across the mid-ground
+    // paifang landmark + lantern string
+    drawPaifang(c, 300 - ((game.camera.x * 0.5) % (LOGICAL_W + 400)) + 200, 436 - game.camera.y * 0.5, mixHex('#160812', th.ridge, 0.3), mixHex(th.accent, '#2a0a0c', 0.35));
     drawLanternString(game, c, day);
-    // sparse foreground pines for framing (surface decor carries the rest)
-    const pine = mixHex('#0a070e', th.ridge, 0.14);
-    for (let i = -1; i < 5; i++) {
-        const x = i * 480 - ((game.camera.x * 0.6) % 480);
-        drawPine(c, x + 120, 458, 0.58, pine);
-    }
-    // foreground fog near the floor
+    // foreground floor fog
     c.save();
     c.globalCompositeOperation = 'screen';
     c.globalAlpha = 0.5;
