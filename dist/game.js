@@ -989,9 +989,10 @@ export class Game {
             const cx = r.x + r.w / 2 - this.camera.x, by = r.y + r.h - this.camera.y;
             if (stills.checkpoint?.ready) {
                 c.save();
+                c.globalAlpha = 0.88;
                 c.shadowColor = '#ffb24a';
-                c.shadowBlur = 10 + Math.sin(this.time * 4) * 4;
-                stills.checkpoint.draw(c, cx, by, 78);
+                c.shadowBlur = 8 + Math.sin(this.time * 4) * 3;
+                stills.checkpoint.draw(c, cx, by, 52);
                 c.restore();
             }
             else {
@@ -1011,9 +1012,10 @@ export class Game {
             const cx = s.x + 13 - this.camera.x, by = s.y + 58 - this.camera.y;
             if (stills.shrine?.ready) {
                 c.save();
+                c.globalAlpha = 0.85;
                 c.shadowColor = this.world === 'day' ? '#ffd777' : '#a9d6ff';
-                c.shadowBlur = 14 + Math.sin(this.time * 3) * 4;
-                stills.shrine.draw(c, cx, by, 88);
+                c.shadowBlur = 10 + Math.sin(this.time * 3) * 3;
+                stills.shrine.draw(c, cx, by, 58);
                 c.restore();
             }
             else {
