@@ -377,9 +377,21 @@ export class Player {
     }
   }
 
+  // Shadow stays on the ground and shrinks/fades as the player rises.
+  private drawGroundShadow(game: Game, c: CanvasRenderingContext2D) {
+    const gy = game.groundYBelow(this.x, this.w, this.y + this.h);
+    const gap = Math.max(0, gy - (this.y + this.h));
+    const s = clamp(1 - gap / 320, 0.32, 1);
+    const sx = this.x + this.w / 2 - game.camera.x, sy = gy - game.camera.y;
+    c.save(); c.globalAlpha = 0.32 * s; c.fillStyle = '#000';
+    c.beginPath(); c.ellipse(sx, sy - 1, 16 * s, 5 * s, 0, 0, Math.PI * 2); c.fill();
+    c.restore();
+  }
+
   draw(game: Game, c: CanvasRenderingContext2D) {
     if (game.transformT > 0) { this.drawSummon(game, c); return; }
     if (this.dragonTime > 0) { this.drawDragon(game, c); return; }
+    this.drawGroundShadow(game, c);
     // afterimages
     for (const a of this.afterimages) {
       c.globalAlpha = (a.life / 0.22) * 0.35;
@@ -401,9 +413,6 @@ export class Player {
     if (sheet && sheet.ready) {
       const targetH = this.h * 1.72;           // sprite slightly overhangs the AABB
       c.save();
-      // shadow under feet
-      c.fillStyle = 'rgba(0,0,0,.3)';
-      c.beginPath(); c.ellipse(sx + this.w / 2, sy + this.h - 1, 16, 5, 0, 0, Math.PI * 2); c.fill();
       c.translate(sx + this.w / 2, sy + this.h + bob + idle);
       c.scale(this.facing * this.scaleX, this.scaleY);
       sheet.blit(c, sheet.frameAt(this.animClock), targetH, true);
@@ -423,8 +432,6 @@ export class Player {
     c.translate(sx + this.w / 2, sy + this.h / 2 + bob + idle);
     c.scale(this.facing * this.scaleX, this.scaleY);
     // ---- ASSET HOOK: replace this block with player sprite frame draw ----
-    // shadow
-    c.fillStyle = 'rgba(0,0,0,.28)'; c.beginPath(); c.ellipse(0, 25 / this.scaleY, 15, 5, 0, 0, Math.PI * 2); c.fill();
     // robe (gold->red->dark)
     const grad = c.createLinearGradient(0, -22, 0, 24);
     grad.addColorStop(0, '#f7d17a'); grad.addColorStop(.5, '#a8302e'); grad.addColorStop(1, '#2b0f19');

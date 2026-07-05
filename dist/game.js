@@ -276,6 +276,18 @@ export class Game {
     overlapsSolid(r, world = this.world) {
         return this.solidsForRect(r, world).some(s => !s.oneWay && overlap(r, s));
     }
+    /** World-Y of the ground surface directly beneath a footprint (for shadows). */
+    groundYBelow(px, w, fromY) {
+        const x0 = Math.floor((px + 2) / TILE), x1 = Math.floor((px + w - 2) / TILE);
+        for (let ry = Math.floor(fromY / TILE); ry < this.level.height + 2; ry++) {
+            for (let x = x0; x <= x1; x++) {
+                const ch = this.tileAt(x, ry);
+                if (ch === '#' || ch === 'g' || (ch === 'D' && this.world === 'day') || (ch === 'N' && this.world === 'night') || ch === 'o')
+                    return ry * TILE;
+            }
+        }
+        return this.level.height * TILE;
+    }
     /** Is the entity standing on a one-way (jump-through) tile? */
     onOneWayGround(e) {
         const y = Math.floor((e.y + e.h + 2) / TILE);
