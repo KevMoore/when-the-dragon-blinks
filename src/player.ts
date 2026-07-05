@@ -1,0 +1,252 @@
+// The shrine runner: responsive platformer feel — coyote time, jump buffering,
+// variable + apex-hang jump, corner correction, wall slide/jump, dash with
+// afterimages, and squash/stretch juice.
+import { clamp, lerp, rand, damp } from './math.js';
+import { GRAVITY, TILE } from './types.js';
+import type { Rect } from './math.js';
+import type { Game } from './game.js';
+
+const RUN_ACCEL = 4200;
+const AIR_ACCEL = 2600;
+const MAX_SPEED = 258;
+const JUMP_VEL = 640;
+const COYOTE = 0.1;
+const JUMP_BUFFER = 0.13;
+const WALL_SLIDE_MAX = 96;
+
+type After = { x: number; y: number; life: number; facing: number };
+
+export class Player {
+  x = 0; y = 0; w = 22; h = 42;
+  vx = 0; vy = 0;
+  facing = 1;
+  grounded = false;
+  coyote = 0;
+  jumpBuffer = 0;
+  dashTime = 0; dashCooldown = 0;
+  invuln = 0;
+  hp = 5; maxHp = 5;
+  checkpoint = { x: 64, y: 430 };
+  attackTimer = 0; attackCooldown = 0;
+  // juice / animation
+  scaleX = 1; scaleY = 1;
+  animTime = 0;
+  wallDir = 0;            // -1 wall on left, 1 on right, 0 none
+  wallLock = 0;          // brief control lock after a wall jump
+  afterimages: After[] = [];
+  dead = false;
+
+  rect(): Rect { return { x: this.x, y: this.y, w: this.w, h: this.h }; }
+  attackRect(): Rect {
+    return { x: this.facing > 0 ? this.x + this.w - 6 : this.x - 34, y: this.y - 2, w: 40, h: this.h + 4 };
+  }
+
+  reset(spawn: { x: number; y: number }) {
+    this.x = spawn.x; this.y = spawn.y; this.vx = 0; this.vy = 0; this.hp = this.maxHp;
+    this.grounded = false; this.invuln = 0; this.attackTimer = 0; this.dashTime = 0;
+    this.wallDir = 0; this.wallLock = 0; this.afterimages.length = 0; this.dead = false;
+    this.scaleX = this.scaleY = 1;
+  }
+  respawnAtCheckpoint() {
+    this.x = this.checkpoint.x; this.y = this.checkpoint.y; this.vx = 0; this.vy = 0;
+    this.hp = this.maxHp; this.invuln = 1.0; this.wallDir = 0; this.afterimages.length = 0;
+  }
+
+  update(game: Game, dt: number) {
+    const input = game.input;
+    this.animTime += dt;
+    this.wallLock = Math.max(0, this.wallLock - dt);
+    const left = input.down('left') && this.wallLock <= 0;
+    const right = input.down('right') && this.wallLock <= 0;
+    const wasGrounded = this.grounded;
+
+    // horizontal accel / friction
+    const accel = this.grounded ? RUN_ACCEL : AIR_ACCEL;
+    if (left) { this.vx -= accel * dt; this.facing = -1; }
+    if (right) { this.vx += accel * dt; this.facing = 1; }
+    if (!left && !right) this.vx = lerp(this.vx, 0, this.grounded ? 0.26 : 0.06);
+    this.vx = clamp(this.vx, -MAX_SPEED, MAX_SPEED);
+
+    // wall contact (only meaningful in the air)
+    this.wallDir = 0;
+    if (!this.grounded) {
+      if (game.overlapsSolid({ x: this.x - 3, y: this.y + 4, w: this.w, h: this.h - 10 }) && (left || this.facing < 0)) this.wallDir = -1;
+      else if (game.overlapsSolid({ x: this.x + 3, y: this.y + 4, w: this.w, h: this.h - 10 }) && (right || this.facing > 0)) this.wallDir = 1;
+    }
+
+    // timers
+    this.coyote = this.grounded ? COYOTE : Math.max(0, this.coyote - dt);
+    if (input.just('jump')) this.jumpBuffer = JUMP_BUFFER;
+    else this.jumpBuffer = Math.max(0, this.jumpBuffer - dt);
+
+    // jump: ground/coyote, else wall jump
+    if (this.jumpBuffer > 0 && (this.coyote > 0 || this.grounded)) {
+      this.doJump(game);
+    } else if (this.jumpBuffer > 0 && this.wallDir !== 0) {
+      this.vy = -JUMP_VEL * 0.98;
+      this.vx = -this.wallDir * 320;
+      this.facing = -this.wallDir as 1 | -1;
+      this.wallLock = 0.16;
+      this.jumpBuffer = 0; this.coyote = 0;
+      this.stretch(0.7, 1.35);
+      game.particles.sparks(this.x + this.w / 2, this.y + this.h / 2, 10, '#ffe19a');
+      game.audio.sfx('jump');
+    }
+    // variable jump height
+    if (!input.down('jump') && this.vy < -150) this.vy += 1900 * dt;
+
+    // dash
+    this.dashCooldown = Math.max(0, this.dashCooldown - dt);
+    if (input.just('dash') && this.dashCooldown <= 0 && this.dashTime <= 0) {
+      this.dashTime = 0.16; this.dashCooldown = 0.5;
+      this.vx = this.facing * 620; this.vy = Math.min(this.vy, 0);
+      this.invuln = Math.max(this.invuln, 0.18);
+      this.stretch(1.5, 0.6);
+      game.particles.sparks(this.x + this.w / 2, this.y + this.h / 2, 16, game.world === 'day' ? '#ffd777' : '#a9d6ff');
+      game.audio.sfx('attack');
+    }
+
+    // gravity (with apex hang, wall slide, fast-fall)
+    if (this.dashTime > 0) { this.dashTime -= dt; this.spawnAfterimage(); }
+    else {
+      let g = GRAVITY;
+      if (Math.abs(this.vy) < 120 && !this.grounded) g *= 0.56;   // apex hang
+      if (input.down('down') && !this.grounded) g *= 1.7;         // fast fall
+      this.vy += g * dt;
+      if (this.wallDir !== 0 && this.vy > WALL_SLIDE_MAX) {
+        this.vy = WALL_SLIDE_MAX;
+        if (Math.random() < 0.4) game.particles.dust(this.wallDir < 0 ? this.x : this.x + this.w, this.y + rand(0, this.h), 1);
+      }
+    }
+    this.vy = clamp(this.vy, -980, 820);
+
+    // attack (dragon-light pulse)
+    this.attackCooldown = Math.max(0, this.attackCooldown - dt);
+    if (input.just('attack') && this.attackCooldown <= 0) {
+      this.attackTimer = 0.16; this.attackCooldown = 0.3;
+      this.stretch(1.25, 0.85);
+      game.particles.ring(this.x + this.w / 2 + this.facing * 24, this.y + this.h / 2, 12, 180, game.world === 'day' ? '#ffe7a7' : '#bbe7ff');
+      game.audio.sfx('attack');
+    }
+    this.attackTimer = Math.max(0, this.attackTimer - dt);
+    this.invuln = Math.max(0, this.invuln - dt);
+
+    // breath currents
+    for (const zone of game.level.windZones || []) {
+      const zoneRect = { x: zone.x, y: zone.y, w: zone.w, h: zone.h };
+      if (this.overlaps(zoneRect)) {
+        this.vy -= 1150 * dt;
+        this.vx += Math.sin(game.time * 3 + zone.x) * 30 * dt;
+        this.vy = Math.max(this.vy, -300);
+        if (Math.random() < 0.6) game.particles.mist(rand(zone.x, zone.x + zone.w), zone.y + zone.h - 12, 1);
+      }
+    }
+
+    // integrate with collision (corner correction for the player head)
+    game.moveEntity(this, this.vx * dt, this.vy * dt, true);
+
+    // landing
+    if (!wasGrounded && this.grounded) {
+      const impact = clamp(Math.abs(this.vy) / 800, 0, 1);
+      game.audio.sfx('land');
+      game.particles.dust(this.x + this.w / 2, this.y + this.h, 6 + Math.floor(impact * 10));
+      this.stretch(1 + impact * 0.35, 1 - impact * 0.32);
+      if (impact > 0.55) game.camera.addTrauma(0.12);
+    }
+
+    // ease squash back to neutral
+    this.scaleX = damp(this.scaleX, 1, 12, dt);
+    this.scaleY = damp(this.scaleY, 1, 12, dt);
+
+    // afterimage fade
+    for (const a of this.afterimages) a.life -= dt;
+    this.afterimages = this.afterimages.filter(a => a.life > 0);
+
+    // pit death
+    if (this.y > game.level.height * TILE + 240) this.hurt(game, 1, true);
+  }
+
+  private doJump(game: Game) {
+    this.vy = -JUMP_VEL;
+    this.grounded = false; this.coyote = 0; this.jumpBuffer = 0;
+    this.stretch(0.7, 1.35);
+    game.particles.dust(this.x + this.w / 2, this.y + this.h, 8);
+    game.audio.sfx('jump');
+  }
+  private stretch(sx: number, sy: number) { this.scaleX = sx; this.scaleY = sy; }
+  private spawnAfterimage() {
+    this.afterimages.push({ x: this.x, y: this.y, life: 0.22, facing: this.facing });
+  }
+  private overlaps(r: Rect) { return this.x < r.x + r.w && this.x + this.w > r.x && this.y < r.y + r.h && this.y + this.h > r.y; }
+
+  hurt(game: Game, amount = 1, pit = false) {
+    if (this.invuln > 0 && !pit) return;
+    this.hp -= amount;
+    this.invuln = 1.1;
+    game.camera.addTrauma(0.5);
+    game.addHitstop(0.06);
+    game.audio.sfx('hurt');
+    game.particles.hit(this.x + this.w / 2, this.y + this.h / 2, 18);
+    if (this.hp <= 0 || pit) {
+      this.respawnAtCheckpoint();
+      game.flashText(pit ? 'The shrine wind returns you.' : 'The fragment rekindles.');
+      game.camera.snap(this.x - 400, this.y - 300);
+    } else {
+      this.vx = -this.facing * 260;
+      this.vy = -340;
+    }
+  }
+
+  draw(game: Game, c: CanvasRenderingContext2D) {
+    // afterimages
+    for (const a of this.afterimages) {
+      c.globalAlpha = (a.life / 0.22) * 0.35;
+      c.fillStyle = game.world === 'day' ? '#ffd777' : '#a9d6ff';
+      c.fillRect(a.x - game.camera.x + 3, a.y - game.camera.y + 3, this.w - 6, this.h - 6);
+    }
+    c.globalAlpha = 1;
+
+    const sx = this.x - game.camera.x, sy = this.y - game.camera.y;
+    const blink = this.invuln > 0 && Math.floor(this.invuln * 18) % 2 === 0;
+    if (blink) c.globalAlpha = 0.4;
+    // run / idle bob
+    const speed = Math.abs(this.vx) / MAX_SPEED;
+    const bob = this.grounded ? Math.sin(this.animTime * 16) * speed * 2 : 0;
+    const idle = this.grounded && speed < 0.05 ? Math.sin(this.animTime * 3) * 1.2 : 0;
+
+    c.save();
+    c.translate(sx + this.w / 2, sy + this.h / 2 + bob + idle);
+    c.scale(this.facing * this.scaleX, this.scaleY);
+    // ---- ASSET HOOK: replace this block with player sprite frame draw ----
+    // shadow
+    c.fillStyle = 'rgba(0,0,0,.28)'; c.beginPath(); c.ellipse(0, 25 / this.scaleY, 15, 5, 0, 0, Math.PI * 2); c.fill();
+    // robe (gold->red->dark)
+    const grad = c.createLinearGradient(0, -22, 0, 24);
+    grad.addColorStop(0, '#f7d17a'); grad.addColorStop(.5, '#a8302e'); grad.addColorStop(1, '#2b0f19');
+    c.fillStyle = grad;
+    c.beginPath(); c.moveTo(-8, -14); c.lineTo(10, -10); c.lineTo(8, 22); c.lineTo(-10, 22); c.closePath(); c.fill();
+    // legs (animated)
+    const legSwing = this.grounded ? Math.sin(this.animTime * 16) * speed * 6 : 4;
+    c.strokeStyle = '#1b0b12'; c.lineWidth = 3; c.beginPath();
+    c.moveTo(-4, 20); c.lineTo(-8, 28 + (this.grounded ? legSwing : 0));
+    c.moveTo(5, 20); c.lineTo(9, 28 - (this.grounded ? legSwing : 0)); c.stroke();
+    // head
+    c.fillStyle = '#f1c28f'; c.beginPath(); c.arc(0, -20, 8, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#1b0b12'; c.fillRect(-7, -27, 14, 7);
+    // eye-shard glow (colored by world)
+    const eyeCol = game.world === 'day' ? '#ffd277' : '#a9d6ff';
+    c.fillStyle = eyeCol; c.shadowColor = game.world === 'day' ? '#ffb83b' : '#8bd2ff'; c.shadowBlur = 16;
+    c.beginPath(); c.arc(6, -13, 3, 0, Math.PI * 2); c.fill();
+    c.fillRect(9, -13, 12, 3);
+    c.shadowBlur = 0;
+    // attack arc
+    if (this.attackTimer > 0) {
+      const t = this.attackTimer / 0.16;
+      c.globalAlpha = t; c.strokeStyle = eyeCol; c.lineWidth = 5;
+      c.beginPath(); c.arc(24, -2, 18 + (1 - t) * 16, -1.3, 1.3); c.stroke();
+    }
+    // ---- END ASSET HOOK ----
+    c.restore();
+    c.globalAlpha = 1;
+  }
+}

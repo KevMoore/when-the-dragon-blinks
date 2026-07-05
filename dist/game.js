@@ -1,0 +1,807 @@
+// Central orchestrator: state machine, physics/collision, and render dispatch.
+import { clamp, easeOutCubic, overlap, rand } from './math.js';
+import { LOGICAL_W, LOGICAL_H, TILE } from './types.js';
+import { Input } from './input.js';
+import { AudioManager } from './audio.js';
+import { Camera } from './camera.js';
+import { Particles } from './particles.js';
+import { Player } from './player.js';
+import { Enemy } from './enemy.js';
+import { LanternEater } from './boss.js';
+import { Platform } from './platform.js';
+import { levels, loreTexts, codexEntries } from './content.js';
+import { loadSave, persist } from './storage.js';
+import * as bg from './background.js';
+import * as ui from './ui.js';
+export class Game {
+    constructor(ctx) {
+        this.ctx = ctx;
+        this.input = new Input(document.getElementById('game'));
+        this.camera = new Camera();
+        this.particles = new Particles();
+        this.player = new Player();
+        this.state = 'title';
+        this.currentLevelIndex = 0;
+        this.level = levels[0];
+        this.enemies = [];
+        this.platforms = [];
+        this.boss = null;
+        this.projectiles = [];
+        this.world = 'day';
+        this.transition = 1;
+        this.dayAmount = 1;
+        this.eyeBlink = 1;
+        this.flash = 0;
+        this.flashColor = '#ffd777';
+        this.time = 0;
+        this.hitstop = 0;
+        this.elapsed = 0;
+        this.lastLevelTime = 0;
+        this.lastWasBest = false;
+        this.debug = false;
+        // menu selections
+        this.titleSelection = 0;
+        this.levelSelection = 0;
+        this.codexSelection = 0;
+        this.settingsSelection = 0;
+        this.pauseSelection = 0;
+        this.completeSelection = 0;
+        this.settingsReturn = 'title';
+        this.lorePanel = null;
+        this.loreAnim = 0;
+        this.message = null;
+        this.activatedCheckpoints = new Set();
+        this.save = loadSave();
+        this.audio = new AudioManager(this.save.settings);
+        this.state = 'title';
+    }
+    totalRelics() { return levels.reduce((n, l) => n + l.relics.length, 0); }
+    // ---- persistence -------------------------------------------------------
+    persistSave() { persist(this.save); }
+    unlockCodex(ids) { for (const id of ids)
+        if (!this.save.codex.includes(id))
+            this.save.codex.push(id); this.persistSave(); }
+    // ---- level lifecycle ---------------------------------------------------
+    startLevel(i, withIntro = true) {
+        this.currentLevelIndex = clamp(i, 0, levels.length - 1);
+        this.level = levels[this.currentLevelIndex];
+        this.world = 'day';
+        this.transition = 1;
+        this.dayAmount = 1;
+        this.flash = 0;
+        this.audio.setWorld('day', true);
+        this.player.reset(this.level.spawn);
+        this.player.checkpoint = { ...this.level.spawn };
+        this.enemies = this.level.entities.map(e => new Enemy(e.kind, e.x, e.y));
+        this.platforms = (this.level.platforms || []).map(p => new Platform(p));
+        this.boss = this.level.isBoss ? new LanternEater() : null;
+        this.projectiles = [];
+        this.particles.clear();
+        this.activatedCheckpoints.clear();
+        this.elapsed = 0;
+        this.message = null;
+        this.camera.snap(0, 0);
+        this.camera.follow(this.player.x, this.player.y, 1, 0, this.level.width, this.level.height, 0.016);
+        this.camera.snap(this.camera.x, this.camera.y);
+        if (withIntro)
+            this.openLore(this.level.introLore, 'playing');
+        else
+            this.state = 'playing';
+    }
+    openLore(id, nextMode) {
+        const base = loreTexts[id];
+        if (!base)
+            return;
+        this.lorePanel = { ...base, nextMode: nextMode || base.nextMode };
+        this.loreAnim = 0;
+        this.state = 'lore';
+    }
+    closeLore() {
+        if (!this.lorePanel)
+            return;
+        const next = this.lorePanel.nextMode, after = this.lorePanel.after;
+        this.lorePanel = null;
+        if (after)
+            after();
+        this.state = next;
+    }
+    flashText(text) { this.message = text ? { text, t: 0, max: 2.6 } : null; }
+    addHitstop(s) { this.hitstop = Math.max(this.hitstop, s); }
+    spawnEnemy(kind, x, y) { this.enemies.push(new Enemy(kind, x, y)); }
+    completeLevel() {
+        const id = this.level.id;
+        if (!this.save.completed.includes(id))
+            this.save.completed.push(id);
+        this.save.highestUnlocked = Math.max(this.save.highestUnlocked, Math.min(this.currentLevelIndex + 1, levels.length - 1));
+        this.unlockCodex(this.level.unlockCodexOnComplete);
+        this.lastLevelTime = this.elapsed;
+        const prev = this.save.bestTimes[id];
+        this.lastWasBest = prev === undefined || this.elapsed < prev;
+        if (this.lastWasBest)
+            this.save.bestTimes[id] = this.elapsed;
+        this.persistSave();
+        this.openLore(this.level.outroLore, this.level.isBoss ? 'gameComplete' : 'levelComplete');
+    }
+    onBossDefeated() {
+        this.audio.sfx('victory');
+        this.flashText('Balance restored. The dragon blinks again.');
+        this.completeLevel();
+    }
+    // ---- collision ---------------------------------------------------------
+    tileAt(tx, ty) {
+        if (ty < 0 || ty >= this.level.height || tx < 0 || tx >= this.level.width)
+            return '#';
+        return this.level.tiles[ty][tx] || '.';
+    }
+    isHazardChar(ch) { return ch === '^' || (ch === 'F' && this.world === 'day') || (ch === 'S' && this.world === 'night'); }
+    solidsForRect(r, world = this.world) {
+        const out = [];
+        const x0 = Math.floor(r.x / TILE) - 1, x1 = Math.floor((r.x + r.w) / TILE) + 1;
+        const y0 = Math.floor(r.y / TILE) - 1, y1 = Math.floor((r.y + r.h) / TILE) + 1;
+        for (let y = y0; y <= y1; y++)
+            for (let x = x0; x <= x1; x++) {
+                const ch = this.tileAt(x, y);
+                const solid = ch === '#' || ch === 'g' || (ch === 'D' && world === 'day') || (ch === 'N' && world === 'night');
+                if (solid)
+                    out.push({ x: x * TILE, y: y * TILE, w: TILE, h: TILE, oneWay: false });
+                else if (ch === 'o')
+                    out.push({ x: x * TILE, y: y * TILE, w: TILE, h: TILE, oneWay: true });
+            }
+        for (const pl of this.platforms) {
+            if (!pl.solidNow(world))
+                continue;
+            if (pl.x + pl.w < r.x - TILE || pl.x > r.x + r.w + TILE || pl.y + pl.h < r.y - TILE || pl.y > r.y + r.h + TILE)
+                continue;
+            out.push({ x: pl.x, y: pl.y, w: pl.w, h: pl.h, oneWay: false });
+        }
+        return out;
+    }
+    overlapsSolid(r, world = this.world) {
+        return this.solidsForRect(r, world).some(s => !s.oneWay && overlap(r, s));
+    }
+    moveEntity(e, dx, dy, corner = false) {
+        const steps = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) / 6));
+        const sx = dx / steps, sy = dy / steps;
+        for (let i = 0; i < steps; i++) {
+            // horizontal
+            e.x += sx;
+            let rect = { x: e.x, y: e.y, w: e.w, h: e.h };
+            for (const s of this.solidsForRect(rect)) {
+                if (s.oneWay || !overlap(rect, s))
+                    continue;
+                if (sx > 0)
+                    e.x = s.x - e.w;
+                else if (sx < 0)
+                    e.x = s.x + s.w;
+                e.vx = 0;
+                rect = { x: e.x, y: e.y, w: e.w, h: e.h };
+            }
+            // vertical
+            const prevBottom = e.y + e.h;
+            e.y += sy;
+            if (e.grounded !== undefined)
+                e.grounded = false;
+            rect = { x: e.x, y: e.y, w: e.w, h: e.h };
+            for (const s of this.solidsForRect(rect)) {
+                if (!overlap(rect, s))
+                    continue;
+                if (s.oneWay) {
+                    const dropping = (e.dropThrough || 0) > 0;
+                    if (sy > 0 && prevBottom <= s.y + 2 && !dropping) {
+                        e.y = s.y - e.h;
+                        e.vy = 0;
+                        if (e.grounded !== undefined)
+                            e.grounded = true;
+                        rect = { x: e.x, y: e.y, w: e.w, h: e.h };
+                    }
+                    continue;
+                }
+                if (sy > 0) {
+                    e.y = s.y - e.h;
+                    e.vy = 0;
+                    if (e.grounded !== undefined)
+                        e.grounded = true;
+                }
+                else if (sy < 0) {
+                    if (corner) {
+                        let nudged = false;
+                        for (const off of [4, -4, 6, -6, 9, -9]) {
+                            if (!this.overlapsSolid({ x: e.x + off, y: e.y, w: e.w, h: e.h })) {
+                                e.x += off;
+                                nudged = true;
+                                break;
+                            }
+                        }
+                        if (nudged) {
+                            rect = { x: e.x, y: e.y, w: e.w, h: e.h };
+                            continue;
+                        }
+                    }
+                    e.y = s.y + s.h;
+                    e.vy = 0;
+                }
+                rect = { x: e.x, y: e.y, w: e.w, h: e.h };
+            }
+        }
+    }
+    tryToggleWorld(forced = false) {
+        const next = this.world === 'day' ? 'night' : 'day';
+        if (!forced && this.overlapsSolid(this.player.rect(), next)) {
+            this.flashText('The new world would crush you here. Step aside.');
+            this.particles.hit(this.player.x + this.player.w / 2, this.player.y + this.player.h / 2, 10);
+            return false;
+        }
+        this.world = next;
+        this.transition = 0;
+        this.flash = 0.55;
+        this.flashColor = next === 'day' ? '#ffd777' : '#a9d6ff';
+        this.audio.setWorld(next);
+        this.audio.sfx('toggle');
+        this.camera.addTrauma(forced ? 0.5 : 0.28);
+        const cx = this.player.x + this.player.w / 2, cy = this.player.y + this.player.h / 2;
+        this.particles.sparks(cx, cy, 26, next === 'day' ? '#ffd777' : '#a9d6ff');
+        this.particles.ring(cx, cy, 20, 220, next === 'day' ? '#ffe19a' : '#bfeeff');
+        return true;
+    }
+    // ---- main update -------------------------------------------------------
+    update(dt) {
+        this.input.updateGamepad();
+        this.time += dt;
+        if (this.input.just('debug'))
+            this.debug = !this.debug;
+        switch (this.state) {
+            case 'title':
+                this.updateTitle();
+                break;
+            case 'levelSelect':
+                this.updateLevelSelect();
+                break;
+            case 'codex':
+                this.updateCodex();
+                break;
+            case 'settings':
+                this.updateSettings();
+                break;
+            case 'lore':
+                this.updateLore(dt);
+                break;
+            case 'playing':
+                this.updatePlaying(dt);
+                break;
+            case 'paused':
+                this.updatePause();
+                break;
+            case 'levelComplete':
+                this.updateLevelComplete();
+                break;
+            case 'gameComplete':
+                this.updateGameComplete();
+                break;
+        }
+        // global fx
+        this.transition = Math.min(1, this.transition + dt * 3);
+        if (this.state !== 'title') {
+            const eased = easeOutCubic(this.transition);
+            this.dayAmount = this.world === 'day' ? eased : 1 - eased;
+            this.eyeBlink = 1;
+        }
+        this.flash = Math.max(0, this.flash - dt * 2.5);
+        this.particles.update(dt);
+        this.camera.update(dt);
+        this.camera.enabled = this.save.settings.shake && !this.save.settings.reducedMotion;
+        if (this.message) {
+            this.message.t += dt;
+            if (this.message.t > this.message.max)
+                this.message = null;
+        }
+        this.input.endFrame();
+    }
+    updatePlaying(dt) {
+        if (this.input.just('pause')) {
+            this.state = 'paused';
+            this.pauseSelection = 0;
+            return;
+        }
+        if (this.input.just('toggle'))
+            this.tryToggleWorld();
+        if (this.hitstop > 0) {
+            this.hitstop -= dt;
+            return;
+        }
+        for (const pl of this.platforms)
+            pl.update(dt, this.time);
+        this.carryRider();
+        this.player.update(this, dt);
+        for (const e of this.enemies)
+            e.update(this, dt);
+        this.enemies = this.enemies.filter(e => e.alive);
+        if (this.boss)
+            this.boss.update(this, dt);
+        this.updateProjectiles(dt);
+        this.checkHazardsAndObjects();
+        this.camera.follow(this.player.x + this.player.w / 2, this.player.y + this.player.h / 2, this.player.facing, this.player.vx, this.level.width, this.level.height, dt);
+        if (this.level.windZones)
+            for (const z of this.level.windZones)
+                if (Math.random() < 0.15)
+                    this.particles.embers(rand(z.x, z.x + z.w), z.y + z.h, 1);
+        if (this.dayAmount < 0.5)
+            this.particles.petal(this.level.width * TILE, 'night');
+        else
+            this.particles.petal(this.level.width * TILE, 'day');
+        this.elapsed += dt;
+    }
+    // move the player with a platform it is resting on
+    carryRider() {
+        const p = this.player;
+        if (!p.grounded && p.vy < 0)
+            return;
+        for (const pl of this.platforms) {
+            if (!pl.solidNow(this.world))
+                continue;
+            const onTop = p.x + p.w > pl.x + 2 && p.x < pl.x + pl.w - 2 && Math.abs((p.y + p.h) - pl.y) <= 8;
+            if (onTop) {
+                p.x += pl.dx;
+                p.y += pl.dy;
+                pl.touch();
+                break;
+            }
+        }
+    }
+    updateProjectiles(dt) {
+        for (const pr of this.projectiles) {
+            pr.x += pr.vx * dt;
+            pr.y += pr.vy * dt;
+            pr.life -= dt;
+            const box = { x: pr.x - pr.r, y: pr.y - pr.r, w: pr.r * 2, h: pr.r * 2 };
+            if (pr.hostile && overlap(this.player.rect(), box)) {
+                pr.life = 0;
+                this.player.hurt(this);
+                this.particles.hit(pr.x, pr.y, 10);
+            }
+            if (this.overlapsSolid(box)) {
+                pr.life = 0;
+                this.particles.sparks(pr.x, pr.y, 6, '#ffb45d');
+            }
+        }
+        this.projectiles = this.projectiles.filter(p => p.life > 0);
+    }
+    checkHazardsAndObjects() {
+        const pr = this.player.rect();
+        const x0 = Math.floor(pr.x / TILE) - 1, x1 = Math.floor((pr.x + pr.w) / TILE) + 1;
+        const y0 = Math.floor(pr.y / TILE) - 1, y1 = Math.floor((pr.y + pr.h) / TILE) + 1;
+        for (let y = y0; y <= y1; y++)
+            for (let x = x0; x <= x1; x++) {
+                if (this.isHazardChar(this.tileAt(x, y)) && overlap(pr, { x: x * TILE + 5, y: y * TILE + 6, w: TILE - 10, h: TILE - 8 }))
+                    this.player.hurt(this);
+            }
+        this.level.checkpoints.forEach((cp, i) => {
+            if (overlap(pr, cp)) {
+                this.player.checkpoint = { x: cp.x, y: cp.y - this.player.h + cp.h };
+                if (!this.activatedCheckpoints.has(i)) {
+                    this.activatedCheckpoints.add(i);
+                    this.audio.sfx('checkpoint');
+                    this.particles.sparks(cp.x + 12, cp.y + 16, 16, '#ffd777');
+                    this.flashText('Checkpoint kindled.');
+                }
+            }
+        });
+        for (const shrine of this.level.shrines) {
+            const r = { x: shrine.x - 18, y: shrine.y - 50, w: 60, h: 70 };
+            if (overlap(pr, r) && this.input.just('interact')) {
+                this.openLore(shrine.textId, 'playing');
+                this.audio.sfx('shrine');
+            }
+        }
+        for (const relic of this.level.relics) {
+            if (this.save.relics.includes(relic.id))
+                continue;
+            if (overlap(pr, { x: relic.x, y: relic.y, w: 22, h: 22 })) {
+                this.save.relics.push(relic.id);
+                this.persistSave();
+                this.particles.sparks(relic.x + 11, relic.y + 11, 26, '#ffd777');
+                this.audio.sfx('collect');
+                this.openLore(relic.noteId, 'playing');
+            }
+        }
+        if (!this.level.isBoss && overlap(pr, this.level.exit))
+            this.completeLevel();
+    }
+    // ---- menu updates ------------------------------------------------------
+    updateTitle() {
+        // ambient cosmic blink of the distant eye behind the menu
+        this.dayAmount = clamp(0.5 + Math.sin(this.time * 0.4) * 0.7, 0, 1);
+        const blink = Math.sin(this.time * 0.9);
+        this.eyeBlink = blink > 0.4 ? 1 : clamp((blink + 1) / 1.4, 0.1, 1);
+        this.transition = 1;
+        if (Math.random() < 0.9)
+            this.particles.stars(LOGICAL_W);
+        const opts = 4;
+        if (this.input.just('up')) {
+            this.titleSelection = (this.titleSelection + opts - 1) % opts;
+            this.audio.sfx('menu');
+        }
+        if (this.input.just('down')) {
+            this.titleSelection = (this.titleSelection + 1) % opts;
+            this.audio.sfx('menu');
+        }
+        if (this.input.just('codex')) {
+            this.state = 'codex';
+            return;
+        }
+        if (this.input.pointer?.clicked) {
+            const y = this.input.pointer.y, px = LOGICAL_W / 2 - 165, py = 268;
+            for (let i = 0; i < opts; i++)
+                if (y > py + 14 + i * 42 && y < py + 50 + i * 42) {
+                    this.titleSelection = i;
+                    this.chooseTitle();
+                }
+        }
+        if (this.input.just('confirm'))
+            this.chooseTitle();
+    }
+    chooseTitle() {
+        this.audio.sfx('menu');
+        if (this.titleSelection === 0)
+            this.startLevel(this.save.highestUnlocked >= levels.length ? 0 : this.save.highestUnlocked, true);
+        else if (this.titleSelection === 1)
+            this.state = 'levelSelect';
+        else if (this.titleSelection === 2)
+            this.state = 'codex';
+        else if (this.titleSelection === 3) {
+            this.settingsReturn = 'title';
+            this.settingsSelection = 0;
+            this.state = 'settings';
+        }
+    }
+    updateLevelSelect() {
+        if (this.input.just('back')) {
+            this.state = 'title';
+            return;
+        }
+        const max = Math.min(this.save.highestUnlocked, levels.length - 1);
+        if (this.input.just('left')) {
+            this.levelSelection = clamp(this.levelSelection - 1, 0, max);
+            this.audio.sfx('menu');
+        }
+        if (this.input.just('right')) {
+            this.levelSelection = clamp(this.levelSelection + 1, 0, max);
+            this.audio.sfx('menu');
+        }
+        if (this.input.just('confirm') && this.levelSelection <= this.save.highestUnlocked)
+            this.startLevel(this.levelSelection, true);
+    }
+    updateCodex() {
+        if (this.input.just('back')) {
+            this.state = 'title';
+            return;
+        }
+        const n = codexEntries.length;
+        if (this.input.just('up')) {
+            this.codexSelection = (this.codexSelection + n - 1) % n;
+            this.audio.sfx('menu');
+        }
+        if (this.input.just('down')) {
+            this.codexSelection = (this.codexSelection + 1) % n;
+            this.audio.sfx('menu');
+        }
+    }
+    updateSettings() {
+        if (this.input.just('back')) {
+            this.state = this.settingsReturn;
+            return;
+        }
+        const n = 5;
+        if (this.input.just('up')) {
+            this.settingsSelection = (this.settingsSelection + n - 1) % n;
+            this.audio.sfx('menu');
+        }
+        if (this.input.just('down')) {
+            this.settingsSelection = (this.settingsSelection + 1) % n;
+            this.audio.sfx('menu');
+        }
+        const s = this.save.settings;
+        const left = this.input.just('left'), right = this.input.just('right'), confirm = this.input.just('confirm');
+        if (this.settingsSelection === 0) {
+            if (left)
+                s.master = clamp(Math.round((s.master - 0.1) * 10) / 10, 0, 1);
+            if (right)
+                s.master = clamp(Math.round((s.master + 0.1) * 10) / 10, 0, 1);
+            if (left || right) {
+                this.audio.applySettings();
+                this.audio.sfx('menu');
+                this.persistSave();
+            }
+        }
+        else if (this.settingsSelection === 1 && (left || right || confirm)) {
+            s.music = !s.music;
+            this.audio.applySettings();
+            this.persistSave();
+            this.audio.sfx('menu');
+        }
+        else if (this.settingsSelection === 2 && (left || right || confirm)) {
+            s.shake = !s.shake;
+            this.persistSave();
+            this.audio.sfx('menu');
+        }
+        else if (this.settingsSelection === 3 && (left || right || confirm)) {
+            s.reducedMotion = !s.reducedMotion;
+            this.persistSave();
+            this.audio.sfx('menu');
+        }
+        else if (this.settingsSelection === 4 && confirm) {
+            this.state = this.settingsReturn;
+            this.audio.sfx('menu');
+        }
+    }
+    updateLore(dt) {
+        this.loreAnim = Math.min(1, this.loreAnim + dt * 5);
+        if (this.loreAnim > 0.3 && (this.input.just('confirm') || this.input.just('back') || this.input.pointer?.clicked))
+            this.closeLore();
+    }
+    updatePause() {
+        if (this.input.just('pause') || this.input.just('back')) {
+            this.state = 'playing';
+            return;
+        }
+        const n = 4;
+        if (this.input.just('up')) {
+            this.pauseSelection = (this.pauseSelection + n - 1) % n;
+            this.audio.sfx('menu');
+        }
+        if (this.input.just('down')) {
+            this.pauseSelection = (this.pauseSelection + 1) % n;
+            this.audio.sfx('menu');
+        }
+        if (this.input.just('confirm')) {
+            this.audio.sfx('menu');
+            if (this.pauseSelection === 0)
+                this.state = 'playing';
+            else if (this.pauseSelection === 1)
+                this.startLevel(this.currentLevelIndex, false);
+            else if (this.pauseSelection === 2) {
+                this.settingsReturn = 'paused';
+                this.settingsSelection = 0;
+                this.state = 'settings';
+            }
+            else if (this.pauseSelection === 3)
+                this.state = 'title';
+        }
+    }
+    updateLevelComplete() {
+        if (this.input.just('confirm') || this.input.pointer?.clicked) {
+            const next = this.currentLevelIndex + 1;
+            if (next < levels.length)
+                this.startLevel(next, true);
+            else
+                this.state = 'gameComplete';
+        }
+        if (this.input.just('back'))
+            this.state = 'title';
+    }
+    updateGameComplete() {
+        const n = 3;
+        if (this.input.just('left'))
+            this.completeSelection = (this.completeSelection + n - 1) % n;
+        if (this.input.just('right'))
+            this.completeSelection = (this.completeSelection + 1) % n;
+        if (this.input.just('confirm') || this.input.pointer?.clicked) {
+            this.audio.sfx('menu');
+            if (this.completeSelection === 0)
+                this.state = 'codex';
+            else if (this.completeSelection === 1)
+                this.state = 'levelSelect';
+            else
+                this.state = 'title';
+        }
+        if (this.input.just('back'))
+            this.state = 'title';
+    }
+    // ---- render ------------------------------------------------------------
+    render() {
+        const c = this.ctx;
+        c.save();
+        c.clearRect(0, 0, LOGICAL_W, LOGICAL_H);
+        c.translate(this.camera.shakeX, this.camera.shakeY);
+        switch (this.state) {
+            case 'title':
+                bg.drawSky(this, c);
+                bg.drawParallax(this, c);
+                this.particles.draw(c, 0, 0, this.world);
+                ui.drawTitle(this, c);
+                break;
+            case 'levelSelect':
+                bg.drawSky(this, c);
+                bg.drawParallax(this, c);
+                ui.drawLevelSelect(this, c);
+                break;
+            case 'codex':
+                bg.drawSky(this, c);
+                bg.drawParallax(this, c);
+                ui.drawCodex(this, c);
+                break;
+            case 'settings':
+                if (this.settingsReturn === 'paused')
+                    this.drawWorld(c);
+                else {
+                    bg.drawSky(this, c);
+                    bg.drawParallax(this, c);
+                }
+                ui.drawSettings(this, c);
+                break;
+            default:
+                this.drawWorld(c);
+                if (this.state === 'lore')
+                    ui.drawLore(this, c);
+                if (this.state === 'paused')
+                    ui.drawPause(this, c);
+                if (this.state === 'levelComplete')
+                    ui.drawLevelComplete(this, c);
+                if (this.state === 'gameComplete')
+                    ui.drawGameComplete(this, c);
+        }
+        // toggle flash
+        if (this.flash > 0.01) {
+            c.globalAlpha = this.flash * 0.5;
+            c.fillStyle = this.flashColor;
+            c.fillRect(-40, -40, LOGICAL_W + 80, LOGICAL_H + 80);
+            c.globalAlpha = 1;
+        }
+        c.restore();
+    }
+    drawWorld(c) {
+        bg.drawSky(this, c);
+        bg.drawParallax(this, c);
+        bg.drawWind(this, c);
+        bg.drawTiles(this, c);
+        this.drawPlatforms(c);
+        this.drawObjects(c);
+        for (const e of this.enemies)
+            e.draw(this, c);
+        if (this.boss)
+            this.boss.draw(this, c);
+        for (const pr of this.projectiles)
+            this.drawProjectile(c, pr);
+        this.player.draw(this, c);
+        this.particles.draw(c, this.camera.x, this.camera.y, this.world);
+        bg.drawLighting(this, c);
+        bg.drawVignette(c);
+        ui.drawHUD(this, c);
+        if (this.debug)
+            ui.drawDebug(this, c);
+        if (this.message)
+            ui.drawFloatingText(c, this.message);
+    }
+    drawPlatforms(c) {
+        for (const pl of this.platforms) {
+            if (pl.gone)
+                continue;
+            const active = pl.solidNow(this.world);
+            const jitter = pl.crumble && pl.touched && !pl.gone ? Math.sin(this.time * 40) * pl.shakeT * 2 : 0;
+            const x = pl.x - this.camera.x + jitter, y = pl.y - this.camera.y;
+            c.globalAlpha = active ? 1 : 0.25;
+            c.save();
+            if (active) {
+                c.shadowColor = pl.crumble ? '#c98a3a' : (this.world === 'day' ? '#ffcf7a' : '#a9d6ff');
+                c.shadowBlur = 12;
+            }
+            c.fillStyle = pl.crumble ? '#7a5a34' : '#3b4c63';
+            c.fillRect(x, y, pl.w, pl.h);
+            c.fillStyle = pl.crumble ? '#a9803f' : '#5f7ea6';
+            c.fillRect(x, y, pl.w, 5);
+            if (pl.crumble) {
+                c.strokeStyle = 'rgba(0,0,0,.4)';
+                c.beginPath();
+                c.moveTo(x + pl.w * 0.4, y);
+                c.lineTo(x + pl.w * 0.5, y + pl.h);
+                c.stroke();
+            }
+            c.restore();
+        }
+        c.globalAlpha = 1;
+    }
+    drawObjects(c) {
+        // checkpoints
+        for (const r of this.level.checkpoints) {
+            const x = r.x - this.camera.x, y = r.y - this.camera.y;
+            c.fillStyle = '#251422';
+            c.fillRect(x + 10, y + 16, 8, 40);
+            c.fillStyle = '#b33a32';
+            c.beginPath();
+            c.moveTo(x + 18, y + 18);
+            c.lineTo(x + 46, y + 28);
+            c.lineTo(x + 18, y + 38);
+            c.fill();
+            c.save();
+            c.shadowColor = '#ffd777';
+            c.shadowBlur = 12;
+            c.fillStyle = '#ffd77d';
+            c.beginPath();
+            c.arc(x + 14, y + 14, 7 + Math.sin(this.time * 4) * 1, 0, Math.PI * 2);
+            c.fill();
+            c.restore();
+        }
+        // shrines
+        for (const s of this.level.shrines) {
+            const x = s.x - this.camera.x, y = s.y - this.camera.y;
+            c.fillStyle = '#2b121d';
+            c.fillRect(x, y, 26, 55);
+            c.fillStyle = '#d6a348';
+            c.fillRect(x - 8, y, 42, 8);
+            c.save();
+            c.shadowColor = this.world === 'day' ? '#ffd777' : '#a9d6ff';
+            c.shadowBlur = 16;
+            c.fillStyle = this.world === 'day' ? '#ffd777' : '#a9d6ff';
+            c.beginPath();
+            c.arc(x + 13, y + 24, 7 + Math.sin(this.time * 5) * 1.5, 0, Math.PI * 2);
+            c.fill();
+            c.restore();
+            if (Math.abs(this.player.x - s.x) < 60 && Math.abs(this.player.y - s.y) < 74)
+                this.drawPrompt(c, x + 13, y - 26, 'F / ↑  Lore');
+        }
+        // relics
+        for (const relic of this.level.relics) {
+            if (this.save.relics.includes(relic.id))
+                continue;
+            const x = relic.x - this.camera.x, y = relic.y - this.camera.y + Math.sin(this.time * 4 + relic.x) * 5;
+            c.save();
+            c.shadowColor = '#ffd777';
+            c.shadowBlur = 20;
+            c.fillStyle = '#ffe6a0';
+            c.beginPath();
+            c.moveTo(x + 11, y);
+            c.lineTo(x + 22, y + 11);
+            c.lineTo(x + 11, y + 22);
+            c.lineTo(x, y + 11);
+            c.closePath();
+            c.fill();
+            c.restore();
+        }
+        // exit gate
+        if (!this.level.isBoss) {
+            const e = this.level.exit, x = e.x - this.camera.x, y = e.y - this.camera.y;
+            c.save();
+            c.shadowColor = this.world === 'day' ? '#ffbd54' : '#a9d6ff';
+            c.shadowBlur = 22;
+            c.strokeStyle = this.world === 'day' ? '#ffd777' : '#a9d6ff';
+            c.lineWidth = 5;
+            c.beginPath();
+            c.roundRect(x, y, e.w, e.h, 16);
+            c.stroke();
+            c.fillStyle = 'rgba(255,255,255,.07)';
+            c.fillRect(x + 8, y + 10, e.w - 16, e.h - 20);
+            // small eye motif
+            c.fillStyle = this.world === 'day' ? '#ffd777' : '#a9d6ff';
+            c.beginPath();
+            c.ellipse(x + e.w / 2, y + e.h / 2, 10, 5, 0, 0, Math.PI * 2);
+            c.fill();
+            c.restore();
+        }
+    }
+    drawProjectile(c, p) {
+        const x = p.x - this.camera.x, y = p.y - this.camera.y;
+        c.save();
+        c.shadowColor = p.kind === 'shard' ? '#ffcaa0' : '#ff674d';
+        c.shadowBlur = 16;
+        c.fillStyle = p.kind === 'shard' ? '#ffd9a0' : '#ffb45d';
+        c.beginPath();
+        c.arc(x, y, p.r, 0, Math.PI * 2);
+        c.fill();
+        c.fillStyle = '#3b0c12';
+        c.fillRect(x - 3, y - 2, 6, 4);
+        c.restore();
+    }
+    drawPrompt(c, x, y, text) {
+        c.save();
+        c.font = '14px Georgia';
+        c.textAlign = 'center';
+        const w = c.measureText(text).width + 20;
+        c.fillStyle = 'rgba(0,0,0,.6)';
+        c.fillRect(x - w / 2, y - 16, w, 22);
+        c.strokeStyle = 'rgba(246,191,94,.5)';
+        c.strokeRect(x - w / 2, y - 16, w, 22);
+        c.fillStyle = '#fff1ca';
+        c.fillText(text, x, y);
+        c.restore();
+    }
+}
+//# sourceMappingURL=game.js.map
