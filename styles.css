@@ -28,8 +28,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: radial-gradi
 .touch-right button[data-action="jump"] { width: 88px; height: 88px; right: 8px; bottom: 8px; background: linear-gradient(150deg, rgba(255,150,120,.34), rgba(217,74,58,.24)); border-color: rgba(255,190,140,.5); }
 .touch-right button[data-action="attack"] { width: 88px; height: 88px; right: 106px; bottom: 8px; background: linear-gradient(150deg, rgba(255,200,150,.3), rgba(200,120,60,.16)); }
 /* left-thumb drag joystick (glass) */
-#stick-zone { position: absolute; left: 0; bottom: 0; width: 52%; height: 74%; pointer-events: none; touch-action: none; }
-body.playing #stick-zone { pointer-events: auto; }
+/* active in play AND menus so the dial can navigate menus on touch */
+#stick-zone { position: absolute; left: 0; bottom: 0; width: 46%; height: 66%; pointer-events: auto; touch-action: none; }
 #touch-stick { position: fixed; left: max(28px, env(safe-area-inset-left)); bottom: max(28px, env(safe-area-inset-bottom)); width: clamp(120px, 18vw, 156px); height: clamp(120px, 18vw, 156px); pointer-events: none; z-index: 7; background: url('assets/sprites/ui/stick_base.png') center/contain no-repeat; filter: drop-shadow(0 6px 16px rgba(0,0,0,.42)); }
 #stick-knob { position: absolute; left: 50%; top: 50%; width: 44%; height: 44%; margin-left: -22%; margin-top: -22%; background: url('assets/sprites/ui/stick_knob.png') center/contain no-repeat; filter: drop-shadow(0 3px 9px rgba(0,0,0,.5)); transition: transform .03s linear; }
 #touch-stick.pressed #stick-knob { filter: drop-shadow(0 0 12px rgba(255,150,60,.7)) drop-shadow(0 3px 9px rgba(0,0,0,.5)); }

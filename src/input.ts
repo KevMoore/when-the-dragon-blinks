@@ -12,6 +12,8 @@ export class Input {
   axisY = 0;
   pointer: { x: number; y: number; clicked: boolean } | null = null;
   stickX = 0; stickY = 0;    // left-thumb drag joystick (-1..1)
+  stickNav = new Set<string>();          // edge-detected stick presses for menu nav
+  private prevStickNav = { x: 0, y: 0 };
   private lastDirTap: Record<string, number> = {};
 
   constructor(private canvas: HTMLCanvasElement) {
@@ -96,6 +98,20 @@ export class Input {
     }
   }
 
+  // Edge-detect the joystick into discrete up/down/left/right menu presses, so
+  // the d-pad can drive every menu on touch. Call once per frame.
+  updateStickEdges() {
+    const th = 0.5;
+    const xd = this.stickX < -th ? -1 : this.stickX > th ? 1 : 0;
+    const yd = this.stickY < -th ? -1 : this.stickY > th ? 1 : 0;
+    this.stickNav.clear();
+    if (xd === -1 && this.prevStickNav.x !== -1) this.stickNav.add('left');
+    if (xd === 1 && this.prevStickNav.x !== 1) this.stickNav.add('right');
+    if (yd === -1 && this.prevStickNav.y !== -1) this.stickNav.add('up');
+    if (yd === 1 && this.prevStickNav.y !== 1) this.stickNav.add('down');
+    this.prevStickNav = { x: xd, y: yd };
+  }
+
   toCanvasPoint(clientX: number, clientY: number) {
     const rect = this.canvas.getBoundingClientRect();
     // account for object-fit: contain letterboxing
@@ -148,12 +164,12 @@ export class Input {
   just(action: string): boolean {
     const p = this.pressed, t = this.touchPressed;
     const gpJust = (i: number) => !!this.gpButtons[i] && !this.prevGpButtons[i];
-    if (action === 'confirm') return p.has('enter') || p.has(' ') || t.has('jump') || gpJust(0) || gpJust(9);
-    if (action === 'back') return p.has('escape') || gpJust(1);
-    if (action === 'up') return p.has('arrowup') || p.has('w') || gpJust(12);
-    if (action === 'down') return p.has('arrowdown') || p.has('s') || gpJust(13);
-    if (action === 'left') return p.has('arrowleft') || p.has('a') || gpJust(14);
-    if (action === 'right') return p.has('arrowright') || p.has('d') || gpJust(15);
+    if (action === 'confirm') return p.has('enter') || p.has(' ') || t.has('jump') || t.has('attack') || gpJust(0) || gpJust(9);
+    if (action === 'back') return p.has('escape') || t.has('pause') || gpJust(1);
+    if (action === 'up') return p.has('arrowup') || p.has('w') || gpJust(12) || this.stickNav.has('up');
+    if (action === 'down') return p.has('arrowdown') || p.has('s') || gpJust(13) || this.stickNav.has('down');
+    if (action === 'left') return p.has('arrowleft') || p.has('a') || gpJust(14) || this.stickNav.has('left');
+    if (action === 'right') return p.has('arrowright') || p.has('d') || gpJust(15) || this.stickNav.has('right');
     if (action === 'jump') return p.has(' ') || t.has('jump') || gpJust(0);
     if (action === 'attack') return p.has('j') || p.has('x') || t.has('attack') || gpJust(2);
     if (action === 'dash') return p.has('shift') || p.has('k') || t.has('dash') || gpJust(1);

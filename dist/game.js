@@ -498,6 +498,7 @@ export class Game {
     // ---- main update -------------------------------------------------------
     update(dt) {
         this.input.updateGamepad();
+        this.input.updateStickEdges();
         this.time += dt;
         if (this.input.just('debug'))
             this.debug = !this.debug;
