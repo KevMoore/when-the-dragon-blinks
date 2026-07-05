@@ -15,11 +15,14 @@ export class Enemy {
   x: number; y: number; w = 28; h = 28; vx = 0; vy = 0;
   alive = true; hp = 2; baseY: number; baseX: number;
   phase = Math.random() * 10; flash = 0; fireTimer = rand(1, 2.4);
+  points = 100;
 
   constructor(kind: EntityKind, x: number, y: number) {
     this.kind = kind; this.x = x; this.y = y; this.baseY = y; this.baseX = x;
-    if (kind === 'guardian') { this.w = 34; this.h = 42; this.hp = 3; }
-    if (kind === 'sentry') { this.w = 30; this.h = 34; this.hp = 3; }
+    if (kind === 'moth') this.points = 100;
+    if (kind === 'wisp') this.points = 120;
+    if (kind === 'guardian') { this.w = 34; this.h = 42; this.hp = 3; this.points = 200; }
+    if (kind === 'sentry') { this.w = 30; this.h = 34; this.hp = 3; this.points = 150; }
   }
   rect(): Rect { return { x: this.x, y: this.y, w: this.w, h: this.h }; }
 
@@ -63,8 +66,7 @@ export class Enemy {
 
     const dangerous = this.dangerous(game);
     if (dangerous && overlap(this.rect(), p.rect())) p.hurt(game);
-    if (p.attackTimer > 0 && overlap(this.rect(), p.attackRect())) this.hit(game, p.facing);
-    // dash-through damage
+    // dash-through damage (bolts are handled centrally in Game.updateProjectiles)
     if (p.dashTime > 0 && overlap(this.rect(), p.rect())) this.hit(game, p.facing);
   }
 
@@ -75,8 +77,8 @@ export class Enemy {
     return true; // moth always solid to touch (weak in night, but still bumps)
   }
 
-  hit(game: Game, facing: number) {
-    this.hp--;
+  hit(game: Game, facing: number, dmg = 1) {
+    this.hp -= dmg;
     this.flash = 0.12;
     this.vx += facing * 90;
     game.particles.hit(centerX(this.rect()), centerY(this.rect()), 12);
@@ -88,6 +90,7 @@ export class Enemy {
       game.particles.hit(centerX(this.rect()), centerY(this.rect()), 22, game.world === 'day' ? '#ffd777' : '#a9d6ff');
       game.particles.sparks(centerX(this.rect()), centerY(this.rect()), 14);
       game.audio.sfx('collect');
+      game.addScore(this.points, centerX(this.rect()), centerY(this.rect()));
     }
   }
 

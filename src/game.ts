@@ -2,7 +2,7 @@
 import { clamp, easeOutCubic, overlap, rand } from './math.js';
 import type { Rect } from './math.js';
 import { LOGICAL_W, LOGICAL_H, TILE } from './types.js';
-import type { GameMode, WorldState, LevelData, LorePanel, FloatingText, EntityKind, Projectile } from './types.js';
+import type { GameMode, WorldState, LevelData, LorePanel, FloatingText, EntityKind, Projectile, ScorePop } from './types.js';
 import { Input } from './input.js';
 import { AudioManager } from './audio.js';
 import { Camera } from './camera.js';
@@ -41,7 +41,7 @@ export class Game {
   time = 0;
   hitstop = 0;
   elapsed = 0;
-  lastLevelTime = 0; lastWasBest = false;
+  lastLevelTime = 0; lastWasBest = false; lastLevelBonus = 0;
   debug = false;
 
   // menu selections
@@ -51,6 +51,8 @@ export class Game {
 
   lorePanel: LorePanel | null = null; loreAnim = 0;
   message: FloatingText | null = null;
+  score = 0; combo = 0; comboT = 0;
+  scorePops: ScorePop[] = [];
   private activatedCheckpoints = new Set<number>();
   private viewedShrines = new Set<number>();
   private dashHintShown = false;
@@ -84,6 +86,7 @@ export class Game {
     this.projectiles = []; this.particles.clear();
     this.activatedCheckpoints.clear();
     this.viewedShrines.clear();
+    this.combo = 0; this.comboT = 0; this.scorePops = [];
     this.elapsed = 0; this.message = null;
     this.camera.snap(0, 0);
     this.camera.follow(this.player.x, this.player.y, 1, 0, this.level.width, this.level.height, 0.016);
@@ -105,6 +108,17 @@ export class Game {
   addHitstop(s: number) { this.hitstop = Math.max(this.hitstop, s); }
   spawnEnemy(kind: EntityKind, x: number, y: number) { this.enemies.push(new Enemy(kind, x, y)); }
 
+  addScore(points: number, x: number, y: number) {
+    this.comboT = 2.6;
+    const mult = 1 + Math.min(this.combo, 9) * 0.2;   // up to ~2.8x
+    const gained = Math.round(points * mult);
+    this.combo++;
+    this.score += gained;
+    if (this.score > this.save.highScore) { this.save.highScore = this.score; this.persistSave(); }
+    this.scorePops.push({ x, y, text: '+' + gained, t: 0, color: this.combo > 3 ? '#ffd777' : '#fff1ca' });
+    if (this.scorePops.length > 40) this.scorePops.shift();
+  }
+
   completeLevel() {
     const id = this.level.id;
     if (!this.save.completed.includes(id)) this.save.completed.push(id);
@@ -114,10 +128,14 @@ export class Game {
     const prev = this.save.bestTimes[id];
     this.lastWasBest = prev === undefined || this.elapsed < prev;
     if (this.lastWasBest) this.save.bestTimes[id] = this.elapsed;
+    this.lastLevelBonus = Math.max(500, Math.round(4000 - this.elapsed * 30));
+    this.score += this.lastLevelBonus;
+    if (this.score > this.save.highScore) this.save.highScore = this.score;
     this.persistSave();
     this.openLore(this.level.outroLore, this.level.isBoss ? 'gameComplete' : 'levelComplete');
   }
   onBossDefeated() {
+    if (this.boss) this.addScore(5000, this.boss.x + this.boss.w / 2, this.boss.y + 40);
     this.audio.sfx('victory');
     this.flashText('Balance restored. The dragon blinks again.');
     this.completeLevel();
@@ -262,6 +280,9 @@ export class Game {
     this.camera.follow(this.player.x + this.player.w / 2, this.player.y + this.player.h / 2, this.player.facing, this.player.vx, this.level.width, this.level.height, dt);
     if (this.level.windZones) for (const z of this.level.windZones) if (Math.random() < 0.15) this.particles.embers(rand(z.x, z.x + z.w), z.y + z.h, 1);
     if (this.dayAmount < 0.5) this.particles.petal(this.level.width * TILE, 'night'); else this.particles.petal(this.level.width * TILE, 'day');
+    if (this.comboT > 0) { this.comboT -= dt; if (this.comboT <= 0) this.combo = 0; }
+    for (const s of this.scorePops) s.t += dt;
+    if (this.scorePops.length) this.scorePops = this.scorePops.filter(s => s.t < 0.9);
     this.elapsed += dt;
   }
 
@@ -283,9 +304,30 @@ export class Game {
   private updateProjectiles(dt: number) {
     for (const pr of this.projectiles) {
       pr.x += pr.vx * dt; pr.y += pr.vy * dt; pr.life -= dt;
+      if (!pr.hostile && Math.random() < 0.4) this.particles.sparks(pr.x, pr.y, 1, pr.kind === 'blast' ? '#ff9d4d' : (this.world === 'day' ? '#ffd777' : '#a9d6ff'));
       const box = { x: pr.x - pr.r, y: pr.y - pr.r, w: pr.r * 2, h: pr.r * 2 };
-      if (pr.hostile && overlap(this.player.rect(), box)) { pr.life = 0; this.player.hurt(this); this.particles.hit(pr.x, pr.y, 10); }
-      if (this.overlapsSolid(box)) { pr.life = 0; this.particles.sparks(pr.x, pr.y, 6, '#ffb45d'); }
+      if (pr.hostile) {
+        if (overlap(this.player.rect(), box)) { pr.life = 0; this.player.hurt(this); this.particles.hit(pr.x, pr.y, 10); }
+      } else {
+        // player dragon-light: damage enemies (blasts pierce, hitting each once)
+        const dir = pr.vx < 0 ? -1 : 1;
+        for (const e of this.enemies) {
+          if (!e.alive || !overlap(e.rect(), box)) continue;
+          if (pr.pierce) { if (pr.hit!.has(e)) continue; pr.hit!.add(e); }
+          e.hit(this, dir, pr.dmg || 1);
+          this.particles.hit(pr.x, pr.y, 8, '#ffcf7a');
+          if (!pr.pierce) { pr.life = 0; break; }
+        }
+        // damage the boss only when its eye is exposed (night + recovering)
+        if (this.boss && this.boss.alive && this.boss.vulnerable && overlap(this.boss.eyeRect(), box)) {
+          this.boss.wound(this, pr.dmg || 1);
+          this.particles.hit(pr.x, pr.y, 10, '#a9d6ff');
+          if (!pr.pierce) pr.life = 0;
+        }
+      }
+      if (pr.life > 0 && this.overlapsSolid(box)) {
+        pr.life = 0; this.particles.sparks(pr.x, pr.y, 6, pr.kind === 'blast' ? '#ff9d4d' : '#ffd777');
+      }
     }
     this.projectiles = this.projectiles.filter(p => p.life > 0);
   }
@@ -322,6 +364,7 @@ export class Game {
         this.save.relics.push(relic.id); this.persistSave();
         this.particles.sparks(relic.x + 11, relic.y + 11, 26, '#ffd777');
         this.audio.sfx('collect');
+        this.addScore(500, relic.x + 11, relic.y);
         this.openLore(relic.noteId, 'playing');
       }
     }
@@ -348,7 +391,7 @@ export class Game {
   }
   private chooseTitle() {
     this.audio.sfx('menu');
-    if (this.titleSelection === 0) this.startLevel(this.save.highestUnlocked >= levels.length ? 0 : this.save.highestUnlocked, true);
+    if (this.titleSelection === 0) { this.score = 0; this.startLevel(this.save.highestUnlocked >= levels.length ? 0 : this.save.highestUnlocked, true); }
     else if (this.titleSelection === 1) this.state = 'levelSelect';
     else if (this.titleSelection === 2) this.state = 'codex';
     else if (this.titleSelection === 3) { this.settingsReturn = 'title'; this.settingsSelection = 0; this.state = 'settings'; }
@@ -358,7 +401,7 @@ export class Game {
     const max = Math.min(this.save.highestUnlocked, levels.length - 1);
     if (this.input.just('left')) { this.levelSelection = clamp(this.levelSelection - 1, 0, max); this.audio.sfx('menu'); }
     if (this.input.just('right')) { this.levelSelection = clamp(this.levelSelection + 1, 0, max); this.audio.sfx('menu'); }
-    if (this.input.just('confirm') && this.levelSelection <= this.save.highestUnlocked) this.startLevel(this.levelSelection, true);
+    if (this.input.just('confirm') && this.levelSelection <= this.save.highestUnlocked) { this.score = 0; this.startLevel(this.levelSelection, true); }
   }
   private updateCodex() {
     if (this.input.just('back')) { this.state = 'title'; return; }
@@ -458,6 +501,7 @@ export class Game {
     this.particles.draw(c, this.camera.x, this.camera.y, this.world);
     bg.drawLighting(this, c);
     bg.drawVignette(c);
+    this.drawScorePops(c);
     ui.drawHUD(this, c);
     if (this.debug) ui.drawDebug(this, c);
     if (this.message) ui.drawFloatingText(c, this.message);
@@ -523,10 +567,35 @@ export class Game {
 
   private drawProjectile(c: CanvasRenderingContext2D, p: Projectile) {
     const x = p.x - this.camera.x, y = p.y - this.camera.y;
-    c.save(); c.shadowColor = p.kind === 'shard' ? '#ffcaa0' : '#ff674d'; c.shadowBlur = 16;
-    c.fillStyle = p.kind === 'shard' ? '#ffd9a0' : '#ffb45d';
-    c.beginPath(); c.arc(x, y, p.r, 0, Math.PI * 2); c.fill();
-    c.fillStyle = '#3b0c12'; c.fillRect(x - 3, y - 2, 6, 4); c.restore();
+    c.save();
+    if (p.kind === 'bolt' || p.kind === 'blast') {
+      const day = this.world === 'day';
+      const core = p.kind === 'blast' ? '#ffe08a' : (day ? '#fff1c4' : '#dff0ff');
+      const glow = p.kind === 'blast' ? '#ff7a2a' : (day ? '#ff9d4d' : '#6db6ff');
+      c.shadowColor = glow; c.shadowBlur = p.kind === 'blast' ? 26 : 15;
+      c.translate(x, y); c.rotate(Math.atan2(p.vy, p.vx));
+      c.fillStyle = core;
+      const lx = p.r * (p.kind === 'blast' ? 1.5 : 2.4), ly = p.r * (p.kind === 'blast' ? 1.1 : 0.7);
+      c.beginPath(); c.ellipse(0, 0, lx, ly, 0, 0, Math.PI * 2); c.fill();
+      if (p.kind === 'blast') { c.globalAlpha = 0.6; c.fillStyle = glow; c.beginPath(); c.arc(0, 0, p.r * 0.7, 0, Math.PI * 2); c.fill(); }
+    } else {
+      c.shadowColor = p.kind === 'shard' ? '#ffcaa0' : '#ff674d'; c.shadowBlur = 16;
+      c.fillStyle = p.kind === 'shard' ? '#ffd9a0' : '#ffb45d';
+      c.translate(x, y);
+      c.beginPath(); c.arc(0, 0, p.r, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#3b0c12'; c.fillRect(-3, -2, 6, 4);
+    }
+    c.restore();
+  }
+
+  private drawScorePops(c: CanvasRenderingContext2D) {
+    c.save(); c.textAlign = 'center'; c.font = 'bold 16px Georgia';
+    for (const s of this.scorePops) {
+      c.globalAlpha = Math.max(0, 1 - s.t / 0.9);
+      c.fillStyle = s.color;
+      c.fillText(s.text, s.x - this.camera.x, s.y - this.camera.y - s.t * 42);
+    }
+    c.restore(); c.globalAlpha = 1;
   }
 
   private drawPrompt(c: CanvasRenderingContext2D, x: number, y: number, text: string) {

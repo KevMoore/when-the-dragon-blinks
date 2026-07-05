@@ -84,10 +84,13 @@ export class Input {
             return k.has('a') || k.has('arrowleft') || this.touch.has('left') || this.axisX < -0.25 || !!this.gpButtons[14];
         if (action === 'right')
             return k.has('d') || k.has('arrowright') || this.touch.has('right') || this.axisX > 0.25 || !!this.gpButtons[15];
+        if (action === 'up')
+            return k.has('w') || k.has('arrowup') || this.axisY < -0.4 || !!this.gpButtons[12];
         if (action === 'down')
             return k.has('s') || k.has('arrowdown') || this.axisY > 0.4 || !!this.gpButtons[13];
+        // jump is a dedicated button so Up can be used to aim shots upward
         if (action === 'jump')
-            return k.has(' ') || k.has('w') || k.has('arrowup') || this.touch.has('jump') || !!this.gpButtons[0];
+            return k.has(' ') || this.touch.has('jump') || !!this.gpButtons[0];
         if (action === 'attack')
             return k.has('j') || k.has('x') || this.touch.has('attack') || !!this.gpButtons[2];
         if (action === 'dash')
@@ -112,7 +115,7 @@ export class Input {
         if (action === 'right')
             return p.has('arrowright') || p.has('d') || gpJust(15);
         if (action === 'jump')
-            return p.has(' ') || p.has('w') || p.has('arrowup') || t.has('jump') || gpJust(0);
+            return p.has(' ') || t.has('jump') || gpJust(0);
         if (action === 'attack')
             return p.has('j') || p.has('x') || t.has('attack') || gpJust(2);
         if (action === 'dash')

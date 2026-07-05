@@ -17,20 +17,27 @@ export class Enemy {
         this.phase = Math.random() * 10;
         this.flash = 0;
         this.fireTimer = rand(1, 2.4);
+        this.points = 100;
         this.kind = kind;
         this.x = x;
         this.y = y;
         this.baseY = y;
         this.baseX = x;
+        if (kind === 'moth')
+            this.points = 100;
+        if (kind === 'wisp')
+            this.points = 120;
         if (kind === 'guardian') {
             this.w = 34;
             this.h = 42;
             this.hp = 3;
+            this.points = 200;
         }
         if (kind === 'sentry') {
             this.w = 30;
             this.h = 34;
             this.hp = 3;
+            this.points = 150;
         }
     }
     rect() { return { x: this.x, y: this.y, w: this.w, h: this.h }; }
@@ -85,9 +92,7 @@ export class Enemy {
         const dangerous = this.dangerous(game);
         if (dangerous && overlap(this.rect(), p.rect()))
             p.hurt(game);
-        if (p.attackTimer > 0 && overlap(this.rect(), p.attackRect()))
-            this.hit(game, p.facing);
-        // dash-through damage
+        // dash-through damage (bolts are handled centrally in Game.updateProjectiles)
         if (p.dashTime > 0 && overlap(this.rect(), p.rect()))
             this.hit(game, p.facing);
     }
@@ -100,8 +105,8 @@ export class Enemy {
             return false; // turret body is harmless; its shards hurt
         return true; // moth always solid to touch (weak in night, but still bumps)
     }
-    hit(game, facing) {
-        this.hp--;
+    hit(game, facing, dmg = 1) {
+        this.hp -= dmg;
         this.flash = 0.12;
         this.vx += facing * 90;
         game.particles.hit(centerX(this.rect()), centerY(this.rect()), 12);
@@ -113,6 +118,7 @@ export class Enemy {
             game.particles.hit(centerX(this.rect()), centerY(this.rect()), 22, game.world === 'day' ? '#ffd777' : '#a9d6ff');
             game.particles.sparks(centerX(this.rect()), centerY(this.rect()), 14);
             game.audio.sfx('collect');
+            game.addScore(this.points, centerX(this.rect()), centerY(this.rect()));
         }
     }
     dim(game) {

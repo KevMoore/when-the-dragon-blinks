@@ -29,8 +29,10 @@ export class Player {
         this.hp = 5;
         this.maxHp = 5;
         this.checkpoint = { x: 64, y: 430 };
-        this.attackTimer = 0;
-        this.attackCooldown = 0;
+        this.attackTimer = 0; // shoot animation / muzzle timer
+        this.shootCd = 0;
+        this.charging = false;
+        this.chargeT = 0;
         // juice / animation
         this.scaleX = 1;
         this.scaleY = 1;
@@ -43,8 +45,24 @@ export class Player {
         this.dead = false;
     }
     rect() { return { x: this.x, y: this.y, w: this.w, h: this.h }; }
-    attackRect() {
-        return { x: this.facing > 0 ? this.x + this.w - 6 : this.x - 34, y: this.y - 2, w: 40, h: this.h + 4 };
+    /** Unit aim direction from held inputs (straight, up, diagonal, down-in-air). */
+    aim(game) {
+        const i = game.input;
+        const left = i.down('left'), right = i.down('right');
+        const up = i.down('up'), dn = i.down('down') && !this.grounded;
+        let dx = 0, dy = 0;
+        if (left && !right)
+            dx = -1;
+        else if (right && !left)
+            dx = 1;
+        if (up)
+            dy = -1;
+        else if (dn)
+            dy = 1;
+        if (dx === 0 && dy === 0)
+            dx = this.facing;
+        const len = Math.hypot(dx, dy) || 1;
+        return [dx / len, dy / len];
     }
     reset(spawn) {
         this.x = spawn.x;
@@ -155,14 +173,28 @@ export class Player {
             }
         }
         this.vy = clamp(this.vy, -980, 820);
-        // attack (dragon-light pulse)
-        this.attackCooldown = Math.max(0, this.attackCooldown - dt);
-        if (input.just('attack') && this.attackCooldown <= 0) {
-            this.attackTimer = 0.16;
-            this.attackCooldown = 0.3;
-            this.stretch(1.25, 0.85);
-            game.particles.ring(this.x + this.w / 2 + this.facing * 24, this.y + this.h / 2, 12, 180, game.world === 'day' ? '#ffe7a7' : '#bbe7ff');
-            game.audio.sfx('attack');
+        // shooting: tap = aimed dragon-light bolt, hold = charged fire blast
+        this.shootCd = Math.max(0, this.shootCd - dt);
+        const atkDown = input.down('attack');
+        if (input.just('attack') && this.shootCd <= 0) {
+            this.fireBolt(game);
+            this.charging = true;
+            this.chargeT = 0;
+        }
+        if (this.charging) {
+            if (atkDown) {
+                this.chargeT += dt;
+                if (this.chargeT > 0.5 && Math.random() < 0.5) {
+                    const [ax, ay] = this.aim(game);
+                    game.particles.embers(this.x + this.w / 2 + ax * 18, this.y + this.h * 0.42 + ay * 12, 1);
+                }
+            }
+            else {
+                if (this.chargeT >= 0.5)
+                    this.fireBlast(game);
+                this.charging = false;
+                this.chargeT = 0;
+            }
         }
         this.attackTimer = Math.max(0, this.attackTimer - dt);
         this.invuln = Math.max(0, this.invuln - dt);
@@ -221,6 +253,34 @@ export class Player {
     stretch(sx, sy) { this.scaleX = sx; this.scaleY = sy; }
     spawnAfterimage() {
         this.afterimages.push({ x: this.x, y: this.y, life: 0.22, facing: this.facing });
+    }
+    fireBolt(game) {
+        const [dx, dy] = this.aim(game);
+        const sp = 660;
+        const mx = this.x + this.w / 2 + dx * 18, my = this.y + this.h * 0.42 + dy * 12;
+        game.projectiles.push({ x: mx, y: my, vx: dx * sp, vy: dy * sp, r: 6, life: 1.1, kind: 'bolt', hostile: false, dmg: 1 });
+        this.shootCd = 0.16;
+        this.attackTimer = 0.14;
+        if (dx !== 0)
+            this.facing = dx < 0 ? -1 : 1;
+        this.stretch(1.12, 0.92);
+        game.particles.sparks(mx, my, 4, game.world === 'day' ? '#ffd777' : '#a9d6ff');
+        game.audio.sfx('attack');
+        game.camera.addTrauma(0.05);
+    }
+    fireBlast(game) {
+        const [dx, dy] = this.aim(game);
+        const sp = 540;
+        const mx = this.x + this.w / 2 + dx * 20, my = this.y + this.h * 0.42 + dy * 12;
+        game.projectiles.push({ x: mx, y: my, vx: dx * sp, vy: dy * sp, r: 16, life: 1.5, kind: 'blast', hostile: false, dmg: 4, pierce: true, hit: new Set() });
+        this.attackTimer = 0.24;
+        if (dx !== 0)
+            this.facing = dx < 0 ? -1 : 1;
+        this.stretch(1.3, 0.8);
+        game.particles.ring(mx, my, 16, 210, '#ff9d4d');
+        game.particles.embers(mx, my, 8);
+        game.audio.sfx('boss');
+        game.camera.addTrauma(0.32);
     }
     overlaps(r) { return this.x < r.x + r.w && this.x + this.w > r.x && this.y < r.y + r.h && this.y + this.h > r.y; }
     hurt(game, amount = 1, pit = false) {
@@ -283,20 +343,7 @@ export class Player {
             c.arc(sx + this.w / 2 + this.facing * 3, sy + this.h * 0.42 + bob, 2.6 + Math.sin(this.animTime * 6) * 0.6, 0, Math.PI * 2);
             c.fill();
             c.restore();
-            // attack flourish reuses the pulse arc
-            if (this.attackTimer > 0) {
-                const t = this.attackTimer / 0.16;
-                c.save();
-                c.translate(sx + this.w / 2, sy + this.h / 2);
-                c.scale(this.facing, 1);
-                c.globalAlpha = t;
-                c.strokeStyle = eyeCol;
-                c.lineWidth = 5;
-                c.beginPath();
-                c.arc(24, -2, 18 + (1 - t) * 16, -1.3, 1.3);
-                c.stroke();
-                c.restore();
-            }
+            this.drawShotFx(game, c);
             if (blink)
                 c.globalAlpha = 1;
             return;
@@ -350,19 +397,42 @@ export class Player {
         c.fill();
         c.fillRect(9, -13, 12, 3);
         c.shadowBlur = 0;
-        // attack arc
-        if (this.attackTimer > 0) {
-            const t = this.attackTimer / 0.16;
-            c.globalAlpha = t;
-            c.strokeStyle = eyeCol;
-            c.lineWidth = 5;
-            c.beginPath();
-            c.arc(24, -2, 18 + (1 - t) * 16, -1.3, 1.3);
-            c.stroke();
-        }
         // ---- END ASSET HOOK ----
         c.restore();
         c.globalAlpha = 1;
+        this.drawShotFx(game, c);
+    }
+    drawShotFx(game, c) {
+        const sx = this.x - game.camera.x, sy = this.y - game.camera.y;
+        const [dx, dy] = this.aim(game);
+        const cx = sx + this.w / 2, cy = sy + this.h * 0.42;
+        if (this.charging && this.chargeT > 0.12) {
+            const cr = Math.min(1, this.chargeT / 0.5);
+            const gx = cx + dx * 20, gy = cy + dy * 14, rad = 9 + cr * 16;
+            c.save();
+            c.globalCompositeOperation = 'lighter';
+            const g = c.createRadialGradient(gx, gy, 0, gx, gy, rad);
+            g.addColorStop(0, cr >= 1 ? '#ffe08a' : '#ff9d4d');
+            g.addColorStop(1, 'rgba(0,0,0,0)');
+            c.fillStyle = g;
+            c.beginPath();
+            c.arc(gx, gy, rad, 0, Math.PI * 2);
+            c.fill();
+            c.restore();
+        }
+        if (this.attackTimer > 0) {
+            const t = this.attackTimer / 0.24;
+            const mx = cx + dx * 18, my = cy + dy * 12;
+            c.save();
+            c.globalCompositeOperation = 'lighter';
+            c.globalAlpha = t;
+            c.fillStyle = game.world === 'day' ? '#ffe7a7' : '#bbe7ff';
+            c.beginPath();
+            c.arc(mx, my, 5 + t * 5, 0, Math.PI * 2);
+            c.fill();
+            c.restore();
+            c.globalAlpha = 1;
+        }
     }
 }
 //# sourceMappingURL=player.js.map

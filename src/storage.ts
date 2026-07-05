@@ -13,6 +13,7 @@ export type SaveData = {
   relics: string[];
   codex: string[];
   bestTimes: Record<string, number>;
+  highScore: number;
   settings: Settings;
 };
 
@@ -22,6 +23,7 @@ const fallback = (): SaveData => ({
   relics: [],
   codex: ['who-is-zhulong', 'eye-day-night'],
   bestTimes: {},
+  highScore: 0,
   settings: { master: 0.7, music: true, shake: true, reducedMotion: false },
 });
 

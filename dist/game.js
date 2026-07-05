@@ -39,6 +39,7 @@ export class Game {
         this.elapsed = 0;
         this.lastLevelTime = 0;
         this.lastWasBest = false;
+        this.lastLevelBonus = 0;
         this.debug = false;
         // menu selections
         this.titleSelection = 0;
@@ -51,6 +52,10 @@ export class Game {
         this.lorePanel = null;
         this.loreAnim = 0;
         this.message = null;
+        this.score = 0;
+        this.combo = 0;
+        this.comboT = 0;
+        this.scorePops = [];
         this.activatedCheckpoints = new Set();
         this.viewedShrines = new Set();
         this.dashHintShown = false;
@@ -82,6 +87,9 @@ export class Game {
         this.particles.clear();
         this.activatedCheckpoints.clear();
         this.viewedShrines.clear();
+        this.combo = 0;
+        this.comboT = 0;
+        this.scorePops = [];
         this.elapsed = 0;
         this.message = null;
         this.camera.snap(0, 0);
@@ -112,6 +120,20 @@ export class Game {
     flashText(text) { this.message = text ? { text, t: 0, max: 2.6 } : null; }
     addHitstop(s) { this.hitstop = Math.max(this.hitstop, s); }
     spawnEnemy(kind, x, y) { this.enemies.push(new Enemy(kind, x, y)); }
+    addScore(points, x, y) {
+        this.comboT = 2.6;
+        const mult = 1 + Math.min(this.combo, 9) * 0.2; // up to ~2.8x
+        const gained = Math.round(points * mult);
+        this.combo++;
+        this.score += gained;
+        if (this.score > this.save.highScore) {
+            this.save.highScore = this.score;
+            this.persistSave();
+        }
+        this.scorePops.push({ x, y, text: '+' + gained, t: 0, color: this.combo > 3 ? '#ffd777' : '#fff1ca' });
+        if (this.scorePops.length > 40)
+            this.scorePops.shift();
+    }
     completeLevel() {
         const id = this.level.id;
         if (!this.save.completed.includes(id))
@@ -123,10 +145,16 @@ export class Game {
         this.lastWasBest = prev === undefined || this.elapsed < prev;
         if (this.lastWasBest)
             this.save.bestTimes[id] = this.elapsed;
+        this.lastLevelBonus = Math.max(500, Math.round(4000 - this.elapsed * 30));
+        this.score += this.lastLevelBonus;
+        if (this.score > this.save.highScore)
+            this.save.highScore = this.score;
         this.persistSave();
         this.openLore(this.level.outroLore, this.level.isBoss ? 'gameComplete' : 'levelComplete');
     }
     onBossDefeated() {
+        if (this.boss)
+            this.addScore(5000, this.boss.x + this.boss.w / 2, this.boss.y + 40);
         this.audio.sfx('victory');
         this.flashText('Balance restored. The dragon blinks again.');
         this.completeLevel();
@@ -336,6 +364,15 @@ export class Game {
             this.particles.petal(this.level.width * TILE, 'night');
         else
             this.particles.petal(this.level.width * TILE, 'day');
+        if (this.comboT > 0) {
+            this.comboT -= dt;
+            if (this.comboT <= 0)
+                this.combo = 0;
+        }
+        for (const s of this.scorePops)
+            s.t += dt;
+        if (this.scorePops.length)
+            this.scorePops = this.scorePops.filter(s => s.t < 0.9);
         this.elapsed += dt;
     }
     // move the player with a platform it is resting on
@@ -360,15 +397,45 @@ export class Game {
             pr.x += pr.vx * dt;
             pr.y += pr.vy * dt;
             pr.life -= dt;
+            if (!pr.hostile && Math.random() < 0.4)
+                this.particles.sparks(pr.x, pr.y, 1, pr.kind === 'blast' ? '#ff9d4d' : (this.world === 'day' ? '#ffd777' : '#a9d6ff'));
             const box = { x: pr.x - pr.r, y: pr.y - pr.r, w: pr.r * 2, h: pr.r * 2 };
-            if (pr.hostile && overlap(this.player.rect(), box)) {
-                pr.life = 0;
-                this.player.hurt(this);
-                this.particles.hit(pr.x, pr.y, 10);
+            if (pr.hostile) {
+                if (overlap(this.player.rect(), box)) {
+                    pr.life = 0;
+                    this.player.hurt(this);
+                    this.particles.hit(pr.x, pr.y, 10);
+                }
             }
-            if (this.overlapsSolid(box)) {
+            else {
+                // player dragon-light: damage enemies (blasts pierce, hitting each once)
+                const dir = pr.vx < 0 ? -1 : 1;
+                for (const e of this.enemies) {
+                    if (!e.alive || !overlap(e.rect(), box))
+                        continue;
+                    if (pr.pierce) {
+                        if (pr.hit.has(e))
+                            continue;
+                        pr.hit.add(e);
+                    }
+                    e.hit(this, dir, pr.dmg || 1);
+                    this.particles.hit(pr.x, pr.y, 8, '#ffcf7a');
+                    if (!pr.pierce) {
+                        pr.life = 0;
+                        break;
+                    }
+                }
+                // damage the boss only when its eye is exposed (night + recovering)
+                if (this.boss && this.boss.alive && this.boss.vulnerable && overlap(this.boss.eyeRect(), box)) {
+                    this.boss.wound(this, pr.dmg || 1);
+                    this.particles.hit(pr.x, pr.y, 10, '#a9d6ff');
+                    if (!pr.pierce)
+                        pr.life = 0;
+                }
+            }
+            if (pr.life > 0 && this.overlapsSolid(box)) {
                 pr.life = 0;
-                this.particles.sparks(pr.x, pr.y, 6, '#ffb45d');
+                this.particles.sparks(pr.x, pr.y, 6, pr.kind === 'blast' ? '#ff9d4d' : '#ffd777');
             }
         }
         this.projectiles = this.projectiles.filter(p => p.life > 0);
@@ -417,6 +484,7 @@ export class Game {
                 this.persistSave();
                 this.particles.sparks(relic.x + 11, relic.y + 11, 26, '#ffd777');
                 this.audio.sfx('collect');
+                this.addScore(500, relic.x + 11, relic.y);
                 this.openLore(relic.noteId, 'playing');
             }
         }
@@ -458,8 +526,10 @@ export class Game {
     }
     chooseTitle() {
         this.audio.sfx('menu');
-        if (this.titleSelection === 0)
+        if (this.titleSelection === 0) {
+            this.score = 0;
             this.startLevel(this.save.highestUnlocked >= levels.length ? 0 : this.save.highestUnlocked, true);
+        }
         else if (this.titleSelection === 1)
             this.state = 'levelSelect';
         else if (this.titleSelection === 2)
@@ -484,8 +554,10 @@ export class Game {
             this.levelSelection = clamp(this.levelSelection + 1, 0, max);
             this.audio.sfx('menu');
         }
-        if (this.input.just('confirm') && this.levelSelection <= this.save.highestUnlocked)
+        if (this.input.just('confirm') && this.levelSelection <= this.save.highestUnlocked) {
+            this.score = 0;
             this.startLevel(this.levelSelection, true);
+        }
     }
     updateCodex() {
         if (this.input.just('back')) {
@@ -682,6 +754,7 @@ export class Game {
         this.particles.draw(c, this.camera.x, this.camera.y, this.world);
         bg.drawLighting(this, c);
         bg.drawVignette(c);
+        this.drawScorePops(c);
         ui.drawHUD(this, c);
         if (this.debug)
             ui.drawDebug(this, c);
@@ -795,15 +868,51 @@ export class Game {
     drawProjectile(c, p) {
         const x = p.x - this.camera.x, y = p.y - this.camera.y;
         c.save();
-        c.shadowColor = p.kind === 'shard' ? '#ffcaa0' : '#ff674d';
-        c.shadowBlur = 16;
-        c.fillStyle = p.kind === 'shard' ? '#ffd9a0' : '#ffb45d';
-        c.beginPath();
-        c.arc(x, y, p.r, 0, Math.PI * 2);
-        c.fill();
-        c.fillStyle = '#3b0c12';
-        c.fillRect(x - 3, y - 2, 6, 4);
+        if (p.kind === 'bolt' || p.kind === 'blast') {
+            const day = this.world === 'day';
+            const core = p.kind === 'blast' ? '#ffe08a' : (day ? '#fff1c4' : '#dff0ff');
+            const glow = p.kind === 'blast' ? '#ff7a2a' : (day ? '#ff9d4d' : '#6db6ff');
+            c.shadowColor = glow;
+            c.shadowBlur = p.kind === 'blast' ? 26 : 15;
+            c.translate(x, y);
+            c.rotate(Math.atan2(p.vy, p.vx));
+            c.fillStyle = core;
+            const lx = p.r * (p.kind === 'blast' ? 1.5 : 2.4), ly = p.r * (p.kind === 'blast' ? 1.1 : 0.7);
+            c.beginPath();
+            c.ellipse(0, 0, lx, ly, 0, 0, Math.PI * 2);
+            c.fill();
+            if (p.kind === 'blast') {
+                c.globalAlpha = 0.6;
+                c.fillStyle = glow;
+                c.beginPath();
+                c.arc(0, 0, p.r * 0.7, 0, Math.PI * 2);
+                c.fill();
+            }
+        }
+        else {
+            c.shadowColor = p.kind === 'shard' ? '#ffcaa0' : '#ff674d';
+            c.shadowBlur = 16;
+            c.fillStyle = p.kind === 'shard' ? '#ffd9a0' : '#ffb45d';
+            c.translate(x, y);
+            c.beginPath();
+            c.arc(0, 0, p.r, 0, Math.PI * 2);
+            c.fill();
+            c.fillStyle = '#3b0c12';
+            c.fillRect(-3, -2, 6, 4);
+        }
         c.restore();
+    }
+    drawScorePops(c) {
+        c.save();
+        c.textAlign = 'center';
+        c.font = 'bold 16px Georgia';
+        for (const s of this.scorePops) {
+            c.globalAlpha = Math.max(0, 1 - s.t / 0.9);
+            c.fillStyle = s.color;
+            c.fillText(s.text, s.x - this.camera.x, s.y - this.camera.y - s.t * 42);
+        }
+        c.restore();
+        c.globalAlpha = 1;
     }
     drawPrompt(c, x, y, text) {
         c.save();

@@ -58,10 +58,7 @@ export class LanternEater {
                     this.enter('recover', this.phase === 3 ? 1.3 : 1.7);
                 break;
             case 'recover':
-                if (game.world === 'night' && game.player.attackTimer > 0 && overlap(game.player.attackRect(), this.eyeRect())) {
-                    this.wound(game);
-                    game.player.attackTimer = 0;
-                }
+                // damage now comes from player bolts hitting the exposed eye (see Game.updateProjectiles)
                 if (this.stateT <= 0)
                     this.enter('idle', this.phase === 3 ? 0.3 : 0.7);
                 break;
@@ -119,8 +116,11 @@ export class LanternEater {
             game.particles.sparks(centerX(this.bodyRect()), centerY(this.bodyRect()), 20, '#d94a3a');
         }
     }
-    wound(game) {
-        this.hp--;
+    /** Called by Game when a player bolt strikes the exposed eye. */
+    wound(game, dmg = 1) {
+        if (!this.vulnerable)
+            return;
+        this.hp -= dmg;
         this.hurtFlash = 0.16;
         this.stateT = Math.min(this.stateT, 0.25); // knocked back out of recovery
         game.camera.addTrauma(0.5);

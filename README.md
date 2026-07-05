@@ -51,11 +51,13 @@ On Render it deploys with:
 
 ## Controls
 
-**Keyboard** — Move: A/D or ←/→ · Jump: Space/W/↑ · Dash: Shift/K · Attack (dragon pulse): J/X · Blink Day/Night: E/C/L · Interact with shrine: F/↑ · Fast-fall: S/↓ · Pause: Esc/P · Myth & History (from title): H · Debug: F1
+Run-and-gun: fire **dragon-light** at everything. Tap to shoot an aimed bolt; **hold** to charge a big piercing fire-blast. Aim by holding a direction — straight, **Up** for vertical, Up + forward for a diagonal. Blink Day/Night mid-fight as a tactical tool.
 
-**Gamepad** — Move: stick/D-pad · Jump: South · Attack: West · Dash: East · Blink: North/shoulders · Interact: D-pad up · Pause: Start
+**Keyboard** — Move: A/D or ←/→ · **Jump: Space** · **Aim up: W/↑** (hold while shooting) · Shoot: J/X (hold = charge) · Dash: Shift/K · Blink Day/Night: E/C/L · Fast-fall: S/↓ · Pause: Esc/P · Myth & History (from title): H · Debug: F1
 
-**Mobile** — Landscape only (portrait shows a rotate screen). Large on-screen buttons for move, jump, dash, attack, blink, interact, and pause.
+**Gamepad** — Move: stick/D-pad · Jump: South · Aim: stick/D-pad up · Shoot: West (hold = charge) · Dash: East · Blink: North/shoulders · Pause: Start
+
+**Mobile** — Landscape only (portrait shows a rotate screen). 5 buttons: move (◀▶), blink (☯), shoot (✦, hold to charge), jump (▲). **Dash = double-tap a direction.** Shrines auto-open on approach.
 
 ## Architecture
 

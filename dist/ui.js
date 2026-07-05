@@ -86,14 +86,33 @@ export function drawHUD(game, c) {
     c.fillStyle = 'rgba(255,255,255,.7)';
     c.font = '12px Georgia';
     c.fillText('E / C / Y  ·  blink the world', dx + 22, 50);
-    // level title + relics
+    // right panel: level, relics, score, hi, combo
+    c.fillStyle = 'rgba(9,5,13,.66)';
+    c.fillRect(LOGICAL_W - 214, 16, 196, 94);
+    c.strokeStyle = 'rgba(246,191,94,.28)';
+    c.strokeRect(LOGICAL_W - 213.5, 16.5, 195, 94);
     c.textAlign = 'right';
     c.fillStyle = PAPER;
-    c.font = '17px Georgia';
-    c.fillText(game.level.title, LOGICAL_W - 20, 33);
-    c.fillStyle = GOLD;
     c.font = '15px Georgia';
-    c.fillText('◆ Relics ' + game.save.relics.length + '/' + game.totalRelics(), LOGICAL_W - 20, 52);
+    c.fillText(game.level.title.replace('Level ', 'L').replace('Boss: ', ''), LOGICAL_W - 24, 35);
+    c.fillStyle = GOLD;
+    c.font = '13px Georgia';
+    c.fillText('◆ ' + game.save.relics.length + '/' + game.totalRelics() + ' relics', LOGICAL_W - 24, 53);
+    c.fillStyle = PAPER;
+    c.font = 'bold 22px Georgia';
+    c.fillText(game.score.toLocaleString(), LOGICAL_W - 24, 82);
+    c.fillStyle = 'rgba(255,255,255,.55)';
+    c.font = '11px Georgia';
+    c.fillText('HI ' + game.save.highScore.toLocaleString(), LOGICAL_W - 24, 99);
+    if (game.combo > 1) {
+        c.textAlign = 'left';
+        c.fillStyle = GOLD;
+        c.font = 'bold 15px Georgia';
+        c.fillText('×' + game.combo, LOGICAL_W - 208, 82);
+        c.fillStyle = 'rgba(255,255,255,.5)';
+        c.font = '10px Georgia';
+        c.fillText('combo', LOGICAL_W - 208, 96);
+    }
     // boss bar
     if (game.boss && game.boss.alive) {
         const bw = 520, bx = (LOGICAL_W - bw) / 2, by = 84;
@@ -349,11 +368,14 @@ export function drawLevelComplete(game, c) {
     if (t > 0) {
         c.fillStyle = GOLD;
         c.font = '18px Georgia';
-        c.fillText('Time  ' + t.toFixed(1) + 's' + (game.lastWasBest ? '   ★ new best' : ''), LOGICAL_W / 2, 274);
+        c.fillText('Time  ' + t.toFixed(1) + 's' + (game.lastWasBest ? '   ★ new best' : ''), LOGICAL_W / 2, 272);
     }
+    c.fillStyle = PAPER;
+    c.font = '19px Georgia';
+    c.fillText('Score  ' + game.score.toLocaleString() + '   (+' + game.lastLevelBonus.toLocaleString() + ' time bonus)', LOGICAL_W / 2, 302);
     c.fillStyle = 'rgba(255,255,255,.85)';
     c.font = '17px Georgia';
-    c.fillText('Enter / tap: continue · Esc: title', LOGICAL_W / 2, 320);
+    c.fillText('Enter / tap: continue · Esc: title', LOGICAL_W / 2, 338);
     c.restore();
 }
 export function drawGameComplete(game, c) {
@@ -397,11 +419,6 @@ export function drawDebug(game, c) {
     c.lineWidth = 1;
     const p = game.player.rect();
     c.strokeRect(p.x - game.camera.x, p.y - game.camera.y, p.w, p.h);
-    if (game.player.attackTimer > 0) {
-        const a = game.player.attackRect();
-        c.strokeStyle = '#ff0';
-        c.strokeRect(a.x - game.camera.x, a.y - game.camera.y, a.w, a.h);
-    }
     c.strokeStyle = '#00ff99';
     for (const s of game.solidsForRect({ x: game.camera.x, y: game.camera.y, w: LOGICAL_W, h: LOGICAL_H })) {
         c.strokeStyle = s.oneWay ? '#3af' : '#00ff99';
