@@ -545,6 +545,11 @@ export class Game {
     const max = Math.min(this.save.highestUnlocked, levels.length - 1);
     if (this.input.just('left')) { this.levelSelection = clamp(this.levelSelection - 1, 0, max); this.audio.sfx('menu'); }
     if (this.input.just('right')) { this.levelSelection = clamp(this.levelSelection + 1, 0, max); this.audio.sfx('menu'); }
+    if (this.input.pointer?.clicked) {   // tap a card to start it (mobile)
+      const cardW = 170, gap = 22, total = levels.length * cardW + (levels.length - 1) * gap, startX = (LOGICAL_W - total) / 2;
+      const x = this.input.pointer.x, y = this.input.pointer.y;
+      if (y > 168 && y < 378) for (let i = 0; i < levels.length; i++) { const cx = startX + i * (cardW + gap); if (x > cx && x < cx + cardW && i <= max) { this.levelSelection = i; this.score = 0; this.startLevel(i, true); return; } }
+    }
     if (this.input.just('confirm') && this.levelSelection <= this.save.highestUnlocked) { this.score = 0; this.startLevel(this.levelSelection, true); }
   }
   private updateCodex() {
@@ -578,13 +583,18 @@ export class Game {
     const n = 4;
     if (this.input.just('up')) { this.pauseSelection = (this.pauseSelection + n - 1) % n; this.audio.sfx('menu'); }
     if (this.input.just('down')) { this.pauseSelection = (this.pauseSelection + 1) % n; this.audio.sfx('menu'); }
-    if (this.input.just('confirm')) {
-      this.audio.sfx('menu');
-      if (this.pauseSelection === 0) this.state = 'playing';
-      else if (this.pauseSelection === 1) this.startLevel(this.currentLevelIndex, false);
-      else if (this.pauseSelection === 2) { this.settingsReturn = 'paused'; this.settingsSelection = 0; this.state = 'settings'; }
-      else if (this.pauseSelection === 3) this.state = 'title';
+    if (this.input.pointer?.clicked) {   // tap an option (mobile-navigable)
+      const y = this.input.pointer.y;
+      for (let i = 0; i < n; i++) if (y > 250 + i * 34 - 24 && y < 250 + i * 34 + 10) { this.pauseSelection = i; this.choosePause(); return; }
     }
+    if (this.input.just('confirm')) this.choosePause();
+  }
+  private choosePause() {
+    this.audio.sfx('menu');
+    if (this.pauseSelection === 0) this.state = 'playing';
+    else if (this.pauseSelection === 1) this.startLevel(this.currentLevelIndex, false);
+    else if (this.pauseSelection === 2) { this.settingsReturn = 'paused'; this.settingsSelection = 0; this.state = 'settings'; }
+    else if (this.pauseSelection === 3) this.state = 'title';
   }
   private updateLevelComplete() {
     if (this.input.just('confirm') || this.input.pointer?.clicked) {
@@ -597,13 +607,18 @@ export class Game {
     const n = 3;
     if (this.input.just('left')) this.completeSelection = (this.completeSelection + n - 1) % n;
     if (this.input.just('right')) this.completeSelection = (this.completeSelection + 1) % n;
-    if (this.input.just('confirm') || this.input.pointer?.clicked) {
-      this.audio.sfx('menu');
-      if (this.completeSelection === 0) this.state = 'codex';
-      else if (this.completeSelection === 1) this.state = 'levelSelect';
-      else this.state = 'title';
+    if (this.input.pointer?.clicked) {   // tap an option directly
+      const x = this.input.pointer.x, y = this.input.pointer.y;
+      if (y > 418 && y < 454) for (let i = 0; i < n; i++) if (Math.abs(x - (LOGICAL_W / 2 - 220 + i * 220)) < 104) { this.completeSelection = i; this.chooseComplete(); return; }
     }
+    if (this.input.just('confirm')) this.chooseComplete();
     if (this.input.just('back')) this.state = 'title';
+  }
+  private chooseComplete() {
+    this.audio.sfx('menu');
+    if (this.completeSelection === 0) this.state = 'codex';
+    else if (this.completeSelection === 1) this.state = 'levelSelect';
+    else this.state = 'title';
   }
 
   // ---- render ------------------------------------------------------------
