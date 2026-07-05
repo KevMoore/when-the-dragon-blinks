@@ -4,12 +4,17 @@
 import { clamp, mixHex } from './math.js';
 import { LOGICAL_W, LOGICAL_H, TILE } from './types.js';
 const THEMES = {
-    mountain: { day: ['#ffbf7a', '#e07048', '#7a2b47', '#1a0a17'], night: ['#0b234f', '#152048', '#171233', '#08050d'], haze: '#e08a5a', hazeNight: '#33477a', ridge: '#5a2740', ridgeNight: '#141b3a', accent: '#ff5c38' },
-    bridge: { day: ['#ffc38f', '#e8785f', '#7a2f52', '#180a17'], night: ['#0b2c48', '#123a4c', '#181c3e', '#08060f'], haze: '#e89a72', hazeNight: '#2f5266', ridge: '#5e2a49', ridgeNight: '#132638', accent: '#ff7a52' },
-    cavern: { day: ['#8a4a30', '#5a2a24', '#2f171b', '#0d0608'], night: ['#0c1c38', '#121e34', '#141122', '#070509'], haze: '#7a4436', hazeNight: '#243444', ridge: '#3a2020', ridgeNight: '#101826', accent: '#ff8b44' },
-    arena: { day: ['#8a2420', '#54141c', '#2c0a12', '#0d0407'], night: ['#150720', '#1e0b26', '#16091a', '#070409'], haze: '#7a2e2c', hazeNight: '#3e1c34', ridge: '#3a1220', ridgeNight: '#1a0c1f', accent: '#ff3b2a' },
+    mountain: { day: ['#ffbf7a', '#e07048', '#7a2b47', '#1a0a17'], night: ['#0b234f', '#152048', '#171233', '#08050d'], haze: '#e08a5a', hazeNight: '#33477a', ridge: '#5a2740', ridgeNight: '#141b3a', accent: '#ff5c38', soilTop: '#8a5a34', soilBot: '#39220f', grass: '#7ca23f', grassLo: '#517028', decor: '#2c1418' },
+    bridge: { day: ['#ffc38f', '#e8785f', '#7a2f52', '#180a17'], night: ['#0b2c48', '#123a4c', '#181c3e', '#08060f'], haze: '#e89a72', hazeNight: '#2f5266', ridge: '#5e2a49', ridgeNight: '#132638', accent: '#ff7a52', soilTop: '#875841', soilBot: '#331b15', grass: '#729a49', grassLo: '#4a6a2c', decor: '#26121e' },
+    cavern: { day: ['#8a4a30', '#5a2a24', '#2f171b', '#0d0608'], night: ['#0c1c38', '#121e34', '#141122', '#070509'], haze: '#7a4436', hazeNight: '#243444', ridge: '#3a2020', ridgeNight: '#101826', accent: '#ff8b44', soilTop: '#6e4d38', soilBot: '#2a1a18', grass: '#4f9068', grassLo: '#356048', decor: '#2c2020' },
+    arena: { day: ['#8a2420', '#54141c', '#2c0a12', '#0d0407'], night: ['#150720', '#1e0b26', '#16091a', '#070409'], haze: '#7a2e2c', hazeNight: '#3e1c34', ridge: '#3a1220', ridgeNight: '#1a0c1f', accent: '#ff3b2a', soilTop: '#7a4238', soilBot: '#2a1216', grass: '#96543a', grassLo: '#623428', decor: '#2a0e16' },
 };
 function theme(game) { return THEMES[game.level.theme] || THEMES.mountain; }
+// deterministic hash → [0,1) for stable per-column decoration placement
+function hash(n) {
+    n = (n << 13) ^ n;
+    return ((n * (n * n * 15731 + 789221) + 1376312589) & 0x7fffffff) / 0x7fffffff;
+}
 export function drawSky(game, c) {
     const th = theme(game), day = game.dayAmount;
     c.fillStyle = '#08060d';
@@ -225,11 +230,11 @@ export function drawParallax(game, c) {
     drawTorii(c, 300 - ((game.camera.x * 0.5) % (LOGICAL_W + 400)) + 200, 430, mixHex('#180a12', th.accent, 0.25));
     // lantern string swagging across the mid-ground
     drawLanternString(game, c, day);
-    // foreground twisted pines + ground haze
-    const pine = '#0a070e';
-    for (let i = -1; i < 7; i++) {
-        const x = i * 320 - ((game.camera.x * 0.62) % 320);
-        drawPine(c, x + 80, 470, 1, pine);
+    // sparse foreground pines for framing (surface decor carries the rest)
+    const pine = mixHex('#0a070e', th.ridge, 0.14);
+    for (let i = -1; i < 5; i++) {
+        const x = i * 480 - ((game.camera.x * 0.6) % 480);
+        drawPine(c, x + 120, 458, 0.58, pine);
     }
     // foreground fog near the floor
     c.save();
@@ -331,45 +336,29 @@ function drawLanternString(game, c, day) {
     c.globalAlpha = 1;
 }
 // ---- tiles -----------------------------------------------------------------
-function tileSolidTop(c, x, y, top, body, bodyDark) {
-    const g = c.createLinearGradient(0, y, 0, y + TILE);
-    g.addColorStop(0, body);
-    g.addColorStop(1, bodyDark);
-    c.fillStyle = g;
-    c.fillRect(x, y, TILE, TILE);
-    c.fillStyle = top;
-    c.fillRect(x, y, TILE, 6);
-    c.fillStyle = 'rgba(255,255,255,.06)';
-    c.fillRect(x, y + 6, TILE, 2);
-    c.fillStyle = 'rgba(0,0,0,.22)';
-    c.fillRect(x, y + TILE - 4, TILE, 4);
-    c.strokeStyle = 'rgba(0,0,0,.18)';
-    c.strokeRect(x + .5, y + .5, TILE - 1, TILE - 1);
+// topmost solid terrain row of a column ('#' or 'g'), or null for a pit
+function surfaceRow(game, x) {
+    const h = game.level.height;
+    for (let y = 0; y < h; y++) {
+        const ch = game.tileAt(x, y);
+        if (ch === '#' || ch === 'g')
+            return y;
+    }
+    return null;
 }
+// organic wobble so even flat spans read as gently rolling hills
+function surfaceBump(wx) { return Math.sin(wx * 0.011) * 6 + Math.sin(wx * 0.037) * 3 + Math.sin(wx * 0.091) * 1.5; }
 export function drawTiles(game, c) {
-    const th = theme(game);
-    const stoneBody = mixHex('#231d29', th.ridge, 0.18), stoneDark = '#140f1a';
-    const grassTop = game.level.theme === 'cavern' ? '#3a7a5a' : '#6a9a3e';
+    drawGround(game, c);
     const x0 = Math.floor(game.camera.x / TILE) - 1, x1 = Math.ceil((game.camera.x + LOGICAL_W) / TILE) + 1;
     const y0 = Math.floor(game.camera.y / TILE) - 1, y1 = Math.ceil((game.camera.y + LOGICAL_H) / TILE) + 1;
     for (let y = y0; y <= y1; y++)
         for (let x = x0; x <= x1; x++) {
             const ch = game.tileAt(x, y);
-            if (ch === '.')
+            if (ch === '.' || ch === '#' || ch === 'g')
                 continue;
             const sx = x * TILE - game.camera.x, sy = y * TILE - game.camera.y;
-            const cap = game.tileAt(x, y - 1) === '.'; // exposed top edge
-            if (ch === '#')
-                tileSolidTop(c, sx, sy, cap ? '#463c50' : stoneBody, stoneBody, stoneDark);
-            else if (ch === 'g') {
-                tileSolidTop(c, sx, sy, cap ? grassTop : stoneBody, stoneBody, stoneDark);
-                if (cap) {
-                    c.fillStyle = mixHex(grassTop, '#c8f08a', 0.4);
-                    for (let i = 0; i < 5; i++)
-                        c.fillRect(sx + i * 7 + 2, sy - 3 - (i % 2), 2, 5);
-                }
-            }
-            else if (ch === 'o') {
+            if (ch === 'o') {
                 c.save();
                 c.shadowColor = 'rgba(0,0,0,.4)';
                 c.shadowBlur = 6;
@@ -380,6 +369,10 @@ export function drawTiles(game, c) {
                 c.fillRect(sx, sy, TILE, 3);
                 c.fillStyle = 'rgba(0,0,0,.3)';
                 c.fillRect(sx, sy + 7, TILE, 2);
+                for (let i = 0; i < 3; i++) {
+                    c.fillStyle = 'rgba(0,0,0,.2)';
+                    c.fillRect(sx + 4 + i * 9, sy + 1, 1, 7);
+                }
             }
             else if (ch === 'D')
                 drawStatePlatform(game, c, sx, sy, 'day');
@@ -388,6 +381,177 @@ export function drawTiles(game, c) {
             else if (ch === '^' || ch === 'F' || ch === 'S')
                 drawHazard(game, c, sx, sy, ch);
         }
+}
+// Organic rolling terrain: smooth soil mounds with a grassy rim, cliff faces at
+// pits, and scattered surface detail (tombstones, dead trees, rocks, grass).
+function drawGround(game, c) {
+    const th = theme(game), camX = game.camera.x, camY = game.camera.y;
+    const x0 = Math.floor(camX / TILE) - 2, x1 = Math.ceil((camX + LOGICAL_W) / TILE) + 2;
+    const bottom = LOGICAL_H + 60;
+    const topY = (x) => { const sr = surfaceRow(game, x); return sr === null ? null : sr * TILE - camY + surfaceBump(x * TILE); };
+    let a = null;
+    const flush = (b) => { if (a !== null)
+        drawSpan(game, c, th, a, b, camX, camY, bottom, topY); a = null; };
+    for (let x = x0; x <= x1; x++) {
+        if (surfaceRow(game, x) !== null) {
+            if (a === null)
+                a = x;
+        }
+        else
+            flush(x - 1);
+    }
+    flush(x1);
+}
+function drawSpan(game, c, th, a, b, camX, camY, bottom, topY) {
+    const leftX = a * TILE - camX, rightX = (b + 1) * TILE - camX;
+    const pts = [{ x: leftX, y: topY(a) }];
+    for (let x = a; x <= b; x++)
+        pts.push({ x: x * TILE + TILE / 2 - camX, y: topY(x) });
+    pts.push({ x: rightX, y: topY(b) });
+    const minY = Math.min(...pts.map(p => p.y));
+    // soil body
+    c.save();
+    c.beginPath();
+    c.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) {
+        const m = { x: (pts[i - 1].x + pts[i].x) / 2, y: (pts[i - 1].y + pts[i].y) / 2 };
+        c.quadraticCurveTo(pts[i - 1].x, pts[i - 1].y, m.x, m.y);
+    }
+    c.lineTo(rightX, bottom);
+    c.lineTo(leftX, bottom);
+    c.closePath();
+    const g = c.createLinearGradient(0, minY, 0, minY + 260);
+    g.addColorStop(0, th.soilTop);
+    g.addColorStop(1, th.soilBot);
+    c.fillStyle = g;
+    c.fill();
+    // strata + rocks embedded in the soil
+    c.clip();
+    c.strokeStyle = 'rgba(0,0,0,.14)';
+    c.lineWidth = 2;
+    for (let k = 0; k < 3; k++) {
+        c.beginPath();
+        c.moveTo(leftX, minY + 40 + k * 46);
+        c.bezierCurveTo(leftX + (rightX - leftX) / 3, minY + 30 + k * 46, leftX + (rightX - leftX) * 2 / 3, minY + 54 + k * 46, rightX, minY + 40 + k * 46);
+        c.stroke();
+    }
+    c.fillStyle = 'rgba(0,0,0,.16)';
+    for (let x = a; x <= b; x++) {
+        const r = hash(x * 3 + 11);
+        if (r < 0.3) {
+            const rx = x * TILE + 16 - camX, ry = (topY(x) + 34 + r * 120);
+            c.beginPath();
+            c.ellipse(rx, ry, 7 + r * 6, 4 + r * 3, 0, 0, Math.PI * 2);
+            c.fill();
+        }
+    }
+    c.restore();
+    // grass rim (thick) + highlight
+    c.save();
+    c.lineJoin = 'round';
+    c.lineCap = 'round';
+    const rim = () => { c.beginPath(); c.moveTo(pts[0].x, pts[0].y); for (let i = 1; i < pts.length; i++) {
+        const m = { x: (pts[i - 1].x + pts[i].x) / 2, y: (pts[i - 1].y + pts[i].y) / 2 };
+        c.quadraticCurveTo(pts[i - 1].x, pts[i - 1].y, m.x, m.y);
+    } };
+    c.strokeStyle = th.grassLo;
+    c.lineWidth = 9;
+    rim();
+    c.stroke();
+    c.strokeStyle = th.grass;
+    c.lineWidth = 5;
+    rim();
+    c.stroke();
+    c.strokeStyle = mixHex(th.grass, '#e8ffb0', 0.4);
+    c.lineWidth = 1.6;
+    rim();
+    c.stroke();
+    c.restore();
+    // cliff shading at the two edges (pit walls)
+    for (const ex of [leftX, rightX]) {
+        const grd = c.createLinearGradient(ex - 8, 0, ex + 8, 0);
+        const dir = ex === leftX ? 1 : -1;
+        grd.addColorStop(0, dir > 0 ? 'rgba(0,0,0,.32)' : 'rgba(0,0,0,0)');
+        grd.addColorStop(1, dir > 0 ? 'rgba(0,0,0,0)' : 'rgba(0,0,0,.32)');
+        c.fillStyle = grd;
+        c.fillRect(ex - 8, topY(ex === leftX ? a : b), 16, bottom);
+    }
+    // surface decorations
+    for (let x = a; x <= b; x++)
+        drawDecor(game, c, th, x, topY(x), camX);
+}
+function drawDecor(game, c, th, x, sy, camX) {
+    // skip columns that carry a platform/hazard just above the ground
+    const above = game.tileAt(x, surfaceRow(game, x) - 1);
+    if (above === 'o' || above === 'D' || above === 'N' || above === 'F' || above === 'S' || above === '^')
+        return;
+    const wx = x * TILE + TILE / 2 - camX;
+    const r = hash(x * 7 + 3), r2 = hash(x * 13 + 5);
+    const sway = Math.sin(game.time * 1.6 + x) * 1.5;
+    c.save();
+    if (r < 0.09) { // tombstone / cairn
+        c.fillStyle = th.decor;
+        c.beginPath();
+        c.moveTo(wx - 7, sy);
+        c.lineTo(wx - 7, sy - 14);
+        c.arc(wx, sy - 14, 7, Math.PI, 0);
+        c.lineTo(wx + 7, sy);
+        c.closePath();
+        c.fill();
+        c.strokeStyle = 'rgba(255,255,255,.08)';
+        c.lineWidth = 1;
+        c.beginPath();
+        c.moveTo(wx, sy - 3);
+        c.lineTo(wx, sy - 16);
+        c.stroke();
+    }
+    else if (r < 0.14) { // dead tree
+        c.strokeStyle = th.decor;
+        c.lineWidth = 3;
+        c.lineCap = 'round';
+        c.beginPath();
+        c.moveTo(wx, sy);
+        c.lineTo(wx + sway, sy - 34);
+        c.moveTo(wx + sway * 0.6, sy - 20);
+        c.lineTo(wx + sway - 12, sy - 30);
+        c.moveTo(wx + sway * 0.8, sy - 26);
+        c.lineTo(wx + sway + 12, sy - 38);
+        c.stroke();
+    }
+    else if (r < 0.20 && (game.level.theme === 'cavern' || game.level.theme === 'arena')) { // bones
+        c.strokeStyle = mixHex(th.decor, '#d8cfc0', 0.6);
+        c.lineWidth = 2;
+        c.lineCap = 'round';
+        c.beginPath();
+        c.moveTo(wx - 6, sy - 2);
+        c.lineTo(wx + 6, sy - 5);
+        c.stroke();
+        c.beginPath();
+        c.arc(wx - 7, sy - 2, 2, 0, Math.PI * 2);
+        c.arc(wx + 7, sy - 5, 2, 0, Math.PI * 2);
+        c.stroke();
+    }
+    else if (r < 0.30) { // rock cluster
+        c.fillStyle = mixHex(th.soilBot, '#000', 0.2);
+        c.beginPath();
+        c.ellipse(wx - 4, sy - 3, 6, 4, 0, 0, Math.PI * 2);
+        c.ellipse(wx + 5, sy - 2, 4, 3, 0, 0, Math.PI * 2);
+        c.fill();
+        c.fillStyle = 'rgba(255,255,255,.06)';
+        c.fillRect(wx - 7, sy - 6, 5, 1);
+    }
+    else if (r < 0.72) { // grass tufts
+        c.strokeStyle = r2 < 0.5 ? th.grass : th.grassLo;
+        c.lineWidth = 1.6;
+        c.lineCap = 'round';
+        for (let i = -2; i <= 2; i++) {
+            c.beginPath();
+            c.moveTo(wx + i * 3, sy);
+            c.quadraticCurveTo(wx + i * 3 + sway, sy - 6, wx + i * 3 + sway * 1.5 + i, sy - 11 - Math.abs(i));
+            c.stroke();
+        }
+    }
+    c.restore();
 }
 function drawStatePlatform(game, c, x, y, state) {
     const active = game.world === state;
@@ -504,7 +668,7 @@ export function drawLighting(game, c) {
 export function drawVignette(c) {
     const g = c.createRadialGradient(LOGICAL_W / 2, LOGICAL_H / 2, LOGICAL_H * 0.42, LOGICAL_W / 2, LOGICAL_H / 2, LOGICAL_H * 0.9);
     g.addColorStop(0, 'rgba(0,0,0,0)');
-    g.addColorStop(1, 'rgba(0,0,0,.46)');
+    g.addColorStop(1, 'rgba(0,0,0,.36)');
     c.fillStyle = g;
     c.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
 }
