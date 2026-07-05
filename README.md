@@ -51,7 +51,7 @@ On Render it deploys with:
 
 ## Controls
 
-Run-and-gun: fire **dragon-light** at everything. Tap to shoot an aimed bolt; **hold** to charge a big piercing fire-blast. Aim by holding a direction — straight, **Up** for vertical, Up + forward for a diagonal. Blink Day/Night mid-fight as a tactical tool.
+Run-and-gun: fire **dragon-light** at everything. Tap to shoot an aimed bolt; **hold** to charge a big piercing fire-blast. **Aim is fully analog on the joystick** — dragon-light fires at whatever angle you push the stick from centre (360°); keyboard/d-pad aim 8-way (straight, **Up** for vertical, Up + forward for a diagonal, down while airborne). Blink Day/Night mid-fight as a tactical tool.
 
 **Keyboard** — Move: A/D or ←/→ · **Jump: Space** · **Aim up: W/↑** (hold while shooting) · Shoot: J/X (hold = charge) · Dash: Shift/K · Blink Day/Night: E/C/L · Fast-fall: S/↓ · Pause: Esc/P · Myth & History (from title): H · Debug: F1
 

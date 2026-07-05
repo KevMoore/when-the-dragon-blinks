@@ -52,21 +52,31 @@ export class Player {
     }
     rect() { return { x: this.x, y: this.y, w: this.w, h: this.h }; }
     /** Unit aim direction from held inputs (straight, up, diagonal, down-in-air). */
+    // Fire along whatever angle the stick is pushed from centre (full analog);
+    // keyboard / d-pad falls back to 8-way. Neutral → straight ahead.
     aim(game) {
         const i = game.input;
-        const left = i.down('left'), right = i.down('right');
-        const up = i.down('up'), dn = i.down('down') && !this.grounded;
         let dx = 0, dy = 0;
-        if (left && !right)
-            dx = -1;
-        else if (right && !left)
-            dx = 1;
-        if (up)
-            dy = -1;
-        else if (dn)
-            dy = 1;
-        if (dx === 0 && dy === 0)
+        if (Math.hypot(i.stickX, i.stickY) > 0.3) {
+            dx = i.stickX;
+            dy = i.stickY;
+        } // analog stick angle
+        else {
+            if (i.down('left'))
+                dx -= 1;
+            if (i.down('right'))
+                dx += 1;
+            if (i.down('up'))
+                dy -= 1;
+            if (i.down('down'))
+                dy += 1;
+        }
+        if (this.grounded && dy > 0)
+            dy = 0; // can't fire into the floor you stand on
+        if (dx === 0 && dy === 0) {
             dx = this.facing;
+            dy = 0;
+        }
         const len = Math.hypot(dx, dy) || 1;
         return [dx / len, dy / len];
     }
@@ -661,13 +671,22 @@ export class Player {
         }
         if (this.attackTimer > 0) {
             const t = this.attackTimer / 0.24;
-            const mx = cx + dx * 18, my = cy + dy * 12;
+            const mx = cx + dx * 16, my = cy + dy * 12;
             c.save();
             c.globalCompositeOperation = 'lighter';
             c.globalAlpha = t;
+            c.translate(mx, my);
+            c.rotate(Math.atan2(dy, dx));
             c.fillStyle = game.world === 'day' ? '#ffe7a7' : '#bbe7ff';
+            // elongated flash pointing exactly the way you're firing
             c.beginPath();
-            c.arc(mx, my, 5 + t * 5, 0, Math.PI * 2);
+            c.moveTo(0, -3 - t * 2);
+            c.lineTo(20 * t + 8, 0);
+            c.lineTo(0, 3 + t * 2);
+            c.closePath();
+            c.fill();
+            c.beginPath();
+            c.arc(0, 0, 4 + t * 4, 0, Math.PI * 2);
             c.fill();
             c.restore();
             c.globalAlpha = 1;
