@@ -54,7 +54,19 @@ export class Input {
     const stick = document.getElementById('touch-stick');
     const knob = document.getElementById('stick-knob');
     if (zone && stick && knob && typeof zone.addEventListener === 'function') {
-      let sid: number | null = null, cxp = 0, cyp = 0, rad = 52, lastTap = 0;
+      let sid: number | null = null, cxp = 0, cyp = 0, rad = 52, lastTap = 0, prevKey = '';
+      const dirEls: Record<string, Element | null> = {
+        up: stick.querySelector('.sdir.up'), down: stick.querySelector('.sdir.down'),
+        left: stick.querySelector('.sdir.left'), right: stick.querySelector('.sdir.right'),
+      };
+      const buzz = (ms: number) => { try { (navigator as any).vibrate?.(ms); } catch {} };
+      // reflect exactly what input the stick registers + a haptic tick per new direction
+      const feedback = (sx: number, sy: number) => {
+        const on: Record<string, boolean> = { left: sx < -0.3, right: sx > 0.3, up: sy < -0.5, down: sy > 0.5 };
+        let key = '';
+        for (const d of ['up', 'down', 'left', 'right']) { dirEls[d]?.classList.toggle('on', on[d]); if (on[d]) key += d[0]; }
+        if (key !== prevKey) { if (key.length > prevKey.length) buzz(9); prevKey = key; }
+      };
       const move = (e: PointerEvent) => {
         if (e.pointerId !== sid) return;
         let dx = e.clientX - cxp, dy = e.clientY - cyp;
@@ -62,6 +74,7 @@ export class Input {
         dx = dx / len * cl; dy = dy / len * cl;
         knob.style.transform = `translate(${dx}px, ${dy}px)`;
         this.stickX = dx / rad; this.stickY = dy / rad;
+        feedback(this.stickX, this.stickY);
         e.preventDefault();
       };
       const start = (e: PointerEvent) => {
@@ -69,12 +82,13 @@ export class Input {
         const r = stick.getBoundingClientRect();
         cxp = r.left + r.width / 2; cyp = r.top + r.height / 2; rad = r.width * 0.42;
         const now = performance.now();
-        if (now - lastTap < 300) this.touchPressed.add('dash');   // double-tap the stick = dash
+        if (now - lastTap < 300) { this.touchPressed.add('dash'); buzz(18); }   // double-tap the stick = dash
         lastTap = now;
+        stick.classList.add('pressed'); buzz(6);
         move(e); try { (zone as Element).setPointerCapture(e.pointerId); } catch {}
         e.preventDefault();
       };
-      const end = (e: PointerEvent) => { if (e.pointerId !== sid) return; sid = null; this.stickX = 0; this.stickY = 0; knob.style.transform = 'translate(0,0)'; };
+      const end = (e: PointerEvent) => { if (e.pointerId !== sid) return; sid = null; this.stickX = 0; this.stickY = 0; knob.style.transform = 'translate(0,0)'; stick.classList.remove('pressed'); feedback(0, 0); };
       zone.addEventListener('pointerdown', start);
       zone.addEventListener('pointermove', move);
       zone.addEventListener('pointerup', end);
@@ -103,6 +117,16 @@ export class Input {
     this.axisX = Math.abs(gp.axes[0]) > 0.25 ? gp.axes[0] : 0;
     this.axisY = Math.abs(gp.axes[1]) > 0.35 ? gp.axes[1] : 0;
     this.gpButtons = gp.buttons.map(b => b.pressed);
+  }
+
+  // analog horizontal move (-1..1): stick tilt scales speed; keys/dpad = full
+  moveX(): number {
+    if (Math.abs(this.stickX) > 0.14) return Math.max(-1, Math.min(1, this.stickX / 0.9));
+    if (Math.abs(this.axisX) > 0.05) return Math.max(-1, Math.min(1, this.axisX));
+    const k = this.keys; let v = 0;
+    if (k.has('a') || k.has('arrowleft') || this.touch.has('left') || !!this.gpButtons[14]) v -= 1;
+    if (k.has('d') || k.has('arrowright') || this.touch.has('right') || !!this.gpButtons[15]) v += 1;
+    return v;
   }
 
   down(action: string): boolean {

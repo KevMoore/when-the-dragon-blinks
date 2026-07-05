@@ -57,7 +57,7 @@ Run-and-gun: fire **dragon-light** at everything. Tap to shoot an aimed bolt; **
 
 **Gamepad** — Move: stick/D-pad · Jump: South · Aim: stick/D-pad up · Shoot: West (hold = charge) · Dash: East · Blink: North/shoulders · Pause: Start
 
-**Mobile** — Landscape only (portrait shows a rotate screen). **Left thumb = a drag joystick**: tilt to move, push **up** to aim shots up, push **down** to crouch (diagonals work — crouch-walk, aim-up-while-moving). **Right thumb**: three taps — **fire (✦)**, **jump (▲)**, **blink (☯)**; jump is instant. **Dash = double-tap the joystick.** Shrines auto-open on approach.
+**Mobile** — Landscape only (portrait shows a rotate screen). **Left thumb = an analog dragon-eye joystick**: tilt to move (partial tilt walks, full tilt runs), push **up** to aim shots up, push **down** to crouch (diagonals work — crouch-walk, aim-up-while-moving). The dial's notches light up (with a haptic tick) to show exactly what input registers. **Right thumb**: three taps — **fire (✦)**, **jump (▲)**, **blink (☯)**; jump is instant. **Dash = double-tap the joystick.** Shrines auto-open on approach.
 
 All inputs support the double jump — tap jump again in mid-air for a second boost.
 

@@ -76,8 +76,9 @@ export class Player {
     const input = game.input;
     this.animTime += dt;
     this.wallLock = Math.max(0, this.wallLock - dt);
-    const left = input.down('left') && this.wallLock <= 0;
-    const right = input.down('right') && this.wallLock <= 0;
+    const mx = this.wallLock <= 0 ? input.moveX() : 0;   // analog: stick tilt scales speed
+    const moving = Math.abs(mx) > 0.05;
+    const left = mx < -0.05, right = mx > 0.05;
     const wasGrounded = this.grounded;
 
     // horizontal accel / friction
@@ -87,13 +88,14 @@ export class Player {
     else if (!wantCrouch && this.crouching) {
       if (!game.overlapsSolid({ x: this.x, y: this.y - 14, w: this.w, h: 42 })) { this.y -= 14; this.h = 42; this.crouching = false; }
     }
-    const maxSpeed = this.crouching ? MAX_SPEED * 0.45 : MAX_SPEED;
+    const crouchMul = this.crouching ? 0.45 : 1;
 
     const accel = this.grounded ? (this.crouching ? RUN_ACCEL * 0.5 : RUN_ACCEL) : AIR_ACCEL;
-    if (left) { this.vx -= accel * dt; this.facing = -1; }
-    if (right) { this.vx += accel * dt; this.facing = 1; }
-    if (!left && !right) this.vx = lerp(this.vx, 0, this.grounded ? 0.26 : 0.06);
-    this.vx = clamp(this.vx, -maxSpeed, maxSpeed);
+    if (moving) { this.vx += Math.sign(mx) * accel * dt; this.facing = mx < 0 ? -1 : 1; }
+    else this.vx = lerp(this.vx, 0, this.grounded ? 0.26 : 0.06);
+    // partial stick tilt caps a lower top speed → precise analog control
+    const cap = MAX_SPEED * crouchMul * (moving ? Math.max(0.34, Math.min(1, Math.abs(mx))) : 1);
+    this.vx = clamp(this.vx, -cap, cap);
 
     // wall contact (only meaningful in the air)
     this.wallDir = 0;

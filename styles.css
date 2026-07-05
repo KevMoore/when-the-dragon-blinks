@@ -30,8 +30,20 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: radial-gradi
 /* left-thumb drag joystick (glass) */
 #stick-zone { position: absolute; left: 0; bottom: 0; width: 52%; height: 74%; pointer-events: none; touch-action: none; }
 body.playing #stick-zone { pointer-events: auto; }
-#touch-stick { position: fixed; left: max(30px, env(safe-area-inset-left)); bottom: max(30px, env(safe-area-inset-bottom)); width: clamp(106px, 16vw, 138px); height: clamp(106px, 16vw, 138px); border-radius: 50%; pointer-events: none; z-index: 7; border: 1px solid rgba(255,255,255,.2); background: radial-gradient(circle at 40% 35%, rgba(255,255,255,.12), rgba(255,255,255,.03) 60%, rgba(120,120,150,.05)); box-shadow: inset 0 2px 2px rgba(255,255,255,.25), inset 0 -10px 18px rgba(255,255,255,.03), 0 6px 20px rgba(0,0,0,.28); backdrop-filter: blur(12px) saturate(150%); -webkit-backdrop-filter: blur(12px) saturate(150%); }
-#stick-knob { position: absolute; left: 50%; top: 50%; width: 46%; height: 46%; margin-left: -23%; margin-top: -23%; border-radius: 50%; border: 1px solid rgba(255,255,255,.4); background: radial-gradient(circle at 40% 32%, rgba(255,255,255,.5), rgba(255,220,170,.18) 55%, rgba(217,120,60,.14)); box-shadow: inset 0 2px 3px rgba(255,255,255,.6), 0 3px 10px rgba(0,0,0,.3); transition: transform .04s linear; }
+#touch-stick { position: fixed; left: max(28px, env(safe-area-inset-left)); bottom: max(28px, env(safe-area-inset-bottom)); width: clamp(120px, 18vw, 156px); height: clamp(120px, 18vw, 156px); pointer-events: none; z-index: 7; background: url('assets/sprites/ui/stick_base.png') center/contain no-repeat; filter: drop-shadow(0 6px 16px rgba(0,0,0,.42)); }
+#stick-knob { position: absolute; left: 50%; top: 50%; width: 44%; height: 44%; margin-left: -22%; margin-top: -22%; background: url('assets/sprites/ui/stick_knob.png') center/contain no-repeat; filter: drop-shadow(0 3px 9px rgba(0,0,0,.5)); transition: transform .03s linear; }
+#touch-stick.pressed #stick-knob { filter: drop-shadow(0 0 12px rgba(255,150,60,.7)) drop-shadow(0 3px 9px rgba(0,0,0,.5)); }
+/* directional feedback: labels light on the notch when that input registers */
+.sdir { position: absolute; font: 700 11px Georgia, serif; letter-spacing: .5px; color: #ffe3a0; opacity: .16; pointer-events: none; text-shadow: 0 1px 2px #000; transition: opacity .07s, color .07s, text-shadow .07s, transform .07s; }
+.sdir.up { top: 5%; left: 50%; transform: translateX(-50%); }
+.sdir.down { bottom: 5%; left: 50%; transform: translateX(-50%); }
+.sdir.left { left: 7%; top: 50%; transform: translateY(-50%); }
+.sdir.right { right: 7%; top: 50%; transform: translateY(-50%); }
+.sdir.on { opacity: 1; color: #fff; text-shadow: 0 0 10px #ffd777, 0 0 4px #fff; }
+.sdir.up.on { transform: translateX(-50%) translateY(-2px) scale(1.12); }
+.sdir.down.on { transform: translateX(-50%) translateY(2px) scale(1.12); }
+.sdir.left.on { transform: translateY(-50%) translateX(-2px) scale(1.12); }
+.sdir.right.on { transform: translateY(-50%) translateX(2px) scale(1.12); }
 .touch-right button[data-action="toggle"] { width: 84px; height: 84px; right: 59px; bottom: 104px; color: #ffe3a0; border-color: rgba(255,220,150,.55); background: linear-gradient(150deg, rgba(255,220,150,.28), rgba(120,90,40,.12)); }
 #touch-pause { position: fixed; top: max(14px, env(safe-area-inset-top)); right: max(14px, env(safe-area-inset-right)); z-index: 8; display: none; pointer-events: auto; width: 46px; height: 46px; border-radius: 14px; border: 1px solid rgba(255,255,255,.28); color: #fff; background: linear-gradient(150deg, rgba(255,255,255,.16), rgba(255,255,255,.04)); box-shadow: inset 0 1.5px 1px rgba(255,255,255,.4), 0 4px 14px rgba(0,0,0,.24); font-size: 15px; text-shadow: 0 1px 2px rgba(0,0,0,.4); backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%); }
 #touch-pause:active { background: rgba(217,74,58,.6); }
