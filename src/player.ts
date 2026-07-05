@@ -35,6 +35,7 @@ export class Player {
   animTime = 0;
   animName = 'idle'; animClock = 0;
   dropThrough = 0;
+  airJumps = 1;              // mid-air jumps available (reset on landing)
   wallDir = 0;            // -1 wall on left, 1 on right, 0 none
   wallLock = 0;          // brief control lock after a wall jump
   afterimages: After[] = [];
@@ -59,7 +60,7 @@ export class Player {
     this.x = spawn.x; this.y = spawn.y; this.vx = 0; this.vy = 0; this.hp = this.maxHp;
     this.grounded = false; this.invuln = 0; this.attackTimer = 0; this.dashTime = 0;
     this.wallDir = 0; this.wallLock = 0; this.afterimages.length = 0; this.dead = false;
-    this.scaleX = this.scaleY = 1;
+    this.airJumps = 1; this.scaleX = this.scaleY = 1;
   }
   respawnAtCheckpoint() {
     this.x = this.checkpoint.x; this.y = this.checkpoint.y; this.vx = 0; this.vy = 0;
@@ -110,6 +111,14 @@ export class Player {
       this.jumpBuffer = 0; this.coyote = 0;
       this.stretch(0.7, 1.35);
       game.particles.sparks(this.x + this.w / 2, this.y + this.h / 2, 10, '#ffe19a');
+      game.audio.sfx('jump');
+    } else if (this.jumpBuffer > 0 && this.airJumps > 0) {
+      // mid-air double jump — a full second boost (tap jump twice for ~2x height)
+      this.vy = -JUMP_VEL;
+      this.airJumps--; this.jumpBuffer = 0;
+      this.stretch(0.72, 1.32);
+      game.particles.ring(this.x + this.w / 2, this.y + this.h, 12, 150, game.world === 'day' ? '#ffd777' : '#a9d6ff');
+      game.particles.dust(this.x + this.w / 2, this.y + this.h, 6);
       game.audio.sfx('jump');
     }
     // variable jump height
@@ -174,6 +183,7 @@ export class Player {
     game.moveEntity(this, this.vx * dt, this.vy * dt, true);
 
     // landing
+    if (this.grounded) this.airJumps = 1;
     if (!wasGrounded && this.grounded) {
       const impact = clamp(Math.abs(this.vy) / 800, 0, 1);
       game.audio.sfx('land');

@@ -57,7 +57,9 @@ Run-and-gun: fire **dragon-light** at everything. Tap to shoot an aimed bolt; **
 
 **Gamepad** — Move: stick/D-pad · Jump: South · Aim: stick/D-pad up · Shoot: West (hold = charge) · Dash: East · Blink: North/shoulders · Pause: Start
 
-**Mobile** — Landscape only (portrait shows a rotate screen). 5 buttons: move (◀▶), blink (☯), shoot (✦, hold to charge), jump (▲). **Dash = double-tap a direction.** Shrines auto-open on approach.
+**Mobile** — Landscape only (portrait shows a rotate screen). 5 buttons: move (◀▶), blink (☯), shoot (✦, hold to charge), jump (▲). **Double jump = tap ▲ twice** (second tap in the air). **Dash = double-tap a direction.** Shrines auto-open on approach.
+
+All inputs support the double jump — tap jump again in mid-air for a second boost.
 
 ## Architecture
 

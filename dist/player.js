@@ -40,6 +40,7 @@ export class Player {
         this.animName = 'idle';
         this.animClock = 0;
         this.dropThrough = 0;
+        this.airJumps = 1; // mid-air jumps available (reset on landing)
         this.wallDir = 0; // -1 wall on left, 1 on right, 0 none
         this.wallLock = 0; // brief control lock after a wall jump
         this.afterimages = [];
@@ -79,6 +80,7 @@ export class Player {
         this.wallLock = 0;
         this.afterimages.length = 0;
         this.dead = false;
+        this.airJumps = 1;
         this.scaleX = this.scaleY = 1;
     }
     respawnAtCheckpoint() {
@@ -145,6 +147,16 @@ export class Player {
             this.coyote = 0;
             this.stretch(0.7, 1.35);
             game.particles.sparks(this.x + this.w / 2, this.y + this.h / 2, 10, '#ffe19a');
+            game.audio.sfx('jump');
+        }
+        else if (this.jumpBuffer > 0 && this.airJumps > 0) {
+            // mid-air double jump — a full second boost (tap jump twice for ~2x height)
+            this.vy = -JUMP_VEL;
+            this.airJumps--;
+            this.jumpBuffer = 0;
+            this.stretch(0.72, 1.32);
+            game.particles.ring(this.x + this.w / 2, this.y + this.h, 12, 150, game.world === 'day' ? '#ffd777' : '#a9d6ff');
+            game.particles.dust(this.x + this.w / 2, this.y + this.h, 6);
             game.audio.sfx('jump');
         }
         // variable jump height
@@ -220,6 +232,8 @@ export class Player {
         // integrate with collision (corner correction for the player head)
         game.moveEntity(this, this.vx * dt, this.vy * dt, true);
         // landing
+        if (this.grounded)
+            this.airJumps = 1;
         if (!wasGrounded && this.grounded) {
             const impact = clamp(Math.abs(this.vy) / 800, 0, 1);
             game.audio.sfx('land');
