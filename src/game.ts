@@ -366,6 +366,7 @@ export class Game {
     this.camera.update(dt);
     this.camera.enabled = this.save.settings.shake && !this.save.settings.reducedMotion;
     if (this.message) { this.message.t += dt; if (this.message.t > this.message.max) this.message = null; }
+    if (this.state === 'playing') document.body.classList.add('playing'); else document.body.classList.remove('playing');
     this.updateMusic();
     this.input.endFrame();
   }

@@ -483,6 +483,10 @@ export class Game {
             if (this.message.t > this.message.max)
                 this.message = null;
         }
+        if (this.state === 'playing')
+            document.body.classList.add('playing');
+        else
+            document.body.classList.remove('playing');
         this.updateMusic();
         this.input.endFrame();
     }

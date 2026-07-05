@@ -11,6 +11,7 @@ export class Input {
   axisX = 0;
   axisY = 0;
   pointer: { x: number; y: number; clicked: boolean } | null = null;
+  stickX = 0; stickY = 0;    // left-thumb drag joystick (-1..1)
   private lastDirTap: Record<string, number> = {};
 
   constructor(private canvas: HTMLCanvasElement) {
@@ -47,6 +48,38 @@ export class Input {
       btn.addEventListener('pointercancel', up);
       btn.addEventListener('pointerleave', up);
     });
+
+    // left-thumb drag joystick: tilt drives move (X) + aim-up / crouch (Y)
+    const zone = document.getElementById('stick-zone');
+    const stick = document.getElementById('touch-stick');
+    const knob = document.getElementById('stick-knob');
+    if (zone && stick && knob && typeof zone.addEventListener === 'function') {
+      let sid: number | null = null, cxp = 0, cyp = 0, rad = 52, lastTap = 0;
+      const move = (e: PointerEvent) => {
+        if (e.pointerId !== sid) return;
+        let dx = e.clientX - cxp, dy = e.clientY - cyp;
+        const len = Math.hypot(dx, dy) || 1, cl = Math.min(len, rad);
+        dx = dx / len * cl; dy = dy / len * cl;
+        knob.style.transform = `translate(${dx}px, ${dy}px)`;
+        this.stickX = dx / rad; this.stickY = dy / rad;
+        e.preventDefault();
+      };
+      const start = (e: PointerEvent) => {
+        sid = e.pointerId;
+        const r = stick.getBoundingClientRect();
+        cxp = r.left + r.width / 2; cyp = r.top + r.height / 2; rad = r.width * 0.42;
+        const now = performance.now();
+        if (now - lastTap < 300) this.touchPressed.add('dash');   // double-tap the stick = dash
+        lastTap = now;
+        move(e); try { (zone as Element).setPointerCapture(e.pointerId); } catch {}
+        e.preventDefault();
+      };
+      const end = (e: PointerEvent) => { if (e.pointerId !== sid) return; sid = null; this.stickX = 0; this.stickY = 0; knob.style.transform = 'translate(0,0)'; };
+      zone.addEventListener('pointerdown', start);
+      zone.addEventListener('pointermove', move);
+      zone.addEventListener('pointerup', end);
+      zone.addEventListener('pointercancel', end);
+    }
   }
 
   toCanvasPoint(clientX: number, clientY: number) {
@@ -74,10 +107,10 @@ export class Input {
 
   down(action: string): boolean {
     const k = this.keys;
-    if (action === 'left') return k.has('a') || k.has('arrowleft') || this.touch.has('left') || this.axisX < -0.25 || !!this.gpButtons[14];
-    if (action === 'right') return k.has('d') || k.has('arrowright') || this.touch.has('right') || this.axisX > 0.25 || !!this.gpButtons[15];
-    if (action === 'up') return k.has('w') || k.has('arrowup') || this.touch.has('up') || this.axisY < -0.4 || !!this.gpButtons[12];
-    if (action === 'down') return k.has('s') || k.has('arrowdown') || this.touch.has('down') || this.axisY > 0.4 || !!this.gpButtons[13];
+    if (action === 'left') return k.has('a') || k.has('arrowleft') || this.touch.has('left') || this.stickX < -0.3 || this.axisX < -0.25 || !!this.gpButtons[14];
+    if (action === 'right') return k.has('d') || k.has('arrowright') || this.touch.has('right') || this.stickX > 0.3 || this.axisX > 0.25 || !!this.gpButtons[15];
+    if (action === 'up') return k.has('w') || k.has('arrowup') || this.touch.has('up') || this.stickY < -0.5 || this.axisY < -0.4 || !!this.gpButtons[12];
+    if (action === 'down') return k.has('s') || k.has('arrowdown') || this.touch.has('down') || this.stickY > 0.5 || this.axisY > 0.4 || !!this.gpButtons[13];
     // jump is a dedicated button so Up can be used to aim shots upward
     if (action === 'jump') return k.has(' ') || this.touch.has('jump') || !!this.gpButtons[0];
     if (action === 'attack') return k.has('j') || k.has('x') || this.touch.has('attack') || !!this.gpButtons[2];
