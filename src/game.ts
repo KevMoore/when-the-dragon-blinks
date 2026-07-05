@@ -52,6 +52,9 @@ export class Game {
   lorePanel: LorePanel | null = null; loreAnim = 0;
   message: FloatingText | null = null;
   private activatedCheckpoints = new Set<number>();
+  private viewedShrines = new Set<number>();
+  private dashHintShown = false;
+  private isTouch() { return !!window.matchMedia && window.matchMedia('(pointer: coarse)').matches; }
 
   save: SaveData;
 
@@ -80,6 +83,7 @@ export class Game {
     this.boss = this.level.isBoss ? new LanternEater() : null;
     this.projectiles = []; this.particles.clear();
     this.activatedCheckpoints.clear();
+    this.viewedShrines.clear();
     this.elapsed = 0; this.message = null;
     this.camera.snap(0, 0);
     this.camera.follow(this.player.x, this.player.y, 1, 0, this.level.width, this.level.height, 0.016);
@@ -241,6 +245,7 @@ export class Game {
   }
 
   private updatePlaying(dt: number) {
+    if (!this.dashHintShown && this.isTouch()) { this.dashHintShown = true; this.flashText('Tip: double-tap ◀ / ▶ to dash'); }
     if (this.input.just('pause')) { this.state = 'paused'; this.pauseSelection = 0; return; }
     if (this.input.just('toggle')) this.tryToggleWorld();
 
@@ -303,10 +308,14 @@ export class Game {
         }
       }
     });
-    for (const shrine of this.level.shrines) {
+    // Shrines auto-open the first time you reach them (no button needed);
+    // desktop players can re-read with the interact key afterwards.
+    this.level.shrines.forEach((shrine, i) => {
       const r = { x: shrine.x - 18, y: shrine.y - 50, w: 60, h: 70 };
-      if (overlap(pr, r) && this.input.just('interact')) { this.openLore(shrine.textId, 'playing'); this.audio.sfx('shrine'); }
-    }
+      if (!overlap(pr, r)) return;
+      if (!this.viewedShrines.has(i)) { this.viewedShrines.add(i); this.openLore(shrine.textId, 'playing'); this.audio.sfx('shrine'); }
+      else if (this.input.just('interact')) { this.openLore(shrine.textId, 'playing'); this.audio.sfx('shrine'); }
+    });
     for (const relic of this.level.relics) {
       if (this.save.relics.includes(relic.id)) continue;
       if (overlap(pr, { x: relic.x, y: relic.y, w: 22, h: 22 })) {
@@ -489,7 +498,6 @@ export class Game {
       c.save(); c.shadowColor = this.world === 'day' ? '#ffd777' : '#a9d6ff'; c.shadowBlur = 16;
       c.fillStyle = this.world === 'day' ? '#ffd777' : '#a9d6ff';
       c.beginPath(); c.arc(x + 13, y + 24, 7 + Math.sin(this.time * 5) * 1.5, 0, Math.PI * 2); c.fill(); c.restore();
-      if (Math.abs(this.player.x - s.x) < 60 && Math.abs(this.player.y - s.y) < 74) this.drawPrompt(c, x + 13, y - 26, 'F / ↑  Lore');
     }
     // relics
     for (const relic of this.level.relics) {

@@ -12,6 +12,7 @@ export class Input {
         this.axisX = 0;
         this.axisY = 0;
         this.pointer = null;
+        this.lastDirTap = {};
         window.addEventListener('keydown', e => {
             const k = e.key.toLowerCase();
             if (!this.keys.has(k))
@@ -29,7 +30,19 @@ export class Input {
         const controls = document.getElementById('touch-controls');
         controls?.querySelectorAll('button[data-action]').forEach(btn => {
             const action = btn.dataset.action;
-            const down = (e) => { e.preventDefault(); this.touch.add(action); this.touchPressed.add(action); btn.classList.add('active'); };
+            const down = (e) => {
+                e.preventDefault();
+                this.touch.add(action);
+                this.touchPressed.add(action);
+                btn.classList.add('active');
+                // double-tap a direction to dash
+                if (action === 'left' || action === 'right') {
+                    const now = performance.now();
+                    if (now - (this.lastDirTap[action] || 0) < 300)
+                        this.touchPressed.add('dash');
+                    this.lastDirTap[action] = now;
+                }
+            };
             const up = (e) => { e.preventDefault(); this.touch.delete(action); btn.classList.remove('active'); };
             btn.addEventListener('pointerdown', down);
             btn.addEventListener('pointerup', up);

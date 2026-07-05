@@ -11,6 +11,7 @@ export class Input {
   axisX = 0;
   axisY = 0;
   pointer: { x: number; y: number; clicked: boolean } | null = null;
+  private lastDirTap: Record<string, number> = {};
 
   constructor(private canvas: HTMLCanvasElement) {
     window.addEventListener('keydown', e => {
@@ -30,7 +31,16 @@ export class Input {
     const controls = document.getElementById('touch-controls');
     controls?.querySelectorAll('button[data-action]').forEach(btn => {
       const action = (btn as HTMLElement).dataset.action!;
-      const down = (e: Event) => { e.preventDefault(); this.touch.add(action); this.touchPressed.add(action); btn.classList.add('active'); };
+      const down = (e: Event) => {
+        e.preventDefault();
+        this.touch.add(action); this.touchPressed.add(action); btn.classList.add('active');
+        // double-tap a direction to dash
+        if (action === 'left' || action === 'right') {
+          const now = performance.now();
+          if (now - (this.lastDirTap[action] || 0) < 300) this.touchPressed.add('dash');
+          this.lastDirTap[action] = now;
+        }
+      };
       const up = (e: Event) => { e.preventDefault(); this.touch.delete(action); btn.classList.remove('active'); };
       btn.addEventListener('pointerdown', down);
       btn.addEventListener('pointerup', up);

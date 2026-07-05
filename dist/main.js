@@ -37,6 +37,9 @@ if (_q.has('level')) {
     if (_q.has('night'))
         game.tryToggleWorld(true);
 }
+// dev aid: force-show the touch controls on non-touch devices for layout testing
+if (_q.has('touch'))
+    document.body.classList.add('force-touch');
 const STEP = 1 / 60;
 let last = performance.now();
 let accumulator = 0;

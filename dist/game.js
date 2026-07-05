@@ -14,6 +14,7 @@ import { loadSave, persist } from './storage.js';
 import * as bg from './background.js';
 import * as ui from './ui.js';
 export class Game {
+    isTouch() { return !!window.matchMedia && window.matchMedia('(pointer: coarse)').matches; }
     constructor(ctx) {
         this.ctx = ctx;
         this.input = new Input(document.getElementById('game'));
@@ -51,6 +52,8 @@ export class Game {
         this.loreAnim = 0;
         this.message = null;
         this.activatedCheckpoints = new Set();
+        this.viewedShrines = new Set();
+        this.dashHintShown = false;
         this.save = loadSave();
         this.audio = new AudioManager(this.save.settings);
         this.state = 'title';
@@ -78,6 +81,7 @@ export class Game {
         this.projectiles = [];
         this.particles.clear();
         this.activatedCheckpoints.clear();
+        this.viewedShrines.clear();
         this.elapsed = 0;
         this.message = null;
         this.camera.snap(0, 0);
@@ -297,6 +301,10 @@ export class Game {
         this.input.endFrame();
     }
     updatePlaying(dt) {
+        if (!this.dashHintShown && this.isTouch()) {
+            this.dashHintShown = true;
+            this.flashText('Tip: double-tap ◀ / ▶ to dash');
+        }
         if (this.input.just('pause')) {
             this.state = 'paused';
             this.pauseSelection = 0;
@@ -385,13 +393,22 @@ export class Game {
                 }
             }
         });
-        for (const shrine of this.level.shrines) {
+        // Shrines auto-open the first time you reach them (no button needed);
+        // desktop players can re-read with the interact key afterwards.
+        this.level.shrines.forEach((shrine, i) => {
             const r = { x: shrine.x - 18, y: shrine.y - 50, w: 60, h: 70 };
-            if (overlap(pr, r) && this.input.just('interact')) {
+            if (!overlap(pr, r))
+                return;
+            if (!this.viewedShrines.has(i)) {
+                this.viewedShrines.add(i);
                 this.openLore(shrine.textId, 'playing');
                 this.audio.sfx('shrine');
             }
-        }
+            else if (this.input.just('interact')) {
+                this.openLore(shrine.textId, 'playing');
+                this.audio.sfx('shrine');
+            }
+        });
         for (const relic of this.level.relics) {
             if (this.save.relics.includes(relic.id))
                 continue;
@@ -735,8 +752,6 @@ export class Game {
             c.arc(x + 13, y + 24, 7 + Math.sin(this.time * 5) * 1.5, 0, Math.PI * 2);
             c.fill();
             c.restore();
-            if (Math.abs(this.player.x - s.x) < 60 && Math.abs(this.player.y - s.y) < 74)
-                this.drawPrompt(c, x + 13, y - 26, 'F / ↑  Lore');
         }
         // relics
         for (const relic of this.level.relics) {
