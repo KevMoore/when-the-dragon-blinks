@@ -14,6 +14,7 @@ export function loadSprites() {
   add('player/jump', 'player/jump.png', 128, 12, false);
   add('player/attack', 'player/attack.png', 128, 18, false);
   add('player/summon', 'player/summon.png', 128, 12, false);
+  add('player/crouch', 'player/crouch.png', 128, 14, false);
 
   // enemies
   add('enemy/moth/idle', 'moth/idle.png', 96, 12, true);

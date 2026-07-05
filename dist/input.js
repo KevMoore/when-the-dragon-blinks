@@ -85,9 +85,9 @@ export class Input {
         if (action === 'right')
             return k.has('d') || k.has('arrowright') || this.touch.has('right') || this.axisX > 0.25 || !!this.gpButtons[15];
         if (action === 'up')
-            return k.has('w') || k.has('arrowup') || this.axisY < -0.4 || !!this.gpButtons[12];
+            return k.has('w') || k.has('arrowup') || this.touch.has('up') || this.axisY < -0.4 || !!this.gpButtons[12];
         if (action === 'down')
-            return k.has('s') || k.has('arrowdown') || this.axisY > 0.4 || !!this.gpButtons[13];
+            return k.has('s') || k.has('arrowdown') || this.touch.has('down') || this.axisY > 0.4 || !!this.gpButtons[13];
         // jump is a dedicated button so Up can be used to aim shots upward
         if (action === 'jump')
             return k.has(' ') || this.touch.has('jump') || !!this.gpButtons[0];

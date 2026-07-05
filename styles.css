@@ -24,6 +24,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: radial-gradi
 #touch-controls button:active, #touch-controls button.active { transform: translateY(2px) scale(.95); background: rgba(217,74,58,.6); opacity: 1; }
 /* right-hand thumb arc: jump anchors the corner; attack then blink rise toward it */
 .touch-right button[data-action="jump"] { width: clamp(70px, 10vw, 96px); height: clamp(70px, 10vw, 96px); background: rgba(217,74,58,.4); border-color: rgba(255,180,90,.6); }
+.tb-updown { display: flex; flex-direction: column; gap: 8px; margin-right: 4px; }
+.tb-updown button { width: clamp(46px, 6vw, 60px) !important; height: clamp(46px, 6vw, 60px) !important; font-size: clamp(15px, 2.2vw, 22px); }
 .touch-right button[data-action="attack"] { margin-bottom: 22px; }
 .touch-right button[data-action="toggle"] { margin-bottom: 52px; color: #ffe3a0; border-color: rgba(246,191,94,.68); background: rgba(42,24,10,.4); }
 #touch-pause { position: fixed; top: max(14px, env(safe-area-inset-top)); right: max(14px, env(safe-area-inset-right)); z-index: 8; display: none; pointer-events: auto; width: 46px; height: 46px; border-radius: 12px; border: 1px solid rgba(246,191,94,.5); color: #fff7df; background: rgba(15,8,20,.6); font-size: 15px; backdrop-filter: blur(8px); }

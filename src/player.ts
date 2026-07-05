@@ -39,6 +39,7 @@ export class Player {
   dragonTime = 0;            // seconds remaining in Zhulong flight form
   dragonTrail: { x: number; y: number }[] = [];
   dragonFireCd = 0;
+  crouching = false;
   wallDir = 0;            // -1 wall on left, 1 on right, 0 none
   wallLock = 0;          // brief control lock after a wall jump
   afterimages: After[] = [];
@@ -63,7 +64,7 @@ export class Player {
     this.x = spawn.x; this.y = spawn.y; this.vx = 0; this.vy = 0; this.hp = this.maxHp;
     this.grounded = false; this.invuln = 0; this.attackTimer = 0; this.dashTime = 0;
     this.wallDir = 0; this.wallLock = 0; this.afterimages.length = 0; this.dead = false;
-    this.airJumps = 1; this.scaleX = this.scaleY = 1;
+    this.airJumps = 1; this.scaleX = this.scaleY = 1; this.h = 42; this.crouching = false;
   }
   respawnAtCheckpoint() {
     this.x = this.checkpoint.x; this.y = this.checkpoint.y; this.vx = 0; this.vy = 0;
@@ -80,11 +81,19 @@ export class Player {
     const wasGrounded = this.grounded;
 
     // horizontal accel / friction
-    const accel = this.grounded ? RUN_ACCEL : AIR_ACCEL;
+    // crouch: hold Down on the ground → shrink hitbox, move slow, fire low
+    const wantCrouch = this.grounded && input.down('down') && this.dashTime <= 0;
+    if (wantCrouch && !this.crouching) { this.y += 14; this.h = 28; this.crouching = true; }
+    else if (!wantCrouch && this.crouching) {
+      if (!game.overlapsSolid({ x: this.x, y: this.y - 14, w: this.w, h: 42 })) { this.y -= 14; this.h = 42; this.crouching = false; }
+    }
+    const maxSpeed = this.crouching ? MAX_SPEED * 0.45 : MAX_SPEED;
+
+    const accel = this.grounded ? (this.crouching ? RUN_ACCEL * 0.5 : RUN_ACCEL) : AIR_ACCEL;
     if (left) { this.vx -= accel * dt; this.facing = -1; }
     if (right) { this.vx += accel * dt; this.facing = 1; }
     if (!left && !right) this.vx = lerp(this.vx, 0, this.grounded ? 0.26 : 0.06);
-    this.vx = clamp(this.vx, -MAX_SPEED, MAX_SPEED);
+    this.vx = clamp(this.vx, -maxSpeed, maxSpeed);
 
     // wall contact (only meaningful in the air)
     this.wallDir = 0;
@@ -205,7 +214,8 @@ export class Player {
     this.afterimages = this.afterimages.filter(a => a.life > 0);
 
     // animation state for sprite playback
-    const desired = this.attackTimer > 0 ? 'attack'
+    const desired = this.crouching ? 'crouch'
+      : this.attackTimer > 0 ? 'attack'
       : !this.grounded ? 'jump'
       : Math.abs(this.vx) > 26 ? 'run' : 'idle';
     if (desired !== this.animName) { this.animName = desired; this.animClock = 0; }
@@ -411,7 +421,7 @@ export class Player {
     // ---- Sprite path: use AutoSprite sheet when loaded ----
     const sheet = sprites.get('player/' + this.animName);
     if (sheet && sheet.ready) {
-      const targetH = this.h * 1.72;           // sprite slightly overhangs the AABB
+      const targetH = 72;                       // constant so crouch doesn't shrink the sprite
       c.save();
       c.translate(sx + this.w / 2, sy + this.h + bob + idle);
       c.scale(this.facing * this.scaleX, this.scaleY);

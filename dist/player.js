@@ -44,6 +44,7 @@ export class Player {
         this.dragonTime = 0; // seconds remaining in Zhulong flight form
         this.dragonTrail = [];
         this.dragonFireCd = 0;
+        this.crouching = false;
         this.wallDir = 0; // -1 wall on left, 1 on right, 0 none
         this.wallLock = 0; // brief control lock after a wall jump
         this.afterimages = [];
@@ -85,6 +86,8 @@ export class Player {
         this.dead = false;
         this.airJumps = 1;
         this.scaleX = this.scaleY = 1;
+        this.h = 42;
+        this.crouching = false;
     }
     respawnAtCheckpoint() {
         this.x = this.checkpoint.x;
@@ -108,7 +111,22 @@ export class Player {
         const right = input.down('right') && this.wallLock <= 0;
         const wasGrounded = this.grounded;
         // horizontal accel / friction
-        const accel = this.grounded ? RUN_ACCEL : AIR_ACCEL;
+        // crouch: hold Down on the ground → shrink hitbox, move slow, fire low
+        const wantCrouch = this.grounded && input.down('down') && this.dashTime <= 0;
+        if (wantCrouch && !this.crouching) {
+            this.y += 14;
+            this.h = 28;
+            this.crouching = true;
+        }
+        else if (!wantCrouch && this.crouching) {
+            if (!game.overlapsSolid({ x: this.x, y: this.y - 14, w: this.w, h: 42 })) {
+                this.y -= 14;
+                this.h = 42;
+                this.crouching = false;
+            }
+        }
+        const maxSpeed = this.crouching ? MAX_SPEED * 0.45 : MAX_SPEED;
+        const accel = this.grounded ? (this.crouching ? RUN_ACCEL * 0.5 : RUN_ACCEL) : AIR_ACCEL;
         if (left) {
             this.vx -= accel * dt;
             this.facing = -1;
@@ -119,7 +137,7 @@ export class Player {
         }
         if (!left && !right)
             this.vx = lerp(this.vx, 0, this.grounded ? 0.26 : 0.06);
-        this.vx = clamp(this.vx, -MAX_SPEED, MAX_SPEED);
+        this.vx = clamp(this.vx, -maxSpeed, maxSpeed);
         // wall contact (only meaningful in the air)
         this.wallDir = 0;
         if (!this.grounded) {
@@ -257,9 +275,10 @@ export class Player {
             a.life -= dt;
         this.afterimages = this.afterimages.filter(a => a.life > 0);
         // animation state for sprite playback
-        const desired = this.attackTimer > 0 ? 'attack'
-            : !this.grounded ? 'jump'
-                : Math.abs(this.vx) > 26 ? 'run' : 'idle';
+        const desired = this.crouching ? 'crouch'
+            : this.attackTimer > 0 ? 'attack'
+                : !this.grounded ? 'jump'
+                    : Math.abs(this.vx) > 26 ? 'run' : 'idle';
         if (desired !== this.animName) {
             this.animName = desired;
             this.animClock = 0;
@@ -550,7 +569,7 @@ export class Player {
         // ---- Sprite path: use AutoSprite sheet when loaded ----
         const sheet = sprites.get('player/' + this.animName);
         if (sheet && sheet.ready) {
-            const targetH = this.h * 1.72; // sprite slightly overhangs the AABB
+            const targetH = 72; // constant so crouch doesn't shrink the sprite
             c.save();
             c.translate(sx + this.w / 2, sy + this.h + bob + idle);
             c.scale(this.facing * this.scaleX, this.scaleY);

@@ -76,8 +76,8 @@ export class Input {
     const k = this.keys;
     if (action === 'left') return k.has('a') || k.has('arrowleft') || this.touch.has('left') || this.axisX < -0.25 || !!this.gpButtons[14];
     if (action === 'right') return k.has('d') || k.has('arrowright') || this.touch.has('right') || this.axisX > 0.25 || !!this.gpButtons[15];
-    if (action === 'up') return k.has('w') || k.has('arrowup') || this.axisY < -0.4 || !!this.gpButtons[12];
-    if (action === 'down') return k.has('s') || k.has('arrowdown') || this.axisY > 0.4 || !!this.gpButtons[13];
+    if (action === 'up') return k.has('w') || k.has('arrowup') || this.touch.has('up') || this.axisY < -0.4 || !!this.gpButtons[12];
+    if (action === 'down') return k.has('s') || k.has('arrowdown') || this.touch.has('down') || this.axisY > 0.4 || !!this.gpButtons[13];
     // jump is a dedicated button so Up can be used to aim shots upward
     if (action === 'jump') return k.has(' ') || this.touch.has('jump') || !!this.gpButtons[0];
     if (action === 'attack') return k.has('j') || k.has('x') || this.touch.has('attack') || !!this.gpButtons[2];
