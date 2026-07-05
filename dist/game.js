@@ -90,7 +90,8 @@ export class Game {
     startLevel(i, withIntro = true) {
         this.currentLevelIndex = clamp(i, 0, levels.length - 1);
         this.level = levels[this.currentLevelIndex];
-        this.difficulty = [0.85, 1.1, 1.32, 1.15][this.currentLevelIndex] ?? 1.0;
+        // rising stakes as you climb toward the eye (the Lantern Eater's grip tightens)
+        this.difficulty = [1.0, 1.28, 1.55, 1.4][this.currentLevelIndex] ?? 1.0;
         this.world = 'day';
         this.transition = 1;
         this.dayAmount = 1;

@@ -67,10 +67,12 @@ function makeLevel1() {
         shrines: [{ x: 10 * TILE, y: 12 * TILE, textId: 'shrine-who-is-zhulong' }],
         entities: [
             { kind: 'moth', x: 30 * TILE, y: 300 }, { kind: 'crawler', x: 52 * TILE, y: 380 }, { kind: 'guardian', x: 64 * TILE, y: 340 },
-            { kind: 'sentry', x: 92 * TILE, y: 260 }, { kind: 'ghoul', x: 110 * TILE, y: 340 }, { kind: 'skull', x: 132 * TILE, y: 280 },
+            { kind: 'skull', x: 44 * TILE, y: 300 }, { kind: 'ghoul', x: 72 * TILE, y: 360 },
+            { kind: 'sentry', x: 92 * TILE, y: 260 }, { kind: 'moth', x: 100 * TILE, y: 280 }, { kind: 'ghoul', x: 110 * TILE, y: 340 },
+            { kind: 'crawler', x: 124 * TILE, y: 360 }, { kind: 'skull', x: 132 * TILE, y: 280 },
         ],
         gems: [gem(20, 9), gem(35, 11), gem(53, 8), gem(81, 8), gem(118, 7)],
-        platforms: [mp(34, 13, 3, { ax: 4 * TILE, speed: 0.7 })],
+        platforms: [mp(34, 13, 3, { ax: 4 * TILE, speed: 0.85 })],
         introLore: 'intro-l1', outroLore: 'outro-l1', unlockCodexOnComplete: ['texts-vary'],
     };
 }
@@ -115,6 +117,7 @@ function makeLevel2() {
             { kind: 'moth', x: 18 * TILE, y: 300 }, { kind: 'sentry', x: 46 * TILE, y: 340 }, { kind: 'skull', x: 58 * TILE, y: 290 },
             { kind: 'ghoul', x: 72 * TILE, y: 340 }, { kind: 'sentry', x: 108 * TILE, y: 260 }, { kind: 'skull', x: 134 * TILE, y: 290 }, { kind: 'ghoul', x: 156 * TILE, y: 330 },
             { kind: 'crawler', x: 40 * TILE, y: 340 }, { kind: 'wisp', x: 100 * TILE, y: 300 }, { kind: 'ghoul', x: 120 * TILE, y: 340 }, { kind: 'skull', x: 148 * TILE, y: 280 },
+            { kind: 'guardian', x: 66 * TILE, y: 360 }, { kind: 'moth', x: 90 * TILE, y: 280 }, { kind: 'wisp', x: 128 * TILE, y: 300 },
         ],
         gems: [gem(14, 11), gem(28, 9), gem(56, 10), gem(104, 6), gem(150, 10)],
         platforms: [
@@ -156,6 +159,7 @@ function makeLevel3() {
             { kind: 'crawler', x: 30 * TILE, y: 440 }, { kind: 'moth', x: 44 * TILE, y: 300 }, { kind: 'ghoul', x: 74 * TILE, y: 420 },
             { kind: 'skull', x: 92 * TILE, y: 340 }, { kind: 'crawler', x: 116 * TILE, y: 440 }, { kind: 'sentry', x: 146 * TILE, y: 382 }, { kind: 'ghoul', x: 158 * TILE, y: 400 },
             { kind: 'skull', x: 60 * TILE, y: 320 }, { kind: 'wisp', x: 88 * TILE, y: 320 }, { kind: 'crawler', x: 128 * TILE, y: 420 }, { kind: 'ghoul', x: 110 * TILE, y: 400 },
+            { kind: 'guardian', x: 34 * TILE, y: 300 }, { kind: 'sentry', x: 82 * TILE, y: 300 }, { kind: 'skull', x: 122 * TILE, y: 300 },
         ],
         platforms: [
             mp(84, 13, 3, { ax: 5 * TILE, speed: 0.8 }),
