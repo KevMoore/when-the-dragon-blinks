@@ -14,6 +14,7 @@ export type SaveData = {
   codex: string[];
   bestTimes: Record<string, number>;
   highScore: number;
+  seenIntro: boolean;
   settings: Settings;
 };
 
@@ -24,6 +25,7 @@ const fallback = (): SaveData => ({
   codex: ['who-is-zhulong', 'eye-day-night'],
   bestTimes: {},
   highScore: 0,
+  seenIntro: false,
   settings: { master: 0.7, music: true, shake: true, reducedMotion: false },
 });
 

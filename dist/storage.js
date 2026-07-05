@@ -7,6 +7,7 @@ const fallback = () => ({
     codex: ['who-is-zhulong', 'eye-day-night'],
     bestTimes: {},
     highScore: 0,
+    seenIntro: false,
     settings: { master: 0.7, music: true, shake: true, reducedMotion: false },
 });
 export function loadSave() {

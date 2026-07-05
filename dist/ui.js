@@ -185,9 +185,9 @@ export function drawTitle(game, c) {
     c.fillStyle = 'rgba(255,255,255,.82)';
     c.font = '19px Georgia';
     c.fillText('A mythic platformer inspired by Zhulong, the Torch Dragon', LOGICAL_W / 2, 206);
-    const opts = ['Begin Journey', 'Level Select', 'Myth & History', 'Settings'];
-    const px = LOGICAL_W / 2 - 165, py = 268;
-    panel(c, px, py, 330, 208, 0.72);
+    const opts = ['Begin Journey', 'Level Select', 'Myth & History', 'Settings', 'How to Play'];
+    const px = LOGICAL_W / 2 - 165, py = 254;
+    panel(c, px, py, 330, 236, 0.72);
     opts.forEach((o, i) => {
         const y = py + 40 + i * 42;
         const sel = i === game.titleSelection;
@@ -200,8 +200,102 @@ export function drawTitle(game, c) {
         c.fillText((sel ? '◆  ' : '') + o + (sel ? '  ◆' : ''), LOGICAL_W / 2, y);
     });
     c.fillStyle = 'rgba(255,255,255,.6)';
+    c.font = '12px Georgia';
+    c.fillText('↑/↓ or stick · Enter/A select · H codex · gamepad & touch supported', LOGICAL_W / 2, 512);
+    c.restore();
+}
+// Once-only (re-viewable) onboarding: controls + the core blink tactic.
+export function drawHowTo(game, c) {
+    c.save();
+    const touch = typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    c.fillStyle = 'rgba(8,5,12,.74)';
+    c.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
+    const px = 66, py = 40, pw = LOGICAL_W - 132, ph = LOGICAL_H - 80;
+    panel(c, px, py, pw, ph, 0.92);
+    c.strokeStyle = 'rgba(246,191,94,.5)';
+    c.lineWidth = 2;
+    c.strokeRect(px + 7, py + 7, pw - 14, ph - 14);
+    c.textAlign = 'center';
+    // header
+    c.shadowColor = '#d94a3a';
+    c.shadowBlur = 26;
+    c.fillStyle = '#ffe3a0';
+    c.font = '38px Georgia';
+    c.fillText('How to Play', LOGICAL_W / 2, py + 52);
+    c.shadowBlur = 0;
+    c.fillStyle = 'rgba(255,255,255,.72)';
+    c.font = 'italic 15px Georgia';
+    c.fillText('Blink the Torch Dragon’s eye to command day and night', LOGICAL_W / 2, py + 78);
+    // control rows with glowing gold badges
+    const rows = touch
+        ? [['✧', 'Move', 'Drag the dial — push further to run faster'],
+            ['▲', 'Jump', 'Tap Jump · tap twice in the air for a double jump'],
+            ['✦', 'Fire', 'Tap to loose dragon-light · hold to charge a blast'],
+            ['☯', 'Blink', 'Switch Day ⟷ Night — your sharpest weapon']]
+        : [['A D', 'Move', 'Move · A/D or ← → (a gamepad stick runs analog)'],
+            ['␣', 'Jump', 'Space · tap twice in the air for a double jump'],
+            ['J', 'Fire', 'J or X to loose dragon-light · hold to charge a blast'],
+            ['E', 'Blink', 'E / C — switch Day ⟷ Night, your sharpest weapon']];
+    const rx = px + 60, startY = py + 118, rh = 46;
+    rows.forEach((r, i) => {
+        const y = startY + i * rh;
+        const g = c.createRadialGradient(rx, y, 2, rx, y, 20);
+        g.addColorStop(0, '#ffe6a8');
+        g.addColorStop(0.6, '#e0902f');
+        g.addColorStop(1, '#5a2a10');
+        c.fillStyle = g;
+        c.beginPath();
+        c.arc(rx, y, 19, 0, Math.PI * 2);
+        c.fill();
+        c.strokeStyle = 'rgba(255,220,150,.6)';
+        c.lineWidth = 1.5;
+        c.stroke();
+        c.fillStyle = '#1a0a08';
+        c.font = 'bold 17px Georgia';
+        c.textAlign = 'center';
+        c.fillText(r[0], rx, y + 6);
+        c.textAlign = 'left';
+        c.fillStyle = GOLD;
+        c.font = 'bold 19px Georgia';
+        c.fillText(r[1], rx + 34, y - 4);
+        c.fillStyle = 'rgba(255,255,255,.82)';
+        c.font = '14px Georgia';
+        c.fillText(r[2], rx + 34, y + 15);
+    });
+    // the core tactic band: the two hosts
+    const by = startY + rows.length * rh + 6, bx = px + 26, bw = pw - 52, bh = 68;
+    c.fillStyle = 'rgba(246,191,94,.08)';
+    c.strokeStyle = 'rgba(246,191,94,.32)';
+    c.lineWidth = 1.5;
+    c.beginPath();
+    c.roundRect(bx, by, bw, bh, 12);
+    c.fill();
+    c.stroke();
+    c.textAlign = 'left';
+    c.fillStyle = '#ffd777';
+    c.shadowColor = '#ffbe57';
+    c.shadowBlur = 12;
+    c.font = '22px Georgia';
+    c.fillText('☀', bx + 20, by + 42);
+    c.fillStyle = '#a9d6ff';
+    c.shadowColor = '#8bd2ff';
+    c.fillText('☾', bx + 50, by + 42);
+    c.shadowBlur = 0;
+    c.fillStyle = PAPER;
+    c.font = 'bold 15px Georgia';
+    c.fillText('The Two Hosts', bx + 84, by + 26);
+    c.fillStyle = 'rgba(255,255,255,.8)';
     c.font = '13px Georgia';
-    c.fillText('↑/↓ or stick · Enter/A select · H codex · gamepad & touch supported', LOGICAL_W / 2, 500);
+    c.fillText('Sun-creatures wake by day, shadow-creatures by night. Blink to lull whichever hunts', bx + 84, by + 45);
+    c.fillText('you — asleep, they are harmless. Collect torch-embers, become the dragon, break the boss.', bx + 84, by + 61);
+    // footer prompt (pulsing)
+    const pulse = 0.55 + 0.45 * Math.sin(game.time * 3);
+    c.textAlign = 'center';
+    c.globalAlpha = pulse;
+    c.fillStyle = GOLD;
+    c.font = '19px Georgia';
+    c.fillText(touch ? 'Tap to begin' : 'Press Enter / Space to begin', LOGICAL_W / 2, py + ph - 22);
+    c.globalAlpha = 1;
     c.restore();
 }
 // ---- Level select ----------------------------------------------------------

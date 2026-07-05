@@ -9,7 +9,7 @@ export const SAVE_KEY = 'when-the-dragon-blinks-save-v2';
 
 export type WorldState = 'day' | 'night';
 export type GameMode =
-  | 'title' | 'levelSelect' | 'codex' | 'settings' | 'lore'
+  | 'howto' | 'title' | 'levelSelect' | 'codex' | 'settings' | 'lore'
   | 'playing' | 'paused' | 'levelComplete' | 'gameComplete';
 export type EntityKind = 'moth' | 'guardian' | 'wisp' | 'sentry' | 'ghoul' | 'skull' | 'crawler';
 

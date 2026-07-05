@@ -69,9 +69,11 @@ export class Game {
         this.activatedCheckpoints = new Set();
         this.viewedShrines = new Set();
         this.dashHintShown = false;
+        this.howtoT = 0;
+        this.howtoReturn = 'title';
         this.save = loadSave();
         this.audio = new AudioManager(this.save.settings);
-        this.state = 'title';
+        this.state = this.save.seenIntro ? 'title' : 'howto';
     }
     totalRelics() { return levels.reduce((n, l) => n + l.relics.length, 0); }
     // ---- persistence -------------------------------------------------------
@@ -441,6 +443,9 @@ export class Game {
         if (this.input.just('debug'))
             this.debug = !this.debug;
         switch (this.state) {
+            case 'howto':
+                this.updateHowTo(dt);
+                break;
             case 'title':
                 this.updateTitle();
                 break;
@@ -679,6 +684,24 @@ export class Game {
             this.completeLevel();
     }
     // ---- menu updates ------------------------------------------------------
+    updateHowTo(dt) {
+        // living backdrop: the eye blinks and stars drift behind the guide
+        this.dayAmount = clamp(0.5 + Math.sin(this.time * 0.4) * 0.7, 0, 1);
+        const blink = Math.sin(this.time * 0.9);
+        this.eyeBlink = blink > 0.4 ? 1 : clamp((blink + 1) / 1.4, 0.1, 1);
+        this.transition = 1;
+        if (Math.random() < 0.5)
+            this.particles.stars(LOGICAL_W);
+        this.howtoT += dt;
+        if (this.howtoT > 0.4 && (this.input.just('confirm') || this.input.just('back') || this.input.pointer?.clicked)) {
+            if (!this.save.seenIntro) {
+                this.save.seenIntro = true;
+                this.persistSave();
+            }
+            this.audio.sfx('menu');
+            this.state = this.howtoReturn;
+        }
+    }
     updateTitle() {
         // ambient cosmic blink of the distant eye behind the menu
         this.dayAmount = clamp(0.5 + Math.sin(this.time * 0.4) * 0.7, 0, 1);
@@ -687,7 +710,7 @@ export class Game {
         this.transition = 1;
         if (Math.random() < 0.9)
             this.particles.stars(LOGICAL_W);
-        const opts = 4;
+        const opts = 5;
         if (this.input.just('up')) {
             this.titleSelection = (this.titleSelection + opts - 1) % opts;
             this.audio.sfx('menu');
@@ -701,7 +724,7 @@ export class Game {
             return;
         }
         if (this.input.pointer?.clicked) {
-            const y = this.input.pointer.y, px = LOGICAL_W / 2 - 165, py = 268;
+            const y = this.input.pointer.y, py = 254;
             for (let i = 0; i < opts; i++)
                 if (y > py + 14 + i * 42 && y < py + 50 + i * 42) {
                     this.titleSelection = i;
@@ -725,6 +748,11 @@ export class Game {
             this.settingsReturn = 'title';
             this.settingsSelection = 0;
             this.state = 'settings';
+        }
+        else if (this.titleSelection === 4) {
+            this.howtoReturn = 'title';
+            this.howtoT = 0;
+            this.state = 'howto';
         }
     }
     updateLevelSelect() {
@@ -879,6 +907,12 @@ export class Game {
         c.clearRect(0, 0, LOGICAL_W, LOGICAL_H);
         c.translate(this.camera.shakeX, this.camera.shakeY);
         switch (this.state) {
+            case 'howto':
+                bg.drawSky(this, c);
+                bg.drawParallax(this, c);
+                this.particles.draw(c, 0, 0, this.world);
+                ui.drawHowTo(this, c);
+                break;
             case 'title':
                 bg.drawSky(this, c);
                 bg.drawParallax(this, c);
