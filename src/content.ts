@@ -56,8 +56,8 @@ function makeLevel1(): LevelData {
     relics: [{ id: 'l1-hidden-night-path', x: 82 * TILE, y: 7 * TILE - 26, noteId: 'relic-eye-fragment' }],
     shrines: [{ x: 10 * TILE, y: 12 * TILE, textId: 'shrine-who-is-zhulong' }],
     entities: [
-      { kind: 'moth', x: 28 * TILE, y: 300 }, { kind: 'sentry', x: 44 * TILE, y: 350 }, { kind: 'guardian', x: 56 * TILE, y: 340 },
-      { kind: 'wisp', x: 84 * TILE, y: 300 }, { kind: 'sentry', x: 96 * TILE, y: 260 }, { kind: 'moth', x: 116 * TILE, y: 290 }, { kind: 'guardian', x: 140 * TILE, y: 330 },
+      { kind: 'moth', x: 28 * TILE, y: 300 }, { kind: 'crawler', x: 44 * TILE, y: 380 }, { kind: 'guardian', x: 56 * TILE, y: 340 },
+      { kind: 'ghoul', x: 84 * TILE, y: 340 }, { kind: 'sentry', x: 96 * TILE, y: 260 }, { kind: 'skull', x: 116 * TILE, y: 280 }, { kind: 'guardian', x: 140 * TILE, y: 330 },
     ],
     platforms: [mp(34, 13, 3, { ax: 4 * TILE, speed: 0.7 })],
     introLore: 'intro-l1', outroLore: 'outro-l1', unlockCodexOnComplete: ['texts-vary'],
@@ -92,8 +92,8 @@ function makeLevel2(): LevelData {
     relics: [{ id: 'l2-moon-bridge', x: 108 * TILE, y: 6 * TILE - 26, noteId: 'relic-blinking-image' }],
     shrines: [{ x: 8 * TILE, y: 12 * TILE, textId: 'shrine-eye-day-night' }],
     entities: [
-      { kind: 'moth', x: 18 * TILE, y: 300 }, { kind: 'sentry', x: 46 * TILE, y: 340 }, { kind: 'wisp', x: 58 * TILE, y: 300 },
-      { kind: 'guardian', x: 72 * TILE, y: 340 }, { kind: 'sentry', x: 108 * TILE, y: 260 }, { kind: 'wisp', x: 134 * TILE, y: 300 }, { kind: 'guardian', x: 156 * TILE, y: 330 },
+      { kind: 'moth', x: 18 * TILE, y: 300 }, { kind: 'sentry', x: 46 * TILE, y: 340 }, { kind: 'skull', x: 58 * TILE, y: 290 },
+      { kind: 'ghoul', x: 72 * TILE, y: 340 }, { kind: 'sentry', x: 108 * TILE, y: 260 }, { kind: 'skull', x: 134 * TILE, y: 290 }, { kind: 'ghoul', x: 156 * TILE, y: 330 },
     ],
     platforms: [
       mp(56, 12, 3, { ax: 3 * TILE, speed: 0.8 }),
@@ -128,8 +128,8 @@ function makeLevel3(): LevelData {
     relics: [{ id: 'l3-breath-current', x: 53 * TILE, y: 5 * TILE - 26, noteId: 'relic-breath-seasons' }],
     shrines: [{ x: 8 * TILE, y: 14 * TILE, textId: 'shrine-breath' }],
     entities: [
-      { kind: 'wisp', x: 30 * TILE, y: 350 }, { kind: 'moth', x: 44 * TILE, y: 300 }, { kind: 'sentry', x: 74 * TILE, y: 382 },
-      { kind: 'guardian', x: 92 * TILE, y: 460 }, { kind: 'wisp', x: 116 * TILE, y: 350 }, { kind: 'sentry', x: 146 * TILE, y: 382 }, { kind: 'guardian', x: 158 * TILE, y: 380 },
+      { kind: 'crawler', x: 30 * TILE, y: 440 }, { kind: 'moth', x: 44 * TILE, y: 300 }, { kind: 'ghoul', x: 74 * TILE, y: 420 },
+      { kind: 'skull', x: 92 * TILE, y: 340 }, { kind: 'crawler', x: 116 * TILE, y: 440 }, { kind: 'sentry', x: 146 * TILE, y: 382 }, { kind: 'ghoul', x: 158 * TILE, y: 400 },
     ],
     platforms: [
       mp(84, 13, 3, { ax: 5 * TILE, speed: 0.8 }),

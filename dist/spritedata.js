@@ -16,8 +16,14 @@ export function loadSprites() {
     add('enemy/guardian/idle', 'guardian/idle.png', 128, 8, true);
     add('enemy/guardian/walk', 'guardian/walk.png', 128, 10, true);
     add('enemy/sentry/idle', 'sentry/idle.png', 96, 8, true);
+    add('enemy/ghoul/walk', 'ghoul/walk.png', 128, 8, true);
+    add('enemy/skull/idle', 'skull/idle.png', 96, 8, true);
+    add('enemy/crawler/walk', 'crawler/walk.png', 128, 12, true);
     // boss
     add('boss/idle', 'boss/idle.png', 160, 8, true);
     add('boss/attack', 'boss/attack.png', 160, 12, true);
+    // Zhulong transformation
+    add('dragon/idle', 'dragon/idle.png', 160, 8, true);
+    add('dragon/attack', 'dragon/attack.png', 160, 12, false);
 }
 //# sourceMappingURL=spritedata.js.map

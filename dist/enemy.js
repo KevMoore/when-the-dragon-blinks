@@ -39,6 +39,24 @@ export class Enemy {
             this.hp = 3;
             this.points = 150;
         }
+        if (kind === 'ghoul') {
+            this.w = 32;
+            this.h = 46;
+            this.hp = 4;
+            this.points = 180;
+        }
+        if (kind === 'skull') {
+            this.w = 30;
+            this.h = 30;
+            this.hp = 2;
+            this.points = 140;
+        }
+        if (kind === 'crawler') {
+            this.w = 42;
+            this.h = 22;
+            this.hp = 2;
+            this.points = 120;
+        }
     }
     rect() { return { x: this.x, y: this.y, w: this.w, h: this.h }; }
     update(game, dt) {
@@ -89,6 +107,29 @@ export class Enemy {
                 }
             }
         }
+        else if (this.kind === 'ghoul') {
+            // marching undead — walks relentlessly toward the player (faster at night)
+            const dir = Math.sign(centerX(p.rect()) - centerX(this.rect()));
+            this.vx = dir * (game.world === 'night' ? 82 : 54);
+            this.vy += GRAVITY * dt;
+            game.moveEntity(this, this.vx * dt, this.vy * dt);
+        }
+        else if (this.kind === 'crawler') {
+            // fast low scuttler that chases along the ground
+            const dir = Math.sign(centerX(p.rect()) - centerX(this.rect()));
+            this.vx = dir * 140;
+            this.vy += GRAVITY * dt;
+            game.moveEntity(this, this.vx * dt, this.vy * dt);
+        }
+        else if (this.kind === 'skull') {
+            // flying spirit skull that homes and weaves through the air
+            const dx = centerX(p.rect()) - centerX(this.rect()), dy = centerY(p.rect()) - centerY(this.rect());
+            const d = Math.hypot(dx, dy) || 1;
+            this.vx = lerp(this.vx, (dx / d) * 96, 0.04);
+            this.vy = lerp(this.vy, (dy / d) * 78 + Math.sin(game.time * 3 + this.phase) * 34, 0.05);
+            this.x += this.vx * dt;
+            this.y += this.vy * dt;
+        }
         const dangerous = this.dangerous(game);
         if (dangerous && overlap(this.rect(), p.rect()))
             p.hurt(game);
@@ -125,6 +166,8 @@ export class Enemy {
     dim(game) {
         if (this.kind === 'wisp')
             return game.world !== 'night';
+        if (this.kind === 'ghoul' || this.kind === 'skull' || this.kind === 'crawler')
+            return false; // always present
         return game.world !== 'day'; // moth, guardian, sentry are day-active
     }
     draw(game, c) {
@@ -132,15 +175,17 @@ export class Enemy {
             return;
         const sx = this.x - game.camera.x, sy = this.y - game.camera.y;
         // ---- Sprite path ----
-        const walking = this.kind === 'guardian' && game.world === 'day' && Math.abs(this.vx) > 6;
-        const sheet = (walking && sprites.get('enemy/guardian/walk')?.ready)
-            ? sprites.get('enemy/guardian/walk')
-            : sprites.get('enemy/' + this.kind + '/idle');
+        let animName = 'idle';
+        if (this.kind === 'ghoul' || this.kind === 'crawler')
+            animName = 'walk';
+        else if (this.kind === 'guardian' && game.world === 'day' && Math.abs(this.vx) > 6)
+            animName = 'walk';
+        const sheet = sprites.get('enemy/' + this.kind + '/' + animName) || sprites.get('enemy/' + this.kind + '/idle') || sprites.get('enemy/' + this.kind + '/walk');
         if (sheet && sheet.ready) {
-            const grounded = this.kind === 'guardian';
-            const targetH = this.h * (grounded ? 1.7 : 2.1);
+            const grounded = this.kind === 'guardian' || this.kind === 'ghoul' || this.kind === 'crawler';
+            const targetH = this.h * (this.kind === 'crawler' ? 2.2 : grounded ? 1.7 : 2.1);
             let face = this.vx < -4 ? -1 : this.vx > 4 ? 1 : 1;
-            if (this.kind === 'wisp' || this.kind === 'moth')
+            if (this.kind === 'wisp' || this.kind === 'moth' || this.kind === 'skull')
                 face = centerX(game.player.rect()) < centerX(this.rect()) ? -1 : 1;
             c.save();
             c.globalAlpha = (this.dim(game) ? 0.5 : 1) * (this.flash > 0 ? 0.7 : 1);

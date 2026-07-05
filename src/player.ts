@@ -292,6 +292,25 @@ export class Player {
 
   private drawDragon(game: Game, c: CanvasRenderingContext2D) {
     const trail = this.dragonTrail, cam = game.camera;
+    // Prefer the AutoSprite dragon: a short glowing trail + the dragon at the head.
+    const anim = this.dragonFireCd > 0.06 ? 'attack' : 'idle';
+    const sheet = sprites.get('dragon/' + anim)?.ready ? sprites.get('dragon/' + anim) : sprites.get('dragon/idle');
+    if (sheet && sheet.ready) {
+      c.save();
+      for (let i = Math.min(trail.length - 1, 42); i >= 2; i -= 2) {
+        const p = trail[i]; if (!p) continue; const t = 1 - i / 44;
+        c.globalAlpha = t * 0.7; c.fillStyle = mixHex('#8a1810', '#ffcf5a', t);
+        c.shadowColor = '#ff7a2a'; c.shadowBlur = 7;
+        c.beginPath(); c.arc(p.x - cam.x, p.y - cam.y, 2 + t * t * 7, 0, Math.PI * 2); c.fill();
+      }
+      c.restore(); c.globalAlpha = 1; c.shadowBlur = 0;
+      const hx = this.x + this.w / 2 - cam.x, hy = this.y + this.h / 2 - cam.y;
+      c.save(); c.translate(hx, hy); c.scale(this.facing, 1);
+      c.shadowColor = '#ff8b3a'; c.shadowBlur = 18;
+      sheet.blit(c, sheet.frameAt(this.animTime), 108, false);
+      c.restore();
+      return;
+    }
     c.save();
     for (let i = trail.length - 1; i >= 0; i--) {
       const t = 1 - i / Math.max(1, trail.length);

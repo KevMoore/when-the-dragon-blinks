@@ -11,7 +11,7 @@ export type WorldState = 'day' | 'night';
 export type GameMode =
   | 'title' | 'levelSelect' | 'codex' | 'settings' | 'lore'
   | 'playing' | 'paused' | 'levelComplete' | 'gameComplete';
-export type EntityKind = 'moth' | 'guardian' | 'wisp' | 'sentry';
+export type EntityKind = 'moth' | 'guardian' | 'wisp' | 'sentry' | 'ghoul' | 'skull' | 'crawler';
 
 export type Particle = {
   x: number; y: number; vx: number; vy: number;
