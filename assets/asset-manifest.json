@@ -1,0 +1,21 @@
+{
+  "style": "mythic Chinese fantasy, painterly pixel-art, red-gold-black palette with moon-blue accents",
+  "currentImplementation": "Procedural Canvas2D placeholders are used so the game runs with no external assets.",
+  "autospriteMcpStatus": "Not executed in this environment. Use autosprite-prompts.md with your AutoSprite MCP and replace procedural drawing hooks or add sprite rendering.",
+  "recommendedAtlasPlan": {
+    "player": "assets/sprites/player.png, 64x64 cells",
+    "enemies": "assets/sprites/enemies.png, mixed 48x48 and 64x64 cells or separate sheets",
+    "boss": "assets/sprites/lantern-eater.png, 192x192 cells",
+    "tiles": "assets/tiles/mountain-temple.png, 32x32 tiles",
+    "backgrounds": "assets/backgrounds/*.png parallax layers",
+    "ui": "assets/ui/*.png"
+  },
+  "replaceProceduralHooks": [
+    "Player.draw",
+    "Enemy.draw",
+    "LanternEater.draw",
+    "Game.drawTiles",
+    "Game.drawBackground",
+    "Game.drawHUD"
+  ]
+}

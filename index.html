@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#110711" />
+  <title>When the Dragon Blinks</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main id="game-shell" aria-label="When the Dragon Blinks game">
+    <canvas id="game" width="960" height="540"></canvas>
+    <div id="rotate-overlay">
+      <div class="rotate-card">
+        <div class="eye-glyph"></div>
+        <h1>Rotate Your Device</h1>
+        <p>This shrine path is designed for landscape play.</p>
+      </div>
+    </div>
+    <div id="touch-controls" aria-label="Touch controls">
+      <div class="touch-left">
+        <button data-action="left" aria-label="Move left">◀</button>
+        <button data-action="right" aria-label="Move right">▶</button>
+      </div>
+      <div class="touch-right">
+        <button data-action="toggle" aria-label="Blink day and night">☯</button>
+        <button data-action="attack" aria-label="Dragon pulse">✦</button>
+        <button data-action="dash" aria-label="Dash">⟡</button>
+        <button data-action="jump" aria-label="Jump">▲</button>
+      </div>
+    </div>
+  </main>
+  <script type="module" src="dist/main.js"></script>
+</body>
+</html>
