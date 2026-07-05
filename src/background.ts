@@ -54,9 +54,33 @@ export function drawSky(game: Game, c: CanvasRenderingContext2D) {
   c.beginPath(); c.arc(cx - 12, cy - 6, 6, 0, Math.PI * 2); c.arc(cx + 10, cy + 10, 4, 0, Math.PI * 2); c.arc(cx + 4, cy - 14, 3, 0, Math.PI * 2); c.fill();
   c.globalAlpha = 1; c.shadowBlur = 0;
 
+  drawClouds(game, c, day);
   drawCoilingDragon(game, c, day);
   drawDragonEye(game, c, day);
   drawGodRays(game, c, day, cx, cy);
+}
+
+// Stylised Chinese auspicious cloud (祥云): rounded billows with a ruyi curl.
+function drawCloud(c: CanvasRenderingContext2D, x: number, y: number, s: number, col: string) {
+  c.fillStyle = col;
+  c.beginPath();
+  c.arc(x, y, 11 * s, 0, Math.PI * 2); c.arc(x + 15 * s, y - 4 * s, 14 * s, 0, Math.PI * 2);
+  c.arc(x + 32 * s, y, 11 * s, 0, Math.PI * 2); c.arc(x + 17 * s, y + 6 * s, 13 * s, 0, Math.PI * 2);
+  c.fill();
+  c.strokeStyle = col; c.lineWidth = 3.5 * s; c.lineCap = 'round';
+  c.beginPath(); c.arc(x - 7 * s, y + 3 * s, 5.5 * s, -0.3, Math.PI * 1.7); c.stroke();
+  c.beginPath(); c.arc(x + 40 * s, y + 1 * s, 5 * s, Math.PI * 0.4, Math.PI * 2.1); c.stroke();
+}
+function drawClouds(game: Game, c: CanvasRenderingContext2D, day: number) {
+  const col = day > 0.5 ? 'rgba(255,214,168,0.13)' : 'rgba(150,178,224,0.11)';
+  c.save();
+  for (let i = 0; i < 6; i++) {
+    const par = 0.05 + i * 0.008;
+    const x = (((i * 250 + game.time * 7) - game.camera.x * par) % (LOGICAL_W + 320)) - 160;
+    const y = 54 + (i % 3) * 44 + Math.sin(game.time * 0.3 + i) * 4;
+    drawCloud(c, x, y, 1.25 - i * 0.08, col);
+  }
+  c.restore();
 }
 
 // A colossal Zhulong coiling through the high clouds — subtle, slow parallax.
@@ -101,23 +125,23 @@ function drawGodRays(game: Game, c: CanvasRenderingContext2D, day: number, cx: n
 
 export function drawDragonEye(game: Game, c: CanvasRenderingContext2D, day: number) {
   c.save();
-  const x = 240 - game.camera.x * 0.03, y = 92;
+  const x = 214 - game.camera.x * 0.03, y = 84;
   const openness = clamp(day * game.eyeBlink, 0, 1);
   // outer socket haze
-  c.globalAlpha = 0.5; c.fillStyle = 'rgba(255,120,80,.05)';
-  c.beginPath(); c.ellipse(x, y, 190, 66, 0, 0, Math.PI * 2); c.fill();
+  c.globalAlpha = 0.45; c.fillStyle = 'rgba(255,120,80,.05)';
+  c.beginPath(); c.ellipse(x, y, 112, 40, 0, 0, Math.PI * 2); c.fill();
   // lid outline
-  c.globalAlpha = 0.75; c.lineWidth = 5;
-  c.strokeStyle = day > 0.5 ? 'rgba(255,210,120,.7)' : 'rgba(141,202,255,.4)';
-  c.beginPath(); c.ellipse(x, y, 146, 46 * (0.16 + openness * 0.84), 0, 0, Math.PI * 2); c.stroke();
+  c.globalAlpha = 0.72; c.lineWidth = 3.5;
+  c.strokeStyle = day > 0.5 ? 'rgba(255,210,120,.65)' : 'rgba(141,202,255,.38)';
+  c.beginPath(); c.ellipse(x, y, 84, 27 * (0.16 + openness * 0.84), 0, 0, Math.PI * 2); c.stroke();
   if (openness > 0.05) {
     c.globalAlpha = openness;
-    c.shadowColor = '#ff4a28'; c.shadowBlur = 46;
-    c.fillStyle = '#1a0509'; c.beginPath(); c.ellipse(x, y, 40, 42 * openness, 0, 0, Math.PI * 2); c.fill();
-    const iris = c.createRadialGradient(x, y, 2, x, y, 40);
+    c.shadowColor = '#ff4a28'; c.shadowBlur = 30;
+    c.fillStyle = '#1a0509'; c.beginPath(); c.ellipse(x, y, 23, 24 * openness, 0, 0, Math.PI * 2); c.fill();
+    const iris = c.createRadialGradient(x, y, 1, x, y, 24);
     iris.addColorStop(0, '#ffd08a'); iris.addColorStop(0.4, '#f0452c'); iris.addColorStop(1, '#8a1810');
-    c.fillStyle = iris; c.beginPath(); c.ellipse(x, y, 16, 42 * openness, 0, 0, Math.PI * 2); c.fill();
-    c.fillStyle = '#fff0d0'; c.beginPath(); c.arc(x - 6, y - 10 * openness, 4, 0, Math.PI * 2); c.fill();
+    c.fillStyle = iris; c.beginPath(); c.ellipse(x, y, 9, 24 * openness, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#fff0d0'; c.beginPath(); c.arc(x - 4, y - 6 * openness, 2.4, 0, Math.PI * 2); c.fill();
   }
   c.restore(); c.globalAlpha = 1; c.shadowBlur = 0;
 }
@@ -161,8 +185,8 @@ export function drawParallax(game: Game, c: CanvasRenderingContext2D) {
     const x = i * 260 - ((game.camera.x * 0.42) % 260);
     drawPagoda(c, x + 40, 372, 0.9, pagCol, (i % 2) as number);
   }
-  // a torii gate landmark
-  drawTorii(c, 300 - ((game.camera.x * 0.5) % (LOGICAL_W + 400)) + 200, 430, mixHex('#180a12', th.accent, 0.25));
+  // a paifang archway landmark
+  drawPaifang(c, 300 - ((game.camera.x * 0.5) % (LOGICAL_W + 400)) + 200, 436, mixHex('#160812', th.ridge, 0.3), mixHex(th.accent, '#2a0a0c', 0.35));
 
   // lantern string swagging across the mid-ground
   drawLanternString(game, c, day);
@@ -197,14 +221,24 @@ function drawPagoda(c: CanvasRenderingContext2D, x: number, baseY: number, s: nu
   c.fillRect(x - 1.5 * s, baseY - n * 22 * s - 12 * s, 3 * s, 12 * s);
 }
 
-function drawTorii(c: CanvasRenderingContext2D, x: number, baseY: number, col: string) {
+// East-Asian curved roof silhouette: eaves sweep upward at the ends
+function curvedRoof(c: CanvasRenderingContext2D, cx: number, y: number, w: number, h: number) {
+  c.beginPath();
+  c.moveTo(cx - w / 2 - 16, y - 13);
+  c.quadraticCurveTo(cx - w * 0.28, y + 3, cx, y - 3);
+  c.quadraticCurveTo(cx + w * 0.28, y + 3, cx + w / 2 + 16, y - 13);
+  c.lineTo(cx + w / 2, y + h); c.lineTo(cx - w / 2, y + h); c.closePath(); c.fill();
+}
+// Chinese paifang / pailou memorial archway (replaces the Japanese torii)
+function drawPaifang(c: CanvasRenderingContext2D, x: number, baseY: number, col: string, accent: string) {
+  const w = 100, h = 104;
   c.fillStyle = col;
-  const h = 96, w = 84;
-  c.fillRect(x - w / 2, baseY - h, 8, h);
-  c.fillRect(x + w / 2 - 8, baseY - h, 8, h);
-  c.beginPath(); c.moveTo(x - w / 2 - 16, baseY - h); c.lineTo(x + w / 2 + 16, baseY - h);
-  c.lineTo(x + w / 2 + 10, baseY - h + 12); c.lineTo(x - w / 2 - 10, baseY - h + 12); c.closePath(); c.fill();
-  c.fillRect(x - w / 2 - 4, baseY - h + 22, w + 8, 8);
+  for (const px of [-w / 2, -w / 6, w / 6, w / 2]) c.fillRect(x + px - 3, baseY - h, 7, h);   // four pillars
+  c.fillRect(x - w / 2 - 8, baseY - h + 26, w + 16, 10);                                       // lower lintel
+  curvedRoof(c, x, baseY - h + 6, w + 30, 15);                                                 // main roof
+  curvedRoof(c, x, baseY - h - 20, w * 0.46, 12);                                              // raised central roof
+  c.fillRect(x - 2, baseY - h - 32, 4, 10);                                                    // ridge finial
+  c.fillStyle = accent; c.fillRect(x - 15, baseY - h + 9, 30, 13);                             // name plaque
 }
 
 function drawPine(c: CanvasRenderingContext2D, x: number, baseY: number, s: number, col: string) {
@@ -222,20 +256,28 @@ function drawPine(c: CanvasRenderingContext2D, x: number, baseY: number, s: numb
 function drawLanternString(game: Game, c: CanvasRenderingContext2D, day: number) {
   const par = 0.5, span = LOGICAL_W + 200;
   const ox = -((game.camera.x * par) % 300);
+  const sag = 40, y0 = 150;
+  const cordY = (x: number, p: number) => y0 + Math.sin(p * Math.PI) * sag;
   c.save();
   for (let i = 0; i < 6; i++) {
     const x = ox + i * 300;
-    const sag = 40, y0 = 150;
-    // hang 3 lanterns along a catenary
+    // sagging cord
+    c.globalAlpha = (1 - day) * 0.45 + 0.2; c.strokeStyle = 'rgba(30,16,10,.6)'; c.lineWidth = 1.4;
+    c.beginPath(); for (let p = 0; p <= 1.001; p += 0.1) { const px = x + p * 260, py = cordY(x, p); p === 0 ? c.moveTo(px, py) : c.lineTo(px, py); } c.stroke();
+    // round red lanterns with gold caps + tassels
     for (let k = 0; k < 3; k++) {
       const p = 0.2 + k * 0.3;
       const lx = x + p * 260;
-      const ly = y0 + Math.sin(p * Math.PI) * sag + Math.sin(game.time * 1.5 + i + k) * 2;
-      c.globalAlpha = (1 - day) * 0.85 + day * 0.4;
-      c.shadowColor = '#ff7a3a'; c.shadowBlur = (1 - day) * 16 + 4;
-      c.fillStyle = day > 0.5 ? '#e8894a' : '#ff9a54';
-      c.beginPath(); c.ellipse(lx, ly, 5, 7, 0, 0, Math.PI * 2); c.fill();
-      c.shadowBlur = 0; c.fillStyle = '#2a1008'; c.fillRect(lx - 1, ly - 9, 2, 3);
+      const ly = cordY(x, p) + 12 + Math.sin(game.time * 1.5 + i + k) * 1.5;
+      c.globalAlpha = (1 - day) * 0.9 + day * 0.55;
+      c.shadowColor = '#ff4a22'; c.shadowBlur = (1 - day) * 18 + 5;
+      c.fillStyle = day > 0.5 ? '#cf432b' : '#e85236';
+      c.beginPath(); c.ellipse(lx, ly, 6, 8, 0, 0, Math.PI * 2); c.fill();
+      c.shadowBlur = 0;
+      c.fillStyle = 'rgba(255,224,150,.5)'; c.beginPath(); c.arc(lx, ly, 2.6, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#e8b24a'; c.fillRect(lx - 3, ly - 10, 6, 2.5); c.fillRect(lx - 3, ly + 7, 6, 2.5);
+      c.strokeStyle = '#e8b24a'; c.lineWidth = 1; c.beginPath(); c.moveTo(lx, ly + 9); c.lineTo(lx, ly + 16); c.stroke();
+      c.fillStyle = '#cf432b'; c.beginPath(); c.moveTo(lx - 2.5, ly + 15); c.lineTo(lx + 2.5, ly + 15); c.lineTo(lx, ly + 20); c.closePath(); c.fill();
     }
   }
   c.restore(); c.globalAlpha = 1;
