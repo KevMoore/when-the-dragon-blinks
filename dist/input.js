@@ -150,10 +150,12 @@ export class Input {
         this.axisY = Math.abs(gp.axes[1]) > 0.35 ? gp.axes[1] : 0;
         this.gpButtons = gp.buttons.map(b => b.pressed);
     }
-    // analog horizontal move (-1..1): stick tilt scales speed; keys/dpad = full
+    // analog horizontal move (-1..1): the whole stick throw maps to speed, so the
+    // further you push the faster you go — full speed only at full extension.
     moveX() {
-        if (Math.abs(this.stickX) > 0.14)
-            return Math.max(-1, Math.min(1, this.stickX / 0.9));
+        const s = this.stickX;
+        if (Math.abs(s) > 0.12)
+            return Math.sign(s) * Math.min(1, (Math.abs(s) - 0.12) / 0.86);
         if (Math.abs(this.axisX) > 0.05)
             return Math.max(-1, Math.min(1, this.axisX));
         const k = this.keys;

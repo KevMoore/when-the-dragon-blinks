@@ -77,7 +77,7 @@ export class Player {
     this.animTime += dt;
     this.wallLock = Math.max(0, this.wallLock - dt);
     const mx = this.wallLock <= 0 ? input.moveX() : 0;   // analog: stick tilt scales speed
-    const moving = Math.abs(mx) > 0.05;
+    const moving = Math.abs(mx) > 0.04;
     const left = mx < -0.05, right = mx > 0.05;
     const wasGrounded = this.grounded;
 
@@ -93,8 +93,9 @@ export class Player {
     const accel = this.grounded ? (this.crouching ? RUN_ACCEL * 0.5 : RUN_ACCEL) : AIR_ACCEL;
     if (moving) { this.vx += Math.sign(mx) * accel * dt; this.facing = mx < 0 ? -1 : 1; }
     else this.vx = lerp(this.vx, 0, this.grounded ? 0.26 : 0.06);
-    // partial stick tilt caps a lower top speed → precise analog control
-    const cap = MAX_SPEED * crouchMul * (moving ? Math.max(0.34, Math.min(1, Math.abs(mx))) : 1);
+    // the whole stick throw scales top speed: gentle creep near centre, full
+    // speed only at full extension (keys/dpad report 1 → full)
+    const cap = MAX_SPEED * crouchMul * (moving ? 0.3 + 0.7 * Math.min(1, Math.abs(mx)) : 1);
     this.vx = clamp(this.vx, -cap, cap);
 
     // wall contact (only meaningful in the air)
