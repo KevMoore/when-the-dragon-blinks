@@ -43,4 +43,21 @@ export class SpriteBank {
     ready(key) { return !!this.sheets.get(key)?.ready; }
 }
 export const sprites = new SpriteBank();
+// Single transparent images (structures/props) drawn whole, scaled by height.
+export class Still {
+    constructor(src) {
+        this.img = new Image();
+        this.ready = false;
+        this.img.onload = () => (this.ready = true);
+        this.img.src = src;
+    }
+    draw(c, cx, baseY, targetH, anchorBottom = true) {
+        if (!this.ready)
+            return;
+        const s = targetH / this.img.height, w = this.img.width * s;
+        c.drawImage(this.img, cx - w / 2, baseY - (anchorBottom ? targetH : targetH / 2), w, targetH);
+    }
+}
+export const stills = {};
+export function loadStill(key, src) { stills[key] = new Still(src); }
 //# sourceMappingURL=sprites.js.map

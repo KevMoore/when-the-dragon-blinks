@@ -11,6 +11,7 @@ import { Player } from './player.js';
 import { Enemy } from './enemy.js';
 import { LanternEater } from './boss.js';
 import { Platform } from './platform.js';
+import { stills } from './sprites.js';
 import { levels, loreTexts, codexEntries } from './content.js';
 import { loadSave, persist, type SaveData } from './storage.js';
 import * as bg from './background.js';
@@ -57,6 +58,7 @@ export class Game {
   embers: Ember[] = [];
   transformT = 0;            // >0 while the transformation cinematic plays
   difficulty = 1;            // per-level aggression scalar (lower = easier)
+  clearT = 0; clearing = false; clearOutro = ''; clearNext: GameMode = 'levelComplete';
   private activatedCheckpoints = new Set<number>();
   private viewedShrines = new Set<number>();
   private dashHintShown = false;
@@ -94,6 +96,7 @@ export class Game {
     this.viewedShrines.clear();
     this.combo = 0; this.comboT = 0; this.scorePops = [];
     this.dragonMeter = 0; this.embers = []; this.player.dragonTime = 0; this.player.dragonTrail = []; this.transformT = 0;
+    this.clearT = 0; this.clearing = false;
     this.elapsed = 0; this.message = null;
     this.camera.snap(0, 0);
     this.camera.follow(this.player.x, this.player.y, 1, 0, this.level.width, this.level.height, 0.016);
@@ -197,6 +200,7 @@ export class Game {
   }
 
   completeLevel() {
+    if (this.clearing) return;
     const id = this.level.id;
     if (!this.save.completed.includes(id)) this.save.completed.push(id);
     this.save.highestUnlocked = Math.max(this.save.highestUnlocked, Math.min(this.currentLevelIndex + 1, levels.length - 1));
@@ -209,7 +213,15 @@ export class Game {
     this.score += this.lastLevelBonus;
     if (this.score > this.save.highScore) this.save.highScore = this.score;
     this.persistSave();
-    this.openLore(this.level.outroLore, this.level.isBoss ? 'gameComplete' : 'levelComplete');
+    // play the manga stage-clear cinematic, then open the outro lore
+    this.clearing = true; this.clearOutro = this.level.outroLore;
+    this.clearNext = this.level.isBoss ? 'gameComplete' : 'levelComplete';
+    this.clearT = 2.0; this.flash = 0.5; this.flashColor = '#fff2c8'; this.camera.addTrauma(0.5);
+    this.audio.sfx('victory');
+  }
+  private updateClear(dt: number) {
+    this.clearT -= dt;
+    if (this.clearT <= 0) { this.clearT = 0; this.openLore(this.clearOutro, this.clearNext); }
   }
   onBossDefeated() {
     if (this.boss) this.addScore(5000, this.boss.x + this.boss.w / 2, this.boss.y + 40);
@@ -369,6 +381,7 @@ export class Game {
   }
 
   private updatePlaying(dt: number) {
+    if (this.clearT > 0) { this.updateClear(dt); return; }
     if (this.transformT > 0) { this.updateTransform(dt); return; }
     if (!this.dashHintShown && this.isTouch()) { this.dashHintShown = true; this.flashText('Tip: double-tap ◀ / ▶ to dash'); }
     if (this.input.just('pause')) { this.state = 'paused'; this.pauseSelection = 0; return; }
@@ -592,6 +605,7 @@ export class Game {
         if (this.state === 'gameComplete') ui.drawGameComplete(this, c);
     }
     if (this.transformT > 0) this.drawTransformCinematic(c);
+    if (this.clearT > 0) this.drawMangaClear(c);
     // toggle flash
     if (this.flash > 0.01) { c.globalAlpha = this.flash * 0.5; c.fillStyle = this.flashColor; c.fillRect(-40, -40, LOGICAL_W + 80, LOGICAL_H + 80); c.globalAlpha = 1; }
     c.restore();
@@ -640,20 +654,24 @@ export class Game {
   private drawObjects(c: CanvasRenderingContext2D) {
     // checkpoints
     for (const r of this.level.checkpoints) {
-      const x = r.x - this.camera.x, y = r.y - this.camera.y;
-      c.fillStyle = '#251422'; c.fillRect(x + 10, y + 16, 8, 40);
-      c.fillStyle = '#b33a32'; c.beginPath(); c.moveTo(x + 18, y + 18); c.lineTo(x + 46, y + 28); c.lineTo(x + 18, y + 38); c.fill();
-      c.save(); c.shadowColor = '#ffd777'; c.shadowBlur = 12; c.fillStyle = '#ffd77d';
-      c.beginPath(); c.arc(x + 14, y + 14, 7 + Math.sin(this.time * 4) * 1, 0, Math.PI * 2); c.fill(); c.restore();
+      const cx = r.x + r.w / 2 - this.camera.x, by = r.y + r.h - this.camera.y;
+      if (stills.checkpoint?.ready) {
+        c.save(); c.shadowColor = '#ffb24a'; c.shadowBlur = 10 + Math.sin(this.time * 4) * 4; stills.checkpoint.draw(c, cx, by, 78); c.restore();
+      } else {
+        const x = r.x - this.camera.x, y = r.y - this.camera.y;
+        c.fillStyle = '#251422'; c.fillRect(x + 10, y + 16, 8, 40);
+        c.fillStyle = '#b33a32'; c.beginPath(); c.moveTo(x + 18, y + 18); c.lineTo(x + 46, y + 28); c.lineTo(x + 18, y + 38); c.fill();
+      }
     }
     // shrines
     for (const s of this.level.shrines) {
-      const x = s.x - this.camera.x, y = s.y - this.camera.y;
-      c.fillStyle = '#2b121d'; c.fillRect(x, y, 26, 55);
-      c.fillStyle = '#d6a348'; c.fillRect(x - 8, y, 42, 8);
-      c.save(); c.shadowColor = this.world === 'day' ? '#ffd777' : '#a9d6ff'; c.shadowBlur = 16;
-      c.fillStyle = this.world === 'day' ? '#ffd777' : '#a9d6ff';
-      c.beginPath(); c.arc(x + 13, y + 24, 7 + Math.sin(this.time * 5) * 1.5, 0, Math.PI * 2); c.fill(); c.restore();
+      const cx = s.x + 13 - this.camera.x, by = s.y + 58 - this.camera.y;
+      if (stills.shrine?.ready) {
+        c.save(); c.shadowColor = this.world === 'day' ? '#ffd777' : '#a9d6ff'; c.shadowBlur = 14 + Math.sin(this.time * 3) * 4; stills.shrine.draw(c, cx, by, 88); c.restore();
+      } else {
+        const x = s.x - this.camera.x, y = s.y - this.camera.y;
+        c.fillStyle = '#2b121d'; c.fillRect(x, y, 26, 55); c.fillStyle = '#d6a348'; c.fillRect(x - 8, y, 42, 8);
+      }
     }
     // relics
     for (const relic of this.level.relics) {
@@ -665,15 +683,21 @@ export class Game {
     }
     // exit gate
     if (!this.level.isBoss) {
-      const e = this.level.exit, x = e.x - this.camera.x, y = e.y - this.camera.y;
-      c.save(); c.shadowColor = this.world === 'day' ? '#ffbd54' : '#a9d6ff'; c.shadowBlur = 22;
-      c.strokeStyle = this.world === 'day' ? '#ffd777' : '#a9d6ff'; c.lineWidth = 5;
-      c.beginPath(); c.roundRect(x, y, e.w, e.h, 16); c.stroke();
-      c.fillStyle = 'rgba(255,255,255,.07)'; c.fillRect(x + 8, y + 10, e.w - 16, e.h - 20);
-      // small eye motif
-      c.fillStyle = this.world === 'day' ? '#ffd777' : '#a9d6ff';
-      c.beginPath(); c.ellipse(x + e.w / 2, y + e.h / 2, 10, 5, 0, 0, Math.PI * 2); c.fill();
-      c.restore();
+      const e = this.level.exit, cx = e.x + e.w / 2 - this.camera.x, by = e.y + e.h - this.camera.y;
+      if (stills.gate?.ready) {
+        const h = e.h + 30, midY = by - h * 0.5;
+        c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.4 + 0.2 * Math.sin(this.time * 4);
+        const g = c.createRadialGradient(cx, midY, 0, cx, midY, 70); g.addColorStop(0, 'rgba(255,90,50,.7)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+        c.fillStyle = g; c.beginPath(); c.arc(cx, midY, 70, 0, Math.PI * 2); c.fill(); c.restore();
+        c.save(); c.shadowColor = '#ff4a28'; c.shadowBlur = 22 + Math.sin(this.time * 3) * 8; stills.gate.draw(c, cx, by, h); c.restore();
+      } else {
+        const x = e.x - this.camera.x, y = e.y - this.camera.y;
+        c.save(); c.shadowColor = this.world === 'day' ? '#ffbd54' : '#a9d6ff'; c.shadowBlur = 22;
+        c.strokeStyle = this.world === 'day' ? '#ffd777' : '#a9d6ff'; c.lineWidth = 5;
+        c.beginPath(); c.roundRect(x, y, e.w, e.h, 16); c.stroke();
+        c.fillStyle = this.world === 'day' ? '#ffd777' : '#a9d6ff'; c.beginPath(); c.ellipse(x + e.w / 2, y + e.h / 2, 10, 5, 0, 0, Math.PI * 2); c.fill();
+        c.restore();
+      }
     }
   }
 
@@ -753,6 +777,51 @@ export class Game {
       c.restore(); c.globalAlpha = 1;
     }
     c.shadowBlur = 0;
+  }
+
+  // Manga-esque STAGE CLEAR: white burst, radial action lines, screentone, a
+  // slamming banner and stamped 過關 calligraphy.
+  private drawMangaClear(c: CanvasRenderingContext2D) {
+    const dur = 2.0, p = clamp(1 - this.clearT / dur, 0, 1);
+    const cx = LOGICAL_W / 2, cy = LOGICAL_H / 2;
+    // white flash in, then a translucent ink wash
+    c.fillStyle = `rgba(252,246,232,${Math.max(0, 0.92 - p * 5)})`; c.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
+    c.globalAlpha = clamp(p * 5, 0, 1) * 0.45; c.fillStyle = '#140a10'; c.fillRect(0, 0, LOGICAL_W, LOGICAL_H); c.globalAlpha = 1;
+    // radial action lines
+    c.save(); c.translate(cx, cy);
+    const n = 52;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + Math.sin(i * 3) * 0.02;
+      const inner = 150 + Math.sin(i * 7) * 34 - p * 60;
+      c.strokeStyle = i % 2 ? 'rgba(20,10,14,.5)' : 'rgba(255,240,210,.32)';
+      c.lineWidth = i % 3 ? 2 : 6;
+      c.beginPath(); c.moveTo(Math.cos(a) * inner, Math.sin(a) * inner); c.lineTo(Math.cos(a) * 900, Math.sin(a) * 900); c.stroke();
+    }
+    c.restore();
+    // screentone dots in the corners
+    c.save(); c.fillStyle = 'rgba(20,10,14,.25)';
+    for (let gx = 0; gx < LOGICAL_W; gx += 12) for (let gy = 0; gy < LOGICAL_H; gy += 12) {
+      const edge = Math.min(gx, LOGICAL_W - gx, gy, LOGICAL_H - gy);
+      if (edge < 90) { c.beginPath(); c.arc(gx, gy, 2.2 * (1 - edge / 90), 0, Math.PI * 2); c.fill(); }
+    }
+    c.restore();
+    // banner slams in from the left
+    const slide = (1 - clamp((p - 0.12) / 0.18, 0, 1)) * -700;
+    c.save(); c.translate(cx + slide, cy - 18); c.rotate(-0.11);
+    c.fillStyle = '#c8302a'; c.fillRect(-370, -54, 740, 108);
+    c.fillStyle = '#1a0a10'; c.fillRect(-370, -54, 740, 8); c.fillRect(-370, 46, 740, 8);
+    c.textAlign = 'center'; c.fillStyle = '#ffe0a0'; c.font = 'bold 60px Georgia';
+    c.fillText(this.clearNext === 'gameComplete' ? 'BALANCE RESTORED' : 'STAGE CLEAR', 0, 2);
+    c.restore();
+    // 過關 stamp
+    const stamp = clamp((p - 0.42) / 0.14, 0, 1);
+    if (stamp > 0) {
+      c.save(); c.globalAlpha = Math.min(1, stamp); const sc = 1.5 - 0.5 * Math.min(1, stamp);
+      c.translate(cx, cy + 128); c.scale(sc, sc); c.rotate(0.05);
+      c.fillStyle = '#ffd777'; c.strokeStyle = '#1a0a10'; c.lineWidth = 5; c.font = 'bold 74px Georgia'; c.textAlign = 'center';
+      c.strokeText('過關', 0, 0); c.fillText('過關', 0, 0); c.restore();
+    }
+    c.globalAlpha = 1;
   }
 
   private drawEmbers(c: CanvasRenderingContext2D) {

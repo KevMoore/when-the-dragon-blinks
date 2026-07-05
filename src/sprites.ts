@@ -53,3 +53,16 @@ export class SpriteBank {
 }
 
 export const sprites = new SpriteBank();
+
+// Single transparent images (structures/props) drawn whole, scaled by height.
+export class Still {
+  img = new Image(); ready = false;
+  constructor(src: string) { this.img.onload = () => (this.ready = true); this.img.src = src; }
+  draw(c: CanvasRenderingContext2D, cx: number, baseY: number, targetH: number, anchorBottom = true) {
+    if (!this.ready) return;
+    const s = targetH / this.img.height, w = this.img.width * s;
+    c.drawImage(this.img, cx - w / 2, baseY - (anchorBottom ? targetH : targetH / 2), w, targetH);
+  }
+}
+export const stills: Record<string, Still> = {};
+export function loadStill(key: string, src: string) { stills[key] = new Still(src); }

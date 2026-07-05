@@ -40,6 +40,8 @@ if (_q.has('level')) {
         game.player.dragonTime = 12;
     if (_q.has('transform'))
         game.transformT = 1.05;
+    if (_q.has('clear'))
+        game.completeLevel();
 }
 // dev aid: force-show the touch controls on non-touch devices for layout testing
 if (_q.has('touch'))
