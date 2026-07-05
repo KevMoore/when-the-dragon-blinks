@@ -199,19 +199,20 @@ export function drawParallax(game: Game, c: CanvasRenderingContext2D) {
     const par = PARS[layer], sc = game.camera.x * par, voff = game.camera.y * par;
     const y0 = BASE[layer] - voff, amp = AMP[layer];
     const far = 1 - layer / (N - 1);                       // 1 = farthest, 0 = nearest
-    const col = mixHex(ridge, haze, 0.14 + far * 0.8);     // far → sky/haze colour
-    c.globalAlpha = 0.5 + (1 - far) * 0.46;
+    // atmospheric perspective, but keep even the farthest ridge readable so all
+    // five planes stay visible (don't fully dissolve into the sky)
+    const col = mixHex(ridge, haze, 0.1 + far * 0.58);
+    c.globalAlpha = 0.64 + (1 - far) * 0.34;
     c.fillStyle = col;
     c.beginPath(); c.moveTo(-20, LOGICAL_H + 4);
     for (let x = -20; x <= LOGICAL_W + 20; x += 12) { const y = y0 - amp * (0.5 + 0.5 * ridgeH(x + sc, layer)); c.lineTo(x, y); }
     c.lineTo(LOGICAL_W + 20, LOGICAL_H + 4); c.closePath(); c.fill();
-    if (far < 0.55) {                                      // rim-light only on nearer ridges
-      c.globalAlpha = (0.5 + (1 - far) * 0.46) * 0.32;
-      c.strokeStyle = mixHex(col, day > 0.5 ? '#ffcaa0' : '#a9c6ff', 0.5); c.lineWidth = 1.3;
-      c.beginPath();
-      for (let x = -20; x <= LOGICAL_W + 20; x += 12) { const y = y0 - amp * (0.5 + 0.5 * ridgeH(x + sc, layer)); x === -20 ? c.moveTo(x, y) : c.lineTo(x, y); }
-      c.stroke();
-    }
+    // rim-light EVERY crest so each layer separates from the one behind it
+    c.globalAlpha = (0.64 + (1 - far) * 0.34) * (0.3 + (1 - far) * 0.24);
+    c.strokeStyle = mixHex(col, day > 0.5 ? '#ffd0a4' : '#b3ccff', 0.55); c.lineWidth = 1.4;
+    c.beginPath();
+    for (let x = -20; x <= LOGICAL_W + 20; x += 12) { const y = y0 - amp * (0.5 + 0.5 * ridgeH(x + sc, layer)); x === -20 ? c.moveTo(x, y) : c.lineTo(x, y); }
+    c.stroke();
   }
   c.globalAlpha = 1;
 
