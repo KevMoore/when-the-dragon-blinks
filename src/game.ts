@@ -38,6 +38,7 @@ export class Game {
   transition = 1;
   dayAmount = 1;
   eyeBlink = 1;
+  eyeReact = 0;              // 0..1 pulse — the watching eye flares on impacts
   flash = 0; flashColor = '#ffd777';
   time = 0;
   hitstop = 0;
@@ -143,6 +144,7 @@ export class Game {
     const gained = Math.round(points * mult);
     this.combo++;
     this.score += gained;
+    this.eyeReact = Math.max(this.eyeReact, 0.7);      // the dragon notices each strike
     if (this.score > this.save.highScore) { this.save.highScore = this.score; this.persistSave(); }
     this.scorePops.push({ x, y, text: '+' + gained, t: 0, color: this.combo > 3 ? '#ffd777' : '#fff1ca' });
     if (this.scorePops.length > 40) this.scorePops.shift();
@@ -362,6 +364,7 @@ export class Game {
       this.eyeBlink = 1;
     }
     this.flash = Math.max(0, this.flash - dt * 2.5);
+    this.eyeReact = Math.max(0, this.eyeReact - dt * 2.4);
     this.particles.update(dt);
     this.camera.update(dt);
     this.camera.enabled = this.save.settings.shake && !this.save.settings.reducedMotion;

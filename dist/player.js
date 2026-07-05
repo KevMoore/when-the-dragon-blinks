@@ -513,6 +513,7 @@ export class Player {
             return;
         this.hp -= amount;
         this.invuln = 1.1;
+        game.eyeReact = 1; // the dragon flinches when you are struck
         game.camera.addTrauma(0.5);
         game.addHitstop(0.06);
         game.audio.sfx('hurt');

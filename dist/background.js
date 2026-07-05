@@ -112,37 +112,100 @@ function drawClouds(game, c, day) {
     }
     c.restore();
 }
-// A colossal Zhulong coiling through the high clouds — subtle, slow parallax.
+// Zhulong himself — a colossal red serpent coiling across the high heavens of
+// every scene. Slow parallax; body, spine ridge, whiskers, horned head + eye.
 function drawCoilingDragon(game, c, day) {
     const t = game.time * 0.06;
-    const ox = 470 - game.camera.x * 0.05;
-    const col = mixHex('#7fb0ff', '#ff6a48', day);
+    const ox = 430 - game.camera.x * 0.05;
+    const react = game.eyeReact;
+    const col = mixHex('#6aa4ff', '#ff5a38', day);
+    const path = (p) => ({ x: ox + p * 660, y: 118 + Math.sin(p * 6.6 + t) * 52 - p * 16 });
     c.save();
-    c.globalAlpha = 0.16 + 0.06 * Math.sin(game.time * 0.4);
-    c.strokeStyle = col;
     c.lineCap = 'round';
     c.lineJoin = 'round';
-    // body: a tapering sinuous ribbon
-    for (let seg = 0; seg < 3; seg++) {
+    // soft body aura
+    c.globalCompositeOperation = 'lighter';
+    c.globalAlpha = 0.10 + 0.05 * Math.sin(game.time * 0.4) + react * 0.12;
+    c.strokeStyle = col;
+    c.lineWidth = 40;
+    c.beginPath();
+    for (let i = 0; i <= 48; i++) {
+        const q = path(i / 48);
+        i === 0 ? c.moveTo(q.x, q.y) : c.lineTo(q.x, q.y);
+    }
+    c.stroke();
+    c.globalCompositeOperation = 'source-over';
+    // main tapering body
+    c.globalAlpha = 0.26 + react * 0.14;
+    c.strokeStyle = col;
+    c.lineWidth = 22;
+    c.beginPath();
+    for (let i = 0; i <= 48; i++) {
+        const q = path(i / 48);
+        const w = 22 * (1 - i / 48 * 0.8);
+        c.lineWidth = Math.max(4, w);
+        i === 0 ? c.moveTo(q.x, q.y) : c.lineTo(q.x, q.y);
+    }
+    c.stroke();
+    // dorsal spine ridge
+    c.globalAlpha = 0.2 + react * 0.1;
+    c.strokeStyle = mixHex(col, '#ffe6a0', 0.5);
+    c.lineWidth = 2;
+    for (let i = 2; i < 46; i += 2) {
+        const q = path(i / 48), q2 = path((i + 0.5) / 48);
+        const nx = -(q2.y - q.y), ny = q2.x - q.x;
+        const L = Math.hypot(nx, ny) || 1;
+        const s = 10 * (1 - i / 48 * 0.7);
         c.beginPath();
-        c.lineWidth = 26 - seg * 8;
-        for (let i = 0; i <= 40; i++) {
-            const p = i / 40;
-            const x = ox + p * 620;
-            const y = 120 + Math.sin(p * 7 + t + seg * 0.3) * 46 - p * 20;
-            i === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
-        }
+        c.moveTo(q.x, q.y);
+        c.lineTo(q.x + nx / L * s, q.y + ny / L * s);
         c.stroke();
     }
-    // head glow
-    c.globalAlpha = 0.22;
+    // head (at p=0), horns, whiskers, eye
+    const h = path(0), h2 = path(0.03), ang = Math.atan2(h.y - h2.y, h.x - h2.x);
+    c.save();
+    c.translate(h.x, h.y);
+    c.rotate(ang);
+    c.globalAlpha = 0.34 + react * 0.16;
     c.fillStyle = col;
-    c.shadowColor = col;
-    c.shadowBlur = 24;
-    const hx = ox + 620, hy = 120 + Math.sin(7 + t) * 46 - 20;
     c.beginPath();
-    c.ellipse(hx, hy, 22, 13, 0.2, 0, Math.PI * 2);
+    c.ellipse(6, 0, 26, 15, 0, 0, Math.PI * 2);
+    c.fill(); // skull
+    c.beginPath();
+    c.moveTo(24, -6);
+    c.quadraticCurveTo(40, -2, 30, 8);
+    c.quadraticCurveTo(20, 6, 24, -6);
+    c.fill(); // snout
+    c.strokeStyle = col;
+    c.lineWidth = 3;
+    c.lineCap = 'round'; // horns
+    c.beginPath();
+    c.moveTo(-6, -10);
+    c.quadraticCurveTo(-26, -26, -14, -34);
+    c.stroke();
+    c.beginPath();
+    c.moveTo(-12, -6);
+    c.quadraticCurveTo(-34, -14, -30, -26);
+    c.stroke();
+    c.globalAlpha = 0.24;
+    c.lineWidth = 1.6; // whiskers
+    c.beginPath();
+    c.moveTo(30, 4);
+    c.bezierCurveTo(60, 10, 80, -10 + Math.sin(t * 4) * 6, 108, 6);
+    c.stroke();
+    c.beginPath();
+    c.moveTo(28, 8);
+    c.bezierCurveTo(56, 20, 78, 30 + Math.sin(t * 4 + 1) * 6, 104, 26);
+    c.stroke();
+    // eye — flares with combat
+    c.globalAlpha = 0.7 + react * 0.3;
+    c.shadowColor = '#ff4a28';
+    c.shadowBlur = 10 + react * 26;
+    c.fillStyle = mixHex('#ffd08a', '#ff5230', 0.3 + react * 0.5);
+    c.beginPath();
+    c.arc(2, -3, 3.4 + react * 1.6, 0, Math.PI * 2);
     c.fill();
+    c.restore();
     c.restore();
     c.globalAlpha = 1;
     c.shadowBlur = 0;
@@ -188,20 +251,21 @@ export function drawDragonEye(game, c, day) {
     c.ellipse(x, y, 84, 27 * (0.16 + openness * 0.84), 0, 0, Math.PI * 2);
     c.stroke();
     if (openness > 0.05) {
+        const react = game.eyeReact;
         c.globalAlpha = openness;
         c.shadowColor = '#ff4a28';
-        c.shadowBlur = 30;
+        c.shadowBlur = 30 + react * 34;
         c.fillStyle = '#1a0509';
         c.beginPath();
         c.ellipse(x, y, 23, 24 * openness, 0, 0, Math.PI * 2);
         c.fill();
         const iris = c.createRadialGradient(x, y, 1, x, y, 24);
-        iris.addColorStop(0, '#ffd08a');
+        iris.addColorStop(0, react > 0.02 ? '#fff1c8' : '#ffd08a');
         iris.addColorStop(0.4, '#f0452c');
         iris.addColorStop(1, '#8a1810');
         c.fillStyle = iris;
         c.beginPath();
-        c.ellipse(x, y, 9, 24 * openness, 0, 0, Math.PI * 2);
+        c.ellipse(x, y, 9 + react * 5, 24 * openness, 0, 0, Math.PI * 2);
         c.fill();
         c.fillStyle = '#fff0d0';
         c.beginPath();
