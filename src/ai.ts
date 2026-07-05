@@ -74,17 +74,31 @@ function threatened(c: Ctx) {
   return p.dragonTime > 0 || c.e.hp <= 1 || (p.charging && c.dist < 180);
 }
 
-// gravity + edge-aware horizontal step for walkers
+// gravity + edge-aware horizontal step for walkers, with auto step-up over low
+// ledges, tolerance for small drops, and a stuck-escape hop.
 function groundStep(c: Ctx, desiredVx: number, dt: number) {
-  const e = c.e, game = c.game;
+  const e = c.e, game = c.game, bb = c.bb;
   const dir = Math.sign(desiredVx);
   if (dir !== 0 && e.grounded) {
-    const ax = e.x + e.w / 2 + dir * (e.w / 2 + 5);
-    const ch = game.tileAt(Math.floor(ax / TILE), Math.floor((e.y + e.h + 4) / TILE));
-    if (!(ch === '#' || ch === 'g' || ch === 'D' || ch === 'N' || ch === 'o')) desiredVx = 0;
+    const foot = e.y + e.h;
+    const frontX = dir > 0 ? e.x + e.w - 2 : e.x - 4;
+    // ground within ~1.3 tiles ahead (so small step-downs are fine, only real pits stop us)
+    const groundAhead = game.overlapsSolid({ x: frontX, y: foot + 2, w: 6, h: 44 });
+    // a low wall/step blocking the body just ahead
+    const stepBlocked = game.overlapsSolid({ x: frontX, y: foot - 18, w: 6, h: 16 });
+    // is there headroom to hop up onto it?
+    const headClear = !game.overlapsSolid({ x: e.x - 2, y: foot - 50, w: e.w + 4, h: 26 });
+    if (stepBlocked && headClear) e.vy = Math.min(e.vy, -280);        // auto-step over a low ledge
+    else if (!groundAhead && !stepBlocked) desiredVx = 0;             // pit with no wall to climb — stop
   }
   e.vx = desiredVx; e.vy += GRAVITY * dt;
+  const x0 = e.x;
   game.moveEntity(e, e.vx * dt, e.vy * dt);
+  // stuck-escape: trying to move but pinned against terrain → hop free
+  if (desiredVx !== 0 && Math.abs(e.x - x0) < 0.4) {
+    bb.stuckT = (bb.stuckT || 0) + dt;
+    if (bb.stuckT > 0.35) { if (e.grounded) e.vy = -330; bb.stuckT = 0; }
+  } else bb.stuckT = 0;
 }
 
 // ---- brain factories -------------------------------------------------------
