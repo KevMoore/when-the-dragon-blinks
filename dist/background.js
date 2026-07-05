@@ -336,8 +336,12 @@ function drawLanternString(game, c, day) {
     c.globalAlpha = 1;
 }
 // ---- tiles -----------------------------------------------------------------
-// topmost solid terrain row of a column ('#' or 'g'), or null for a pit
+// topmost solid terrain row of a column ('#' or 'g'), or null for a pit.
+// Columns outside the level are treated as empty (not the solid '#' that
+// tileAt() returns for out-of-bounds), so the ground ends cleanly at the edges.
 function surfaceRow(game, x) {
+    if (x < 0 || x >= game.level.width)
+        return null;
     const h = game.level.height;
     for (let y = 0; y < h; y++) {
         const ch = game.tileAt(x, y);
