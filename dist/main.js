@@ -28,6 +28,33 @@ document.addEventListener('touchend', e => {
 }, { passive: false });
 document.addEventListener('gesturestart', e => e.preventDefault());
 document.addEventListener('dblclick', e => e.preventDefault());
+// Force fullscreen / immersive on mobile + tablets. The Fullscreen API needs a
+// user gesture and works on Android and iPadOS 16.4+; iPhone Safari (which lacks
+// element fullscreen) falls back to the web-app meta tags + address-bar hiding.
+const _coarse = !!window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+if (_coarse) {
+    const goFullscreen = () => {
+        const el = document.documentElement;
+        const req = el.requestFullscreen || el.webkitRequestFullscreen || el.webkitRequestFullScreen || el.msRequestFullscreen;
+        try {
+            if (req && !document.fullscreenElement && !document.webkitFullscreenElement) {
+                const p = req.call(el);
+                if (p && p.catch)
+                    p.catch(() => { });
+            }
+        }
+        catch { }
+        try {
+            screen.orientation?.lock?.('landscape')?.catch?.(() => { });
+        }
+        catch { }
+        window.scrollTo(0, 1); // nudge older mobile browsers to hide the URL bar
+    };
+    const arm = () => goFullscreen();
+    window.addEventListener('pointerdown', arm, { passive: true });
+    window.addEventListener('touchend', arm, { passive: true });
+    window.addEventListener('orientationchange', () => setTimeout(goFullscreen, 250));
+}
 const game = new Game(ctx);
 // Optional deep-link for testing/sharing: index.html?level=0..3 jumps straight in.
 const _q = new URLSearchParams(location.search);
