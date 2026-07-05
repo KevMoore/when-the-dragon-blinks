@@ -245,12 +245,18 @@ export function drawParallax(game, c) {
     const th = theme(game), day = game.dayAmount;
     const haze = mixHex(th.hazeNight, th.haze, day);
     const ridge = mixHex(th.ridgeNight, th.ridge, day);
-    const PARS = [0.05, 0.11, 0.2, 0.32], BASE = [300, 344, 392, 452], AMP = [72, 66, 60, 54];
-    for (let layer = 0; layer < 4; layer++) {
+    // 5 ridge layers with strong atmospheric perspective: distant peaks nearly
+    // dissolve into the haze (mysterious depth); near ridges move much faster.
+    const PARS = [0.02, 0.055, 0.115, 0.22, 0.37];
+    const BASE = [258, 296, 342, 394, 460];
+    const AMP = [86, 78, 70, 62, 54];
+    const N = PARS.length;
+    for (let layer = 0; layer < N; layer++) {
         const par = PARS[layer], sc = game.camera.x * par, voff = game.camera.y * par;
-        const y0 = BASE[layer] - voff, amp = AMP[layer], depth = 1 - layer / 4;
-        const col = mixHex(ridge, haze, depth * 0.72);
-        c.globalAlpha = 0.72 + layer * 0.07;
+        const y0 = BASE[layer] - voff, amp = AMP[layer];
+        const far = 1 - layer / (N - 1); // 1 = farthest, 0 = nearest
+        const col = mixHex(ridge, haze, 0.14 + far * 0.8); // far → sky/haze colour
+        c.globalAlpha = 0.5 + (1 - far) * 0.46;
         c.fillStyle = col;
         c.beginPath();
         c.moveTo(-20, LOGICAL_H + 4);
@@ -261,35 +267,44 @@ export function drawParallax(game, c) {
         c.lineTo(LOGICAL_W + 20, LOGICAL_H + 4);
         c.closePath();
         c.fill();
-        // crest rim-light
-        c.globalAlpha = (0.72 + layer * 0.07) * 0.35;
-        c.strokeStyle = mixHex(col, day > 0.5 ? '#ffcaa0' : '#a9c6ff', 0.5);
-        c.lineWidth = 1.3;
-        c.beginPath();
-        for (let x = -20; x <= LOGICAL_W + 20; x += 12) {
-            const y = y0 - amp * (0.5 + 0.5 * ridgeH(x + sc, layer));
-            x === -20 ? c.moveTo(x, y) : c.lineTo(x, y);
+        if (far < 0.55) { // rim-light only on nearer ridges
+            c.globalAlpha = (0.5 + (1 - far) * 0.46) * 0.32;
+            c.strokeStyle = mixHex(col, day > 0.5 ? '#ffcaa0' : '#a9c6ff', 0.5);
+            c.lineWidth = 1.3;
+            c.beginPath();
+            for (let x = -20; x <= LOGICAL_W + 20; x += 12) {
+                const y = y0 - amp * (0.5 + 0.5 * ridgeH(x + sc, layer));
+                x === -20 ? c.moveTo(x, y) : c.lineTo(x, y);
+            }
+            c.stroke();
         }
-        c.stroke();
     }
     c.globalAlpha = 1;
-    // fog band across the ridges
+    // drifting mist banks weaving between the distant ridges (mystery + depth)
     c.save();
     c.globalCompositeOperation = 'screen';
-    for (let i = 0; i < 3; i++) {
-        const fy = 358 + i * 40 + Math.sin(game.time * 0.2 + i) * 6;
-        const fg = c.createLinearGradient(0, fy - 30, 0, fy + 30);
-        fg.addColorStop(0, 'rgba(0,0,0,0)');
-        fg.addColorStop(0.5, `rgba(${day > 0.5 ? '230,180,150' : '150,175,215'},0.10)`);
-        fg.addColorStop(1, 'rgba(0,0,0,0)');
-        c.fillStyle = fg;
-        c.fillRect(0, fy - 30, LOGICAL_W, 60);
+    const tint = day > 0.5 ? '236,192,162' : '150,178,222';
+    for (let i = 0; i < 7; i++) {
+        const bx = ((i * 250 + game.time * (7 + i * 2.2)) % (LOGICAL_W + 460)) - 230;
+        const by = 296 + (i % 3) * 42 + Math.sin(game.time * 0.2 + i) * 10 - game.camera.y * 0.08;
+        const r = 130 + (i % 3) * 64;
+        const g = c.createRadialGradient(bx, by, 0, bx, by, r);
+        g.addColorStop(0, `rgba(${tint},${0.07 + (i % 3) * 0.015})`);
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        c.fillStyle = g;
+        c.beginPath();
+        c.ellipse(bx, by, r, r * 0.42, 0, 0, Math.PI * 2);
+        c.fill();
     }
     c.restore();
     // large sprite props scattered across two depth bands
     ensureProps();
     const names = ['pagoda', 'shishi', 'pine', 'stele', 'palace'];
-    const bands = [{ par: 0.24, baseY: 402, h: 108, alpha: 0.5, step: 470, seed: 7 }, { par: 0.4, baseY: 466, h: 158, alpha: 0.8, step: 560, seed: 23 }];
+    const bands = [
+        { par: 0.13, baseY: 356, h: 66, alpha: 0.26, step: 540, seed: 41 }, // very distant, ghostly
+        { par: 0.24, baseY: 402, h: 106, alpha: 0.46, step: 470, seed: 7 },
+        { par: 0.4, baseY: 466, h: 158, alpha: 0.82, step: 560, seed: 23 },
+    ];
     for (const b of bands) {
         const sc = game.camera.x * b.par, voff = game.camera.y * b.par;
         const first = Math.floor((sc - 280) / b.step), last = Math.ceil((sc + LOGICAL_W + 280) / b.step);

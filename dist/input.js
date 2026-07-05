@@ -14,10 +14,6 @@ export class Input {
         this.pointer = null;
         this.stickX = 0;
         this.stickY = 0; // left-thumb drag joystick (-1..1)
-        // combined right button: tap = fire, hold = jump
-        this.fjDown = false;
-        this.fjPressTime = 0;
-        this.fjJumped = false;
         this.lastDirTap = {};
         window.addEventListener('keydown', e => {
             const k = e.key.toLowerCase();
@@ -36,15 +32,6 @@ export class Input {
         const controls = document.getElementById('touch-controls');
         controls?.querySelectorAll('button[data-action]').forEach(btn => {
             const action = btn.dataset.action;
-            if (action === 'firejump') {
-                const fd = (e) => { e.preventDefault(); this.fjDown = true; this.fjPressTime = performance.now(); this.fjJumped = false; this.touchPressed.add('attack'); btn.classList.add('active'); };
-                const fu = (e) => { e.preventDefault(); this.fjDown = false; btn.classList.remove('active'); };
-                btn.addEventListener('pointerdown', fd);
-                btn.addEventListener('pointerup', fu);
-                btn.addEventListener('pointercancel', fu);
-                btn.addEventListener('pointerleave', fu);
-                return;
-            }
             const down = (e) => {
                 e.preventDefault();
                 this.touch.add(action);
@@ -147,7 +134,7 @@ export class Input {
             return k.has('s') || k.has('arrowdown') || this.touch.has('down') || this.stickY > 0.5 || this.axisY > 0.4 || !!this.gpButtons[13];
         // jump is a dedicated button so Up can be used to aim shots upward
         if (action === 'jump')
-            return k.has(' ') || this.touch.has('jump') || !!this.gpButtons[0] || (this.fjDown && performance.now() - this.fjPressTime >= 140);
+            return k.has(' ') || this.touch.has('jump') || !!this.gpButtons[0];
         if (action === 'attack')
             return k.has('j') || k.has('x') || this.touch.has('attack') || !!this.gpButtons[2];
         if (action === 'dash')
@@ -171,14 +158,8 @@ export class Input {
             return p.has('arrowleft') || p.has('a') || gpJust(14);
         if (action === 'right')
             return p.has('arrowright') || p.has('d') || gpJust(15);
-        if (action === 'jump') {
-            let j = p.has(' ') || t.has('jump') || gpJust(0);
-            if (this.fjDown && !this.fjJumped && performance.now() - this.fjPressTime >= 140) {
-                this.fjJumped = true;
-                j = true;
-            }
-            return j;
-        }
+        if (action === 'jump')
+            return p.has(' ') || t.has('jump') || gpJust(0);
         if (action === 'attack')
             return p.has('j') || p.has('x') || t.has('attack') || gpJust(2);
         if (action === 'dash')
