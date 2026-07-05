@@ -9,12 +9,83 @@ export class AudioManager {
         this.padFilter = null;
         this.padGain = null;
         this.world = 'day';
+        // ---- streamed music tracks (mp3) ----
+        this.musicEls = {};
+        this.curKey = null;
+        this.pendingKey = null;
+        this.unlocked = false;
+        this.fadeTimer = null;
         this.settings = settings;
+        for (const k of ['startscreen', 'gameplay', 'bossman', 'dragon']) {
+            try {
+                const el = new Audio('assets/audio/' + k + '.mp3');
+                el.loop = true;
+                el.preload = 'auto';
+                el.volume = 0;
+                this.musicEls[k] = el;
+            }
+            catch { }
+        }
         // Browsers require a user gesture before audio can start.
-        const kick = () => { this.ensure(); this.startMusic(); window.removeEventListener('pointerdown', kick); window.removeEventListener('keydown', kick); };
+        const kick = () => { this.ensure(); this.unlocked = true; if (this.pendingKey)
+            this.playMusic(this.pendingKey); };
         window.addEventListener('pointerdown', kick);
         window.addEventListener('keydown', kick);
     }
+    // ---- music ----
+    musicLevel() { return this.settings.music ? this.settings.master * 0.6 : 0; }
+    playMusic(key) {
+        this.pendingKey = key;
+        if (!this.unlocked)
+            return;
+        if (!this.settings.music) {
+            this.stopMusic();
+            return;
+        }
+        if (this.curKey === key) {
+            const el = this.musicEls[key];
+            if (el) {
+                if (el.paused)
+                    el.play().catch(() => { });
+                el.volume = this.musicLevel();
+            }
+            return;
+        }
+        const next = this.musicEls[key];
+        if (!next)
+            return;
+        const prev = this.curKey ? this.musicEls[this.curKey] : null;
+        this.curKey = key;
+        if (key === 'dragon' || key === 'bossman')
+            next.currentTime = 0; // stings restart
+        next.volume = 0;
+        next.play().catch(() => { });
+        this.crossfade(prev, next);
+    }
+    crossfade(prev, next) {
+        if (this.fadeTimer)
+            clearInterval(this.fadeTimer);
+        const target = this.musicLevel();
+        let t = 0;
+        this.fadeTimer = setInterval(() => {
+            t += 0.06;
+            const p = Math.min(1, t / 0.8);
+            next.volume = target * p;
+            if (prev && prev !== next)
+                prev.volume = Math.max(0, target * (1 - p));
+            if (p >= 1) {
+                clearInterval(this.fadeTimer);
+                this.fadeTimer = null;
+                if (prev && prev !== next)
+                    prev.pause();
+            }
+        }, 60);
+    }
+    stopMusic() { for (const k in this.musicEls)
+        this.musicEls[k].pause(); this.curKey = null; if (this.fadeTimer) {
+        clearInterval(this.fadeTimer);
+        this.fadeTimer = null;
+    } }
     ensure() {
         if (this.ctx) {
             if (this.ctx.state === 'suspended')
@@ -40,8 +111,18 @@ export class AudioManager {
     applySettings() {
         if (this.master)
             this.master.gain.value = this.settings.master;
-        if (this.musicGain && this.ctx)
-            this.musicGain.gain.setTargetAtTime(this.settings.music ? 1 : 0, this.ctx.currentTime, 0.2);
+        if (!this.settings.music)
+            this.stopMusic();
+        else if (this.curKey) {
+            const el = this.musicEls[this.curKey];
+            if (el) {
+                el.volume = this.musicLevel();
+                if (el.paused)
+                    el.play().catch(() => { });
+            }
+        }
+        else if (this.pendingKey && this.unlocked)
+            this.playMusic(this.pendingKey);
     }
     // ---- Ambient music bed -------------------------------------------------
     startMusic() {

@@ -354,7 +354,18 @@ export class Game {
     this.camera.update(dt);
     this.camera.enabled = this.save.settings.shake && !this.save.settings.reducedMotion;
     if (this.message) { this.message.t += dt; if (this.message.t > this.message.max) this.message = null; }
+    this.updateMusic();
     this.input.endFrame();
+  }
+
+  private updateMusic() {
+    let key = 'startscreen';
+    if (this.state === 'playing' || this.state === 'paused' || this.state === 'lore') {
+      if (this.transformT > 0 || this.player.dragonTime > 0) key = 'dragon';
+      else if (this.level.isBoss) key = 'bossman';
+      else key = 'gameplay';
+    }
+    this.audio.playMusic(key);
   }
 
   private updatePlaying(dt: number) {

@@ -459,7 +459,20 @@ export class Game {
             if (this.message.t > this.message.max)
                 this.message = null;
         }
+        this.updateMusic();
         this.input.endFrame();
+    }
+    updateMusic() {
+        let key = 'startscreen';
+        if (this.state === 'playing' || this.state === 'paused' || this.state === 'lore') {
+            if (this.transformT > 0 || this.player.dragonTime > 0)
+                key = 'dragon';
+            else if (this.level.isBoss)
+                key = 'bossman';
+            else
+                key = 'gameplay';
+        }
+        this.audio.playMusic(key);
     }
     updatePlaying(dt) {
         if (this.transformT > 0) {
