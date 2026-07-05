@@ -822,8 +822,7 @@ export function drawLighting(game, c) {
             if (!game.save.relics.includes(r.id))
                 glow(r.x - game.camera.x + 11, r.y - game.camera.y + 11, 90, 'rgba(255,220,120,.8)', 0.9);
         for (const e of game.enemies)
-            if (e.kind === 'wisp')
-                glow(e.x - game.camera.x + e.w / 2, e.y - game.camera.y + e.h / 2, 80, 'rgba(150,220,255,.7)', 0.8);
+            glow(e.x - game.camera.x + e.w / 2, e.y - game.camera.y + e.h / 2, 84, e.glowColor(game), 0.8);
         if (game.boss && game.boss.alive)
             glow(game.boss.x - game.camera.x + game.boss.w / 2, game.boss.y - game.camera.y + 30, 200, 'rgba(255,140,90,.5)', 0.8);
         for (const pr of game.projectiles)

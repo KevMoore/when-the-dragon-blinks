@@ -531,7 +531,7 @@ export function drawLighting(game: Game, c: CanvasRenderingContext2D) {
     for (const s of game.level.shrines) glow(s.x - game.camera.x + 13, s.y - game.camera.y + 24, 120, 'rgba(255,200,120,.7)', 0.9);
     for (const cp of game.level.checkpoints) glow(cp.x - game.camera.x + 12, cp.y - game.camera.y + 16, 90, 'rgba(255,150,120,.6)', 0.7);
     for (const r of game.level.relics) if (!game.save.relics.includes(r.id)) glow(r.x - game.camera.x + 11, r.y - game.camera.y + 11, 90, 'rgba(255,220,120,.8)', 0.9);
-    for (const e of game.enemies) if (e.kind === 'wisp') glow(e.x - game.camera.x + e.w / 2, e.y - game.camera.y + e.h / 2, 80, 'rgba(150,220,255,.7)', 0.8);
+    for (const e of game.enemies) glow(e.x - game.camera.x + e.w / 2, e.y - game.camera.y + e.h / 2, 84, e.glowColor(game), 0.8);
     if (game.boss && game.boss.alive) glow(game.boss.x - game.camera.x + game.boss.w / 2, game.boss.y - game.camera.y + 30, 200, 'rgba(255,140,90,.5)', 0.8);
     for (const pr of game.projectiles) glow(pr.x - game.camera.x, pr.y - game.camera.y, pr.kind === 'blast' ? 70 : 46, pr.hostile ? 'rgba(255,120,80,.7)' : 'rgba(255,200,120,.7)', 0.7);
     c.restore(); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';

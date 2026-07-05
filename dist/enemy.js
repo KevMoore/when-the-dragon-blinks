@@ -152,10 +152,39 @@ export class Enemy {
             return false; // always present
         return game.world !== 'day'; // moth, guardian, sentry are day-active
     }
+    // Aura colour ties each enemy to the myth: warm fire for day/solar things,
+    // cool spirit-light for night things.
+    glowColor(_game) {
+        switch (this.kind) {
+            case 'wisp':
+            case 'skull': return 'rgba(139,210,255,.75)';
+            case 'ghoul': return 'rgba(150,224,120,.6)';
+            case 'crawler': return 'rgba(255,92,73,.6)';
+            case 'sentry':
+            case 'moth': return 'rgba(255,157,77,.75)';
+            default: return 'rgba(255,207,122,.65)'; // stone guardian
+        }
+    }
     draw(game, c) {
         if (!this.alive)
             return;
         const sx = this.x - game.camera.x, sy = this.y - game.camera.y;
+        // aura so the enemy always reads against terrain (also myth-codes day/night)
+        {
+            const cx = sx + this.w / 2, cy = sy + this.h / 2, gr = this.w * 1.25;
+            c.save();
+            c.globalCompositeOperation = 'lighter';
+            c.globalAlpha = this.dim(game) ? 0.3 : 0.6;
+            const gg = c.createRadialGradient(cx, cy, 0, cx, cy, gr);
+            gg.addColorStop(0, this.glowColor(game));
+            gg.addColorStop(1, 'rgba(0,0,0,0)');
+            c.fillStyle = gg;
+            c.beginPath();
+            c.arc(cx, cy, gr, 0, Math.PI * 2);
+            c.fill();
+            c.restore();
+            c.globalAlpha = 1;
+        }
         // ---- Sprite path ----
         let animName = 'idle';
         if (this.kind === 'ghoul' || this.kind === 'crawler')
@@ -170,7 +199,7 @@ export class Enemy {
             if (this.kind === 'wisp' || this.kind === 'moth' || this.kind === 'skull')
                 face = centerX(game.player.rect()) < centerX(this.rect()) ? -1 : 1;
             c.save();
-            c.globalAlpha = (this.dim(game) ? 0.5 : 1) * (this.flash > 0 ? 0.7 : 1);
+            c.globalAlpha = (this.dim(game) ? 0.62 : 1) * (this.flash > 0 ? 0.7 : 1);
             const cy = grounded ? sy + this.h : sy + this.h / 2;
             c.translate(sx + this.w / 2, cy);
             c.scale(face, 1);
