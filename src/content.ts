@@ -1,6 +1,8 @@
 // Level layouts (built with a compact tile grid), plus lore panels and codex.
 import { TILE } from './types.js';
-import type { LevelData, CodexEntry, LorePanel, MovingPlatform } from './types.js';
+import { clamp } from './math.js';
+import type { Rect } from './math.js';
+import type { LevelData, CodexEntry, LorePanel, MovingPlatform, EntityKind } from './types.js';
 
 // ---- tile grid helpers -----------------------------------------------------
 function emptyMap(w: number, h: number): string[][] {
@@ -34,7 +36,190 @@ function mp(x: number, y: number, w: number, o: Partial<MovingPlatform> = {}): M
 // torch-gem placed on tile coords (fills the dragon meter when collected)
 function gem(tx: number, ty: number) { return { x: tx * TILE, y: ty * TILE }; }
 
-// ---- Level 1: Mountain Gate ------------------------------------------------
+// ============================================================================
+// Procedural level arc — 24 levels across 4 acts climbing north to Mount Zhong,
+// plus 2 hidden levels. Deterministic (seeded) so a level is identical each run.
+// ============================================================================
+function rngFor(seed: number) {
+  let s = (seed ^ 0x9e3779b9) >>> 0;
+  return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; };
+}
+
+type Theme = 'mountain' | 'bridge' | 'cavern' | 'sunless';
+interface Spec {
+  id: string; name: string; sub: string; act: 1 | 2 | 3 | 4; theme: Theme;
+  len: number; diff: number; pal: EntityKind[]; density: number; hazard: number;
+  windy?: boolean; moving?: boolean; crumble?: boolean; miniBoss?: boolean; boss?: boolean;
+  hidden?: boolean; secretTo?: number; intro?: string; outro?: string; unlock?: string[]; shrine?: string;
+}
+
+function renderTheme(t: Theme): 'mountain' | 'bridge' | 'cavern' | 'arena' {
+  return t === 'sunless' ? 'cavern' : t;
+}
+function isFlyer(k: EntityKind) {
+  return k === 'moth' || k === 'wisp' || k === 'skull' || k === 'crow' || k === 'wraith' || k === 'sentry';
+}
+
+function buildLevel(spec: Spec, index: number): LevelData {
+  if (spec.boss) return buildBoss(spec);
+  const r = rngFor(1000 + index * 97);
+  const cavern = spec.theme === 'cavern' || spec.theme === 'sunless';
+  const h = cavern ? 20 : 18;
+  const w = spec.len;
+  const gr = h - 4;                                    // base ground row
+  const m = emptyMap(w, h);
+
+  // rolling ground with small (always jumpable) pits
+  const segs: { x: number; top: number | null }[] = [{ x: 0, top: gr }];
+  const pits: { x0: number; x1: number }[] = [];
+  let top = gr, x = 7;                                 // flat spawn area first
+  while (x < w - 10) {
+    x += 6 + Math.floor(r() * 7);
+    if (x >= w - 10) break;
+    if (x > 12 && r() < 0.2 + spec.hazard * 0.2) {
+      const pw = 3 + Math.floor(r() * 2);              // 3-4 wide, jumpable
+      segs.push({ x, top: null }); pits.push({ x0: x, x1: x + pw }); x += pw;
+      top = clamp(top + (r() < 0.5 ? -1 : 1), h - 7, h - 3); segs.push({ x, top });
+    } else {
+      top = clamp(top + (r() < 0.5 ? -1 : 1) * (1 + Math.floor(r() * 2)), h - 7, h - 3);
+      segs.push({ x, top });
+    }
+  }
+  ground(m, w, h, segs);
+  rect(m, w - 2, 0, 2, h, '#');
+
+  // pit spikes + day/night crossings (blink to make the path)
+  for (const p of pits) {
+    row(m, p.x0, h - 2, p.x1 - p.x0, '^');
+    row(m, p.x0, gr - 2, 2, r() < 0.5 ? 'D' : 'N');
+    row(m, p.x1 - 2, gr - 3, 2, r() < 0.5 ? 'N' : 'D');
+  }
+  // one-way vantage platforms
+  for (let i = 0, n = 2 + Math.floor(w / 40); i < n; i++) {
+    const px = 12 + Math.floor(r() * (w - 26)), py = gr - 3 - Math.floor(r() * 4);
+    if (py > 3) row(m, px, py, 3 + Math.floor(r() * 2), 'o');
+  }
+  // stateful (day/night) ground hazards
+  for (let i = 0, n = Math.floor(spec.hazard * w / 30); i < n; i++) {
+    row(m, 14 + Math.floor(r() * (w - 26)), gr - 1, 3, r() < 0.5 ? 'F' : 'S');
+  }
+
+  // gems along the route
+  const gems: { x: number; y: number }[] = [];
+  const gN = 5 + Math.floor(w / 60);
+  for (let i = 0; i < gN; i++) gems.push(gem(Math.floor((i + 0.5) / gN * (w - 14)) + 6, gr - 2 - Math.floor(r() * 4)));
+
+  // checkpoints
+  const checkpoints = [];
+  for (let cx = 34; cx < w - 12; cx += 44) checkpoints.push({ x: cx * TILE, y: gr * TILE - 40, w: 28, h: 56 });
+
+  // moving / crumbling platforms
+  const platforms: MovingPlatform[] = [];
+  if (spec.moving) platforms.push(mp(Math.floor(w * 0.4), gr - 1, 3, { ax: 4 * TILE, speed: 0.8 + spec.diff * 0.12 }));
+  if (spec.crumble) { platforms.push(mp(Math.floor(w * 0.55), gr - 1, 3, { crumble: true })); platforms.push(mp(Math.floor(w * 0.72), gr - 2, 3, { crumble: true })); }
+
+  const windZones = spec.windy
+    ? [{ x: Math.floor(w * 0.35) * TILE, y: 2 * TILE, w: 8 * TILE, h: (h - 2) * TILE }, { x: Math.floor(w * 0.66) * TILE, y: 2 * TILE, w: 8 * TILE, h: (h - 2) * TILE }]
+    : undefined;
+
+  // enemies — day/night hosts drawn from the act palette
+  const entities: { kind: EntityKind; x: number; y: number }[] = [];
+  const eN = Math.round(spec.density * w / 20);
+  for (let i = 0; i < eN; i++) {
+    const kind = spec.pal[Math.floor(r() * spec.pal.length)];
+    const ex = 12 + Math.floor((i + 0.5) / eN * (w - 26)) + Math.floor(r() * 6);
+    entities.push({ kind, x: ex * TILE, y: (isFlyer(kind) ? gr - 6 - Math.floor(r() * 3) : gr - 2) * TILE });
+  }
+  if (spec.miniBoss) entities.push({ kind: 'sentinel', x: Math.floor(w * 0.84) * TILE, y: (gr - 2) * TILE });
+
+  // secret exit → a hidden level (a high night-ledge to find)
+  let secretExit: Rect | undefined, secretExitTo: number | undefined;
+  if (spec.secretTo !== undefined) {
+    const sx = Math.floor(w * 0.5);
+    row(m, sx, gr - 5, 3, 'N'); row(m, sx + 2, gr - 8, 3, 'N');
+    secretExit = { x: (sx + 2) * TILE, y: (gr - 11) * TILE, w: 44, h: 3 * TILE };
+    secretExitTo = spec.secretTo;
+  }
+
+  const endTop = segs[segs.length - 1].top ?? gr;
+  return {
+    id: spec.id, title: spec.name, subtitle: spec.sub, act: spec.act, hidden: spec.hidden, difficulty: spec.diff,
+    theme: renderTheme(spec.theme), width: w, height: h, tiles: toStrings(m),
+    spawn: { x: 3 * TILE, y: (gr - 3) * TILE }, exit: { x: (w - 4) * TILE, y: (endTop - 6) * TILE, w: 44, h: 6 * TILE },
+    checkpoints, relics: [], shrines: spec.shrine ? [{ x: 8 * TILE, y: (gr - 2) * TILE, textId: spec.shrine }] : [],
+    entities, gems, platforms, windZones, secretExit, secretExitTo,
+    introLore: spec.intro || '', outroLore: spec.outro || '', unlockCodexOnComplete: spec.unlock || [],
+  };
+}
+
+function buildBoss(spec: Spec): LevelData {
+  const w = 40, h = 18, m = emptyMap(w, h);
+  row(m, 0, 16, w, '#'); row(m, 0, 17, w, '#');
+  rect(m, 0, 0, 2, 18, '#'); rect(m, w - 2, 0, 2, 18, '#');
+  row(m, 6, 12, 4, 'D'); row(m, 30, 12, 4, 'N'); row(m, 17, 10, 6, 'o');
+  return {
+    id: spec.id, title: spec.name, subtitle: spec.sub, act: spec.act, theme: 'arena', difficulty: spec.diff,
+    width: w, height: h, tiles: toStrings(m),
+    spawn: { x: 150, y: 430 }, exit: { x: 1120, y: 356, w: 40, h: 92 },
+    checkpoints: [{ x: 130, y: 12 * TILE - 24, w: 28, h: 56 }], relics: [],
+    shrines: spec.shrine ? [{ x: 250, y: 14 * TILE, textId: spec.shrine }] : [], entities: [],
+    gems: [gem(7, 13), gem(33, 13), gem(20, 8), gem(13, 11), gem(27, 11)],
+    introLore: spec.intro || '', outroLore: spec.outro || '', unlockCodexOnComplete: spec.unlock || [], isBoss: true,
+  };
+}
+
+// ---- the 24-level arc + 2 hidden levels ------------------------------------
+const PAL: Record<number, EntityKind[]> = {
+  1: ['moth', 'crawler', 'guardian', 'skull', 'crow'],
+  2: ['moth', 'sentry', 'skull', 'ghoul', 'crow', 'wraith', 'wisp'],
+  3: ['crawler', 'skull', 'ghoul', 'sentry', 'wisp', 'sentinel', 'crow', 'wraith'],
+  4: ['ghoul', 'skull', 'wraith', 'sentinel', 'crow', 'sentry', 'wisp', 'crawler', 'guardian'],
+};
+const ACT_THEME: Record<number, Theme> = { 1: 'mountain', 2: 'bridge', 3: 'cavern', 4: 'sunless' };
+const ACT_SHRINE: Record<number, string> = { 1: 'shrine-who-is-zhulong', 2: 'shrine-eye-day-night', 3: 'shrine-breath', 4: 'shrine-sunless' };
+const NAMES = [
+  'The Waking Fragment', 'Terraced Slopes', 'The Broken Stair', 'Vermilion Pass', 'The Watchtower Line', 'Herald of the Foothills',
+  'First Span', 'The Lantern Rope', 'Chasm of Two Skies', 'The Swaying Planks', 'Moonwake Crossing', 'The Bridge-Warden',
+  'Mouth of the Deep', 'Updraft Halls', 'The Whispering Vents', 'Crumbling Galleries', 'The Cold Below', 'Keeper of the Breath',
+  'Where the Sun Was Stolen', 'The Ashen Road', 'Field of Dead Lanterns', 'The Long Dark', 'Gates of Mount Zhong', 'The Lantern Eater',
+];
+const SUBS = [
+  'The eye-shard wakes as you climb', 'Blink between terraces', 'Hop the fallen steps', 'A vermilion secret hides here', 'Turrets watch the ridge', 'A herald bars the pass',
+  'Cross on the blinking span', 'Swing past the lanterns', 'Two skies, one path', 'The planks fall away', 'Only moonlight bridges this', 'The warden holds the span',
+  'Ride the dragon’s breath', 'Updrafts carry you up', 'Something whispers below', 'The galleries crumble', 'Cold gnaws the deep', 'The keeper guards the breath',
+  'Here the dawn was stolen', 'March the ashen road', 'Lanterns lie dead and dark', 'Endure the long dark', 'The northern gates open', 'Break the mask, free the dawn',
+];
+
+function makeSpecs(): Spec[] {
+  const specs: Spec[] = [];
+  for (let i = 0; i < 24; i++) {
+    const act = (Math.floor(i / 6) + 1) as 1 | 2 | 3 | 4;
+    const j = i % 6;
+    const finale = j === 5;
+    const isFinalBoss = i === 23;
+    specs.push({
+      id: 'lvl-' + (i + 1), name: `Level ${i + 1}: ${NAMES[i]}`, sub: SUBS[i], act, theme: ACT_THEME[act],
+      len: 150 + act * 8 + j * 6,
+      diff: 0.95 + (act - 1) * 0.2 + j * 0.05,
+      pal: PAL[act], density: 0.85 + (act - 1) * 0.12 + j * 0.06, hazard: 0.18 + (act - 1) * 0.1 + j * 0.05,
+      windy: act === 3, moving: j >= 2, crumble: act >= 3 && j >= 3,
+      miniBoss: finale && !isFinalBoss, boss: isFinalBoss,
+      intro: j === 0 ? `act${act}-intro` : (isFinalBoss ? 'intro-boss' : ''),
+      outro: finale ? (isFinalBoss ? 'outro-boss' : `act${act}-outro`) : '',
+      shrine: j === 0 ? ACT_SHRINE[act] : (isFinalBoss ? 'shrine-boss-invention' : undefined),
+      unlock: finale ? [['texts-vary'], ['blinking-image'], ['breath-seasons'], ['game-inventions', 'myth-vs-adaptation']][act - 1] : undefined,
+      secretTo: i === 3 ? 24 : i === 14 ? 25 : undefined,
+    });
+  }
+  // hidden levels (indices 24, 25)
+  specs.push({ id: 'hidden-ember', name: 'Hidden: The Ember Vault', sub: 'A vault of torch-fire, off the path', act: 1, theme: 'mountain', len: 140, diff: 1.2, pal: PAL[1], density: 1.1, hazard: 0.3, moving: true, hidden: true, intro: 'hidden-ember', shrine: 'shrine-who-is-zhulong' });
+  specs.push({ id: 'hidden-moon', name: 'Hidden: The Moonlit Shrine', sub: 'A shrine that shows only at night', act: 3, theme: 'cavern', len: 150, diff: 1.5, pal: PAL[3], density: 1.15, hazard: 0.35, windy: true, hidden: true, intro: 'hidden-moon', shrine: 'shrine-breath' });
+  return specs;
+}
+
+const SPECS = makeSpecs();
+
+// legacy 3-level makers kept below are unused; the arc is generated from SPECS.
 function makeLevel1(): LevelData {
   const w = 156, h = 18;
   const m = emptyMap(w, h);
@@ -172,10 +357,41 @@ function makeBossLevel(): LevelData {
   };
 }
 
-export const levels: LevelData[] = [makeLevel1(), makeLevel2(), makeLevel3(), makeBossLevel()];
+export const levels: LevelData[] = SPECS.map((s, i) => buildLevel(s, i));
 
 // ---- Lore panels -----------------------------------------------------------
 export const loreTexts: Record<string, LorePanel> = {
+  // ---- the 24-level arc (per-act openers/finales) ----
+  'act1-intro': { title: 'Act I — The Foothills of Zhong', nextMode: 'playing', sections: [
+    { label: 'Myth', text: 'Zhulong, the Torch Dragon, is imagined dwelling far north at Mount Zhong, lighting a land the sun does not reach. When his eye opens there is day; when it closes, night.' },
+    { label: 'Game Inspiration', text: 'You carry a fragment of that eye. Climb the foothills, blink the sky, and lull whichever host — sun-things by day, shadow-things by night — bars your way.' }] },
+  'act1-outro': { title: 'The Foothills Fall Quiet', nextMode: 'levelComplete', sections: [
+    { label: 'Historical Note', text: 'Descriptions of Zhulong vary across ancient texts, translations, and retellings; some give a red serpentine body and a human face.' },
+    { label: 'Game Inspiration', text: 'The heralds and wardens that bar each act are original inventions — dramatizations of the Lantern Eater’s grip on the light.' }] },
+  'act2-intro': { title: 'Act II — The Blinking Bridges', nextMode: 'playing', sections: [
+    { label: 'Myth', text: 'In some accounts the opening and closing of Zhulong’s eyes brings the very alternation of day and night.' },
+    { label: 'Game Inspiration', text: 'Here that image becomes the path itself: day-only and night-only spans. Blink the world to make the way across.' }] },
+  'act2-outro': { title: 'Beyond the Bridges', nextMode: 'levelComplete', sections: [
+    { label: 'Historical Note', text: 'Myths often give natural cycles a memorable shape; a blinking eye gives day and night a living body.' },
+    { label: 'Game Inspiration', text: 'The blinking bridges are a playable adaptation, not a literal detail from the old sources.' }] },
+  'act3-intro': { title: 'Act III — The Breath Caverns', nextMode: 'playing', sections: [
+    { label: 'Myth', text: 'Zhulong’s breath is sometimes tied to wind, weather, and the turn of the seasons — winter and summer in a single exhalation.' },
+    { label: 'Game Inspiration', text: 'The caverns beneath the mountain still move with that breath. Ride the rising currents.' }] },
+  'act3-outro': { title: 'Out of the Deep', nextMode: 'levelComplete', sections: [
+    { label: 'History', text: 'Many myths connect cosmic beings to natural forces. Here, updrafts stand in for the dragon’s breath.' },
+    { label: 'Game Inspiration', text: 'Ahead lies the sunless march — and the creature that stole the dawn.' }] },
+  'act4-intro': { title: 'Act IV — The Sunless March', nextMode: 'playing', sections: [
+    { label: 'Myth', text: 'The land Zhulong lights is imagined as sunless without him. Take that away, and only the two hosts remain to roam the dark.' },
+    { label: 'Game Inspiration', text: 'The Lantern Eater has trapped the dawn. March north to Mount Zhong and break its mask.' }] },
+  'shrine-sunless': { title: 'Lore Shrine: The Sunless Land', nextMode: 'playing', sections: [
+    { label: 'Myth', text: 'Some tellings place Zhulong where the sun never shines, his light standing in for the day itself.' },
+    { label: 'Game Inspiration', text: 'The sunless realm is this game’s way of showing what a world without the dragon’s eye might feel like.' }] },
+  'hidden-ember': { title: 'Hidden: The Ember Vault', nextMode: 'playing', sections: [
+    { label: 'Myth', text: 'Fire and light are central to the Torch Dragon’s image.' },
+    { label: 'Game Inspiration', text: 'A secret vault of torch-embers, hidden off the marked path. Optional — and dangerous.' }] },
+  'hidden-moon': { title: 'Hidden: The Moonlit Shrine', nextMode: 'playing', sections: [
+    { label: 'Myth', text: 'When the eye is closed, the world belongs to the night and its spirits.' },
+    { label: 'Game Inspiration', text: 'A shrine that reveals itself only under moonlight — a secret for the curious.' }] },
   'intro-l1': { title: 'Before the Mountain Gate', nextMode: 'playing', sections: [
     { label: 'Myth', text: 'Zhulong, the Torch Dragon or Candle Dragon, is imagined in some traditions as a cosmic being of light, darkness, and turning cycles — day when his eye opens, night when it closes.' },
     { label: 'Game Inspiration', text: 'The Lantern Eater has trapped the dawn, and the eye no longer turns on its own. You carry a fragment of it. With it you can blink the sky — and the two hosts answer: sun-things wake by day, shadow-things by night. Wake the eye, climb to the gate.' }] },

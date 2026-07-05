@@ -6,7 +6,7 @@ Play a live build via the Render deployment (see **Deploy** below), or run it lo
 
 ## Features
 
-- **Three handcrafted levels + a phased boss fight** (The Lantern Eater)
+- **24 levels across 4 acts** (Foothills of Zhong → Blinking Bridges → Breath Caverns → the Sunless March), climbing north to Mount Zhong — with mini-boss gauntlets, **2 hidden levels** reached by secret exits, and a phased final boss (**The Lantern Eater**). Levels are seeded-procedural (varied yet stable) and hand-tuned per act.
 - **Day/Night "blink" mechanic** driven by the Zhulong eye myth — platforms, hazards, bridges, enemies and secrets all change state, with a smooth flash/particle transition
 - **Rich platformer feel**: coyote time, jump buffering, variable + apex-hang jump, corner correction, wall slide/jump, dash with afterimages, fast-fall, squash & stretch, trauma-based screen shake, and hit-stop
 - **Additive night lighting**, fog, vignette, animated parallax with floating lanterns, and an opening/closing dragon eye on the title screen

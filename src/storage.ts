@@ -15,6 +15,7 @@ export type SaveData = {
   bestTimes: Record<string, number>;
   highScore: number;
   seenIntro: boolean;
+  foundHidden: number[];      // discovered hidden-level indices
   settings: Settings;
 };
 
@@ -26,6 +27,7 @@ const fallback = (): SaveData => ({
   bestTimes: {},
   highScore: 0,
   seenIntro: false,
+  foundHidden: [],
   settings: { master: 0.7, music: true, shake: true, reducedMotion: false },
 });
 

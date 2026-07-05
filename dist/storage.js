@@ -8,6 +8,7 @@ const fallback = () => ({
     bestTimes: {},
     highScore: 0,
     seenIntro: false,
+    foundHidden: [],
     settings: { master: 0.7, music: true, shake: true, reducedMotion: false },
 });
 // A clean save (keeps the player's audio/settings prefs) — for "Start Fresh".

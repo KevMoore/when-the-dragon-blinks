@@ -300,40 +300,70 @@ export function drawHowTo(game, c) {
     c.restore();
 }
 // ---- Level select ----------------------------------------------------------
+const ACT_NAMES = ['I · Foothills of Zhong', 'II · The Blinking Bridges', 'III · The Breath Caverns', 'IV · The Sunless March'];
+const ACT_COL = ['#c8863a', '#7fa0d8', '#6fc0a0', '#c85a4a'];
 export function drawLevelSelect(game, c) {
     c.save();
     c.textAlign = 'center';
     c.fillStyle = '#ffe3a0';
-    c.font = '46px Georgia';
-    c.fillText('Choose a Shrine Path', LOGICAL_W / 2, 92);
-    const cardW = 170, gap = 22, total = levels.length * cardW + (levels.length - 1) * gap;
-    const startX = (LOGICAL_W - total) / 2;
-    levels.forEach((lvl, i) => {
-        const x = startX + i * (cardW + gap), y = 168;
-        const unlocked = i <= game.save.highestUnlocked, sel = i === game.levelSelection;
-        c.fillStyle = unlocked ? 'rgba(20,9,22,.8)' : 'rgba(20,20,24,.45)';
-        c.fillRect(x, y, cardW, 210);
-        c.strokeStyle = sel ? GOLD : 'rgba(246,191,94,.3)';
-        c.lineWidth = sel ? 3 : 1;
-        c.strokeRect(x + .5, y + .5, cardW, 210);
-        c.fillStyle = unlocked ? PAPER : '#777';
-        c.font = '20px Georgia';
-        c.fillText(lvl.title.replace('Level ', 'L').replace('Boss: ', ''), x + cardW / 2, y + 40);
-        c.font = '13px Georgia';
-        c.fillStyle = unlocked ? 'rgba(255,255,255,.75)' : '#666';
-        wrapText(c, unlocked ? lvl.subtitle : 'Locked', x + 14, y + 74, cardW - 28, 18);
-        c.fillStyle = unlocked ? GOLD : '#555';
-        c.font = '40px Georgia';
-        c.fillText(unlocked ? (lvl.isBoss ? '☲' : '◈') : '⌧', x + cardW / 2, y + 150);
-        if (unlocked && game.save.completed.includes(lvl.id)) {
-            c.fillStyle = '#7bd06a';
-            c.font = '14px Georgia';
-            c.fillText('✓ restored', x + cardW / 2, y + 186);
+    c.font = '36px Georgia';
+    c.fillText('The Road to Mount Zhong', LOGICAL_W / 2, 60);
+    const vis = game.visibleLevels();
+    const cols = 8, cardW = 104, gap = 8, rowH = 82, cardH = 72;
+    const startX = (LOGICAL_W - (cols * cardW + (cols - 1) * gap)) / 2, startY = 104;
+    vis.forEach((li, i) => {
+        const lvl = levels[li];
+        const x = startX + (i % cols) * (cardW + gap), y = startY + Math.floor(i / cols) * rowH;
+        const sel = i === game.levelSelection, playable = game.levelPlayable(li), done = game.save.completed.includes(lvl.id);
+        const act = ((lvl.act || 1) - 1);
+        c.fillStyle = playable ? 'rgba(20,9,22,.82)' : 'rgba(18,18,22,.5)';
+        c.fillRect(x, y, cardW, cardH);
+        c.strokeStyle = sel ? GOLD : playable ? ACT_COL[act] + 'aa' : 'rgba(120,120,120,.3)';
+        c.lineWidth = sel ? 3 : 1.5;
+        c.strokeRect(x + .5, y + .5, cardW, cardH);
+        c.textAlign = 'center';
+        if (!playable) {
+            c.fillStyle = '#5a5560';
+            c.font = '26px Georgia';
+            c.fillText('⌧', x + cardW / 2, y + 44);
+        }
+        else {
+            c.fillStyle = lvl.hidden ? '#ffd777' : done ? '#7bd06a' : PAPER;
+            c.font = 'bold 22px Georgia';
+            c.fillText(lvl.hidden ? '★' : String(li + 1), x + cardW / 2, y + 28);
+            c.fillStyle = 'rgba(255,255,255,.72)';
+            c.font = '9px Georgia';
+            const nm = lvl.title.replace(/^Level \d+: /, '').replace('Hidden: ', '');
+            c.fillText(nm.length > 17 ? nm.slice(0, 16) + '…' : nm, x + cardW / 2, y + 48);
+            c.font = '9px Georgia';
+            if (lvl.isBoss) {
+                c.fillStyle = '#ff6a4a';
+                c.fillText('◆ BOSS', x + cardW / 2, y + 64);
+            }
+            else if (done) {
+                c.fillStyle = '#7bd06a';
+                c.fillText('✓ restored', x + cardW / 2, y + 64);
+            }
         }
     });
-    c.fillStyle = 'rgba(255,255,255,.66)';
-    c.font = '15px Georgia';
-    c.fillText('←/→ choose · Enter start · Esc back', LOGICAL_W / 2, 430);
+    // selected level detail + act label
+    const sli = vis[game.levelSelection];
+    if (sli !== undefined) {
+        const lvl = levels[sli];
+        c.textAlign = 'center';
+        c.fillStyle = ACT_COL[(lvl.act || 1) - 1];
+        c.font = 'bold 15px Georgia';
+        c.fillText('Act ' + ACT_NAMES[(lvl.act || 1) - 1], LOGICAL_W / 2, 452);
+        c.fillStyle = PAPER;
+        c.font = '17px Georgia';
+        c.fillText(lvl.title.replace(/^Level \d+: /, ''), LOGICAL_W / 2, 476);
+        c.fillStyle = 'rgba(255,255,255,.72)';
+        c.font = 'italic 13px Georgia';
+        c.fillText(lvl.subtitle, LOGICAL_W / 2, 496);
+    }
+    c.fillStyle = 'rgba(255,255,255,.5)';
+    c.font = '12px Georgia';
+    c.fillText('↑↓←→ or stick · Enter/tap start · Esc back', LOGICAL_W / 2, 522);
     c.restore();
 }
 // ---- Codex -----------------------------------------------------------------

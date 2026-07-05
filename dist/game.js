@@ -76,6 +76,7 @@ export class Game {
         this.dashHintShown = false;
         this.howtoT = 0;
         this.howtoReturn = 'title';
+        this.hiddenReturn = 0; // level index to resume after a hidden level
         this.save = loadSave();
         this.audio = new AudioManager(this.save.settings);
         this.state = this.save.seenIntro ? 'title' : 'howto';
@@ -90,8 +91,8 @@ export class Game {
     startLevel(i, withIntro = true) {
         this.currentLevelIndex = clamp(i, 0, levels.length - 1);
         this.level = levels[this.currentLevelIndex];
-        // rising stakes as you climb toward the eye (the Lantern Eater's grip tightens)
-        this.difficulty = [1.0, 1.28, 1.55, 1.4][this.currentLevelIndex] ?? 1.0;
+        // rising stakes as you climb toward the eye (per-level, from the arc spec)
+        this.difficulty = this.level.difficulty ?? 1.0;
         this.world = 'day';
         this.transition = 1;
         this.dayAmount = 1;
@@ -126,7 +127,7 @@ export class Game {
         this.camera.snap(0, 0);
         this.camera.follow(this.player.x, this.player.y, 1, 0, this.level.width, this.level.height, 0.016);
         this.camera.snap(this.camera.x, this.camera.y);
-        if (withIntro)
+        if (withIntro && this.level.introLore && loreTexts[this.level.introLore])
             this.openLore(this.level.introLore, 'playing');
         else
             this.state = 'playing';
@@ -329,7 +330,8 @@ export class Game {
         const id = this.level.id;
         if (!this.save.completed.includes(id))
             this.save.completed.push(id);
-        this.save.highestUnlocked = Math.max(this.save.highestUnlocked, Math.min(this.currentLevelIndex + 1, levels.length - 1));
+        if (!this.level.hidden)
+            this.save.highestUnlocked = Math.max(this.save.highestUnlocked, Math.min(this.currentLevelIndex + 1, 23));
         this.unlockCodex(this.level.unlockCodexOnComplete);
         this.lastLevelTime = this.elapsed;
         const prev = this.save.bestTimes[id];
@@ -355,7 +357,10 @@ export class Game {
         this.clearT -= dt;
         if (this.clearT <= 0) {
             this.clearT = 0;
-            this.openLore(this.clearOutro, this.clearNext);
+            if (this.clearOutro && loreTexts[this.clearOutro])
+                this.openLore(this.clearOutro, this.clearNext);
+            else
+                this.state = this.clearNext;
         }
     }
     onBossDefeated() {
@@ -953,7 +958,11 @@ export class Game {
                 this.openLore(relic.noteId, 'playing');
             }
         }
-        if (!this.level.isBoss && overlap(pr, this.level.exit))
+        if (this.level.secretExit && this.level.secretExitTo !== undefined && overlap(pr, this.level.secretExit)) {
+            this.enterHidden(this.level.secretExitTo);
+            return;
+        }
+        if (!this.level.isBoss && overlap(pr, this.level.exit) && this.clearT <= 0 && !this.clearing)
             this.completeLevel();
     }
     // ---- menu updates ------------------------------------------------------
@@ -1011,7 +1020,8 @@ export class Game {
         this.audio.sfx('menu');
         if (this.titleSelection === 0) {
             this.score = 0;
-            this.startLevel(this.save.highestUnlocked >= levels.length ? 0 : this.save.highestUnlocked, true);
+            const done = this.save.completed.includes(levels[23].id);
+            this.startLevel(done ? 0 : Math.min(this.save.highestUnlocked, 23), true);
         }
         else if (this.titleSelection === 1)
             this.state = 'levelSelect';
@@ -1037,38 +1047,57 @@ export class Game {
         this.score = 0;
         this.startLevel(0, true);
     }
+    // Levels shown on the map: the 24 main levels + any discovered hidden ones.
+    visibleLevels() {
+        const base = [];
+        for (let i = 0; i < levels.length; i++)
+            if (!levels[i].hidden)
+                base.push(i);
+        return [...base, ...this.save.foundHidden.filter(i => i >= 0 && i < levels.length)];
+    }
+    levelPlayable(li) { return li <= this.save.highestUnlocked || !!levels[li].hidden; }
     updateLevelSelect() {
         if (this.input.just('back')) {
             this.state = 'title';
             return;
         }
-        const max = Math.min(this.save.highestUnlocked, levels.length - 1);
+        const vis = this.visibleLevels(), n = vis.length, cols = 8;
         if (this.input.just('left')) {
-            this.levelSelection = clamp(this.levelSelection - 1, 0, max);
+            this.levelSelection = clamp(this.levelSelection - 1, 0, n - 1);
             this.audio.sfx('menu');
         }
         if (this.input.just('right')) {
-            this.levelSelection = clamp(this.levelSelection + 1, 0, max);
+            this.levelSelection = clamp(this.levelSelection + 1, 0, n - 1);
             this.audio.sfx('menu');
         }
-        if (this.input.pointer?.clicked) { // tap a card to start it (mobile)
-            const cardW = 170, gap = 22, total = levels.length * cardW + (levels.length - 1) * gap, startX = (LOGICAL_W - total) / 2;
-            const x = this.input.pointer.x, y = this.input.pointer.y;
-            if (y > 168 && y < 378)
-                for (let i = 0; i < levels.length; i++) {
-                    const cx = startX + i * (cardW + gap);
-                    if (x > cx && x < cx + cardW && i <= max) {
-                        this.levelSelection = i;
-                        this.score = 0;
-                        this.startLevel(i, true);
-                        return;
-                    }
-                }
+        if (this.input.just('up')) {
+            this.levelSelection = clamp(this.levelSelection - cols, 0, n - 1);
+            this.audio.sfx('menu');
         }
-        if (this.input.just('confirm') && this.levelSelection <= this.save.highestUnlocked) {
+        if (this.input.just('down')) {
+            this.levelSelection = clamp(this.levelSelection + cols, 0, n - 1);
+            this.audio.sfx('menu');
+        }
+        const start = (vi) => { const li = vis[vi]; if (this.levelPlayable(li)) {
             this.score = 0;
-            this.startLevel(this.levelSelection, true);
+            this.startLevel(li, true);
         }
+        else
+            this.audio.sfx('hurt'); };
+        if (this.input.pointer?.clicked) {
+            const cardW = 104, gap = 8, rowH = 82, startX = (LOGICAL_W - (cols * cardW + (cols - 1) * gap)) / 2, startY = 116;
+            const x = this.input.pointer.x, y = this.input.pointer.y;
+            for (let i = 0; i < n; i++) {
+                const cx = startX + (i % cols) * (cardW + gap), cy = startY + Math.floor(i / cols) * rowH;
+                if (x > cx && x < cx + cardW && y > cy && y < cy + 72) {
+                    this.levelSelection = i;
+                    start(i);
+                    return;
+                }
+            }
+        }
+        if (this.input.just('confirm'))
+            start(this.levelSelection);
     }
     updateCodex() {
         if (this.input.just('back')) {
@@ -1180,14 +1209,26 @@ export class Game {
     }
     updateLevelComplete() {
         if (this.input.just('confirm') || this.input.pointer?.clicked) {
-            const next = this.currentLevelIndex + 1;
-            if (next < levels.length)
+            const next = this.level.hidden ? this.hiddenReturn : this.currentLevelIndex + 1;
+            if (next >= 0 && next < levels.length && !levels[next].hidden)
                 this.startLevel(next, true);
             else
                 this.state = 'gameComplete';
         }
         if (this.input.just('back'))
             this.state = 'title';
+    }
+    // Reaching a level's secret exit warps to a hidden level, resuming the normal
+    // route afterwards. The find is remembered so it shows on the map.
+    enterHidden(idx) {
+        this.hiddenReturn = this.currentLevelIndex + 1;
+        if (!this.save.foundHidden.includes(idx)) {
+            this.save.foundHidden.push(idx);
+            this.persistSave();
+        }
+        this.audio.sfx('collect');
+        this.flashText('A hidden path opens…');
+        this.startLevel(idx, true);
     }
     updateGameComplete() {
         const n = 3;

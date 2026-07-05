@@ -59,7 +59,7 @@ const game = new Game(ctx);
 // Optional deep-link for testing/sharing: index.html?level=0..3 jumps straight in.
 const _q = new URLSearchParams(location.search);
 if (_q.has('level')) {
-  const n = Math.max(0, Math.min(3, parseInt(_q.get('level') || '0') || 0));
+  const n = Math.max(0, Math.min(25, parseInt(_q.get('level') || '0') || 0));
   game.startLevel(n, false);
   if (_q.has('night')) game.tryToggleWorld(true);
   if (_q.has('dragon')) game.player.dragonTime = 12;
@@ -74,6 +74,7 @@ if (_q.has('level')) {
 }
 // dev aid: force-show the touch controls on non-touch devices for layout testing
 if (_q.has('touch')) document.body.classList.add('force-touch');
+if (_q.has('levelselect')) { game.save.highestUnlocked = 25; game.save.foundHidden = [24, 25]; (game as any).state = 'levelSelect'; }
 // dev aid: hold an aim pose for screenshots — ?pose=up|updiag|down|downdiag
 if (_q.has('pose')) {
   const m: Record<string, [number, number]> = { up: [0, -1], updiag: [0.7, -0.7], down: [0, 1], downdiag: [0.7, 0.7] };

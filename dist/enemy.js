@@ -61,10 +61,28 @@ export class Enemy {
             this.hp = 2;
             this.points = 120;
         }
+        if (kind === 'crow') {
+            this.w = 30;
+            this.h = 30;
+            this.hp = 2;
+            this.points = 150;
+        } // solar sunbird (day flyer)
+        if (kind === 'sentinel') {
+            this.w = 40;
+            this.h = 48;
+            this.hp = 6;
+            this.points = 320;
+        } // bronze automaton (day tank)
+        if (kind === 'wraith') {
+            this.w = 32;
+            this.h = 40;
+            this.hp = 3;
+            this.points = 180;
+        } // night shade (night flyer)
         this.brain = kind === 'sentry' ? rangedBrain()
-            : (kind === 'ghoul' || kind === 'crawler' || kind === 'guardian') ? groundBrain()
+            : (kind === 'ghoul' || kind === 'crawler' || kind === 'guardian' || kind === 'sentinel') ? groundBrain()
                 : flyerBrain();
-        this.aggro = kind === 'sentry' ? 420 : kind === 'skull' ? 360 : (kind === 'ghoul' || kind === 'crawler' || kind === 'guardian') ? 300 : 340;
+        this.aggro = kind === 'sentry' ? 420 : kind === 'skull' ? 360 : (kind === 'ghoul' || kind === 'crawler' || kind === 'guardian' || kind === 'sentinel') ? 300 : 340;
     }
     rect() { return { x: this.x, y: this.y, w: this.w, h: this.h }; }
     // is there solid ground just ahead in `dir` (so a walker won't step into a pit)?
@@ -120,8 +138,8 @@ export class Enemy {
             this.hit(game, p.facing);
     }
     // Is this a solar/stone DAY creature? (else it's a shadow/spirit NIGHT one)
-    dayKind() { return this.kind === 'moth' || this.kind === 'sentry' || this.kind === 'guardian'; }
-    isGround() { return this.kind === 'guardian' || this.kind === 'ghoul' || this.kind === 'crawler'; }
+    dayKind() { return this.kind === 'moth' || this.kind === 'sentry' || this.kind === 'guardian' || this.kind === 'crow' || this.kind === 'sentinel'; }
+    isGround() { return this.kind === 'guardian' || this.kind === 'ghoul' || this.kind === 'crawler' || this.kind === 'sentinel'; }
     isDormant(game) { return this.dayKind() ? game.world !== 'day' : game.world !== 'night'; }
     dangerous(game) {
         if (this.kind === 'sentry')
@@ -152,8 +170,11 @@ export class Enemy {
         switch (this.kind) {
             case 'wisp':
             case 'skull': return 'rgba(139,210,255,.75)';
+            case 'wraith': return 'rgba(150,170,255,.8)';
             case 'ghoul': return 'rgba(150,224,120,.6)';
             case 'crawler': return 'rgba(255,92,73,.6)';
+            case 'crow': return 'rgba(255,120,50,.85)';
+            case 'sentinel': return 'rgba(255,200,110,.75)';
             case 'sentry':
             case 'moth': return 'rgba(255,157,77,.75)';
             default: return 'rgba(255,207,122,.65)'; // stone guardian
@@ -183,14 +204,14 @@ export class Enemy {
         let animName = 'idle';
         if (this.kind === 'ghoul' || this.kind === 'crawler')
             animName = 'walk';
-        else if (this.kind === 'guardian' && game.world === 'day' && Math.abs(this.vx) > 6)
+        else if ((this.kind === 'guardian' || this.kind === 'sentinel') && game.world === 'day' && Math.abs(this.vx) > 6)
             animName = 'walk';
         const sheet = sprites.get('enemy/' + this.kind + '/' + animName) || sprites.get('enemy/' + this.kind + '/idle') || sprites.get('enemy/' + this.kind + '/walk');
         if (sheet && sheet.ready) {
-            const grounded = this.kind === 'guardian' || this.kind === 'ghoul' || this.kind === 'crawler';
+            const grounded = this.kind === 'guardian' || this.kind === 'ghoul' || this.kind === 'crawler' || this.kind === 'sentinel';
             const targetH = this.h * (this.kind === 'crawler' ? 2.2 : grounded ? 1.7 : 2.1);
             let face = this.vx < -4 ? -1 : this.vx > 4 ? 1 : 1;
-            if (this.kind === 'wisp' || this.kind === 'moth' || this.kind === 'skull')
+            if (this.kind === 'wisp' || this.kind === 'moth' || this.kind === 'skull' || this.kind === 'crow' || this.kind === 'wraith')
                 face = centerX(game.player.rect()) < centerX(this.rect()) ? -1 : 1;
             c.save();
             c.globalAlpha = (this.dim(game) ? 0.62 : 1) * (this.flash > 0 ? 0.7 : 1);
@@ -207,7 +228,7 @@ export class Enemy {
         if (this.flash > 0)
             c.globalAlpha = 0.7;
         // ---- ASSET HOOK: swap for enemy sprite frames ----
-        if (this.kind === 'moth') {
+        if (this.kind === 'moth' || this.kind === 'crow') {
             const active = game.world === 'day';
             c.globalAlpha *= active ? 1 : 0.45;
             c.fillStyle = active ? '#ffcb57' : '#7d5a6c';
@@ -221,7 +242,7 @@ export class Enemy {
             c.fillStyle = '#2b0f19';
             c.fillRect(-4, -10, 8, 20);
         }
-        else if (this.kind === 'wisp') {
+        else if (this.kind === 'wisp' || this.kind === 'wraith') {
             const active = game.world === 'night';
             c.globalAlpha *= active ? 1 : 0.25;
             c.shadowColor = '#93d8ff';

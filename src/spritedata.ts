@@ -33,6 +33,11 @@ export function loadSprites() {
   add('enemy/ghoul/walk', 'ghoul/walk.png', 128, 8, true);
   add('enemy/skull/idle', 'skull/idle.png', 96, 8, true);
   add('enemy/crawler/walk', 'crawler/walk.png', 128, 12, true);
+  // new fable bad dudes
+  add('enemy/crow/idle', 'crow/idle.png', 96, 12, true);
+  add('enemy/sentinel/idle', 'sentinel/idle.png', 128, 8, true);
+  add('enemy/sentinel/walk', 'sentinel/walk.png', 128, 10, true);
+  add('enemy/wraith/idle', 'wraith/idle.png', 96, 8, true);
 
   // boss
   add('boss/idle', 'boss/idle.png', 160, 8, true);

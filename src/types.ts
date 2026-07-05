@@ -11,7 +11,8 @@ export type WorldState = 'day' | 'night';
 export type GameMode =
   | 'howto' | 'title' | 'levelSelect' | 'codex' | 'settings' | 'lore'
   | 'playing' | 'paused' | 'levelComplete' | 'gameComplete';
-export type EntityKind = 'moth' | 'guardian' | 'wisp' | 'sentry' | 'ghoul' | 'skull' | 'crawler';
+export type EntityKind = 'moth' | 'guardian' | 'wisp' | 'sentry' | 'ghoul' | 'skull' | 'crawler'
+  | 'crow' | 'sentinel' | 'wraith';   // new fable-true bad dudes (day crow, day automaton, night wraith)
 
 export type Particle = {
   x: number; y: number; vx: number; vy: number;
@@ -66,6 +67,11 @@ export type LevelData = {
   introLore: string;
   outroLore: string;
   unlockCodexOnComplete: string[];
-  theme: 'mountain' | 'bridge' | 'cavern' | 'arena';
+  theme: 'mountain' | 'bridge' | 'cavern' | 'arena' | 'sunless';
   isBoss?: boolean;
+  difficulty?: number;        // per-level aggression scalar
+  act?: number;               // 1..4 (for the level-select map + lore)
+  hidden?: boolean;           // a secret level, shown on the map only once found
+  secretExit?: Rect;          // reaching this warps to `secretExitTo` instead of the normal exit
+  secretExitTo?: number;      // level index of the hidden level
 };
