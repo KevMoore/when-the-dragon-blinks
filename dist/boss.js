@@ -7,8 +7,8 @@ export class LanternEater {
     constructor() {
         this.x = 700;
         this.y = 180;
-        this.w = 210;
-        this.h = 252;
+        this.w = 137;
+        this.h = 164; // ~35% smaller (fits mobile/tablet)
         this.hp = 30;
         this.maxHp = 30;
         this.alive = true;
@@ -22,8 +22,9 @@ export class LanternEater {
         this.phase = 1;
     }
     bodyRect() { return { x: this.x + this.w * 0.16, y: this.y + this.h * 0.24, w: this.w * 0.68, h: this.h * 0.6 }; }
-    eyeRect() { return { x: this.x + this.w / 2 - 32, y: this.y + this.h * 0.15, w: 64, h: 64 }; }
-    get vulnerable() { return this.state === 'recover' && this.maskOpen > 0.6; }
+    // generous sweet spot (easier to land the hit), scaled a touch with the boss
+    eyeRect() { const w = 96, h = 88; return { x: this.x + this.w / 2 - w / 2, y: this.y + this.h * 0.06, w, h }; }
+    get vulnerable() { return this.state === 'recover' && this.maskOpen > 0.45; }
     update(game, dt) {
         if (!this.alive)
             return;

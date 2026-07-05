@@ -10,7 +10,7 @@ type BossState = 'intro' | 'idle' | 'telegraph' | 'attack' | 'recover';
 type Attack = 'barrage' | 'slam' | 'summon' | 'rain';
 
 export class LanternEater {
-  x = 700; y = 180; w = 210; h = 252;
+  x = 700; y = 180; w = 137; h = 164;    // ~35% smaller (fits mobile/tablet)
   hp = 30; maxHp = 30; alive = true;
   state: BossState = 'intro';
   stateT = 1.4;
@@ -20,9 +20,10 @@ export class LanternEater {
   phase = 1;
 
   bodyRect(): Rect { return { x: this.x + this.w * 0.16, y: this.y + this.h * 0.24, w: this.w * 0.68, h: this.h * 0.6 }; }
-  eyeRect(): Rect { return { x: this.x + this.w / 2 - 32, y: this.y + this.h * 0.15, w: 64, h: 64 }; }
+  // generous sweet spot (easier to land the hit), scaled a touch with the boss
+  eyeRect(): Rect { const w = 96, h = 88; return { x: this.x + this.w / 2 - w / 2, y: this.y + this.h * 0.06, w, h }; }
 
-  get vulnerable() { return this.state === 'recover' && this.maskOpen > 0.6; }
+  get vulnerable() { return this.state === 'recover' && this.maskOpen > 0.45; }
 
   update(game: Game, dt: number) {
     if (!this.alive) return;
