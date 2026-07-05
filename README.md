@@ -1,125 +1,88 @@
 # When the Dragon Blinks
 
-A playable Canvas2D/TypeScript vertical slice inspired by Zhulong, the Torch Dragon.
+A polished Canvas2D + TypeScript mythic platformer inspired by **Zhulong, the Torch Dragon** (Candle Dragon). Open and close the dragon's eye to blink the world between day and night, climb toward the mountain gate, and break the Lantern Eater's mask to restore the balance of light and dark.
 
-The game includes:
+Play a live build via the Render deployment (see **Deploy** below), or run it locally.
 
-- Three handcrafted platforming levels
-- One boss fight: The Lantern Eater
-- Day/Night world switching based on the Zhulong eye motif
-- Coyote time, jump buffering, variable jump height, dash, attack, checkpoints, hazards, relics
-- Accurate AABB tile collision with separate X/Y resolution and movement subdivision
-- Controller support
-- Mobile landscape touch controls with portrait rotate overlay
-- Parallax backgrounds and procedural placeholder art
-- Myth & History codex with unlockable educational entries
-- Lore panels before/after levels and at shrines
-- localStorage progress saving
-- F1 collision debug overlay
+## Features
+
+- **Three handcrafted levels + a phased boss fight** (The Lantern Eater)
+- **Day/Night "blink" mechanic** driven by the Zhulong eye myth — platforms, hazards, bridges, enemies and secrets all change state, with a smooth flash/particle transition
+- **Rich platformer feel**: coyote time, jump buffering, variable + apex-hang jump, corner correction, wall slide/jump, dash with afterimages, fast-fall, squash & stretch, trauma-based screen shake, and hit-stop
+- **Additive night lighting**, fog, vignette, animated parallax with floating lanterns, and an opening/closing dragon eye on the title screen
+- **Moving, vertical, and crumbling platforms**, one-way platforms, wind updrafts, and four enemy types (moth, stone guardian, spirit wisp, lantern sentry)
+- **Layered procedural audio**: a warm day / cool night ambient bed plus synthesized SFX (no asset files needed)
+- **Educational Myth & History codex** with careful Myth / Historical Note / Game Inspiration framing, unlocked as you progress
+- **Settings** (master volume, music, screen shake, reduced motion), **best-time tracking**, and **localStorage** save
+- **Keyboard, gamepad, and mobile landscape touch** controls, with a portrait "rotate device" screen
+- **F1 collision debug overlay**
 
 ## Run locally
 
-No build tool is required at runtime because the compiled JavaScript is included in `dist/main.js`.
-
-From this folder:
+The compiled JavaScript is committed in `dist/`, so no build step is required to play — just serve the folder:
 
 ```bash
 python3 -m http.server 5173
+# then open http://localhost:5173
 ```
 
-Then open:
-
-```text
-http://localhost:5173
-```
-
-To rebuild TypeScript:
+To rebuild the TypeScript after editing `src/`:
 
 ```bash
 npm install
-npm run build
+npm run build        # compiles src/ -> dist/
+npm run dev          # build + http-server on :5173
 ```
 
-Optional dev server after install:
+Dev deep-link: append `?level=0..3` to jump straight into a level, and add `&night=1` to start at night (e.g. `index.html?level=2&night=1`).
+
+## Deploy (Render static site)
+
+The game is a pure static SPA. `render.yaml` describes a Render static site, and `npm run build:site` assembles a clean, self-contained `public/` directory (index.html + styles.css + dist/ + assets/).
 
 ```bash
-npm run dev
+npm run build:site   # -> ./public, ready to publish on any static host
 ```
 
-If `npx http-server` is unavailable, use:
+On Render it deploys with:
 
-```bash
-npm run serve:python
-```
+- **Build command:** `npm install && npm run build:site`
+- **Publish directory:** `./public`
 
 ## Controls
 
-Keyboard:
+**Keyboard** — Move: A/D or ←/→ · Jump: Space/W/↑ · Dash: Shift/K · Attack (dragon pulse): J/X · Blink Day/Night: E/C/L · Interact with shrine: F/↑ · Fast-fall: S/↓ · Pause: Esc/P · Myth & History (from title): H · Debug: F1
 
-- A/D or Arrow keys: move
-- Space/W/Up: jump
-- Shift/K: dash
-- J/X: dragon-light pulse attack
-- E/C/L: toggle Day/Night
-- F near shrine: open lore shrine
-- Esc: pause/back
-- H: Myth & History from title
-- L: Level select from title
-- F1: collision debug
+**Gamepad** — Move: stick/D-pad · Jump: South · Attack: West · Dash: East · Blink: North/shoulders · Interact: D-pad up · Pause: Start
 
-Controller:
-
-- Left stick / D-pad: move
-- South button: jump/confirm
-- West button: attack
-- East button: dash/back
-- North button or shoulder: toggle Day/Night
-- Start: pause
-
-Mobile:
-
-- Landscape only. Portrait shows a rotate-device screen.
-- Touch buttons appear in landscape on coarse-pointer devices.
-
-## Educational framing
-
-The game separates text into:
-
-- **Myth**: source-inspired mythic ideas
-- **Historical Note / History**: cautious contextual statements
-- **Game Inspiration**: what the game invented or adapted for mechanics
-
-The codex includes a disclaimer that this is not a scholarly reconstruction and that mythological details vary across texts, translations, and retellings.
-
-## AutoSprite MCP
-
-This environment cannot call your local AutoSprite MCP. The game currently uses procedural placeholder art, but the asset replacement plan is ready.
-
-Use:
-
-- `assets/autosprite-prompts.md`
-- `assets/asset-manifest.json`
-
-Then replace procedural drawing hooks listed in the manifest with sprite-sheet rendering.
+**Mobile** — Landscape only (portrait shows a rotate screen). Large on-screen buttons for move, jump, dash, attack, blink, interact, and pause.
 
 ## Architecture
 
-The MVP is intentionally compact and dependency-light:
+Clean ES modules compiled with `tsc` and loaded natively in the browser (no bundler):
 
-- `src/main.ts`: game loop, input, physics, collision, levels, entities, boss, rendering, UI, lore/codex
-- `styles.css`: responsive canvas, mobile controls, rotate overlay
-- `index.html`: SPA shell
-- `dist/main.js`: compiled JavaScript
+| Module | Responsibility |
+| --- | --- |
+| `main.ts` | bootstrap, fixed-timestep loop, DPR sizing, deep-links |
+| `game.ts` | orchestrator: state machine, collision, render dispatch |
+| `player.ts` / `enemy.ts` / `boss.ts` | entities and their behavior |
+| `platform.ts` | moving / vertical / crumbling platforms |
+| `content.ts` | level layouts, lore panels, codex entries |
+| `background.ts` / `ui.ts` | environment + lighting rendering / HUD + menus |
+| `camera.ts` / `particles.ts` | follow camera & shake / particle system |
+| `input.ts` / `audio.ts` / `storage.ts` | input, procedural audio, save |
+| `math.ts` / `types.ts` | helpers, shared types & constants |
 
-The renderer uses a fixed 960x540 logical canvas and CSS `object-fit: contain` for responsive scaling.
+Collision uses AABB with separate X/Y resolution, movement subdivision to avoid tunneling, one-way platform support, and corner correction. Day/Night platform swaps are checked before toggling so the player is never crushed or trapped.
 
-## Notes for expansion
+## Educational framing
 
-Recommended next improvements:
+Text is separated into **Myth** (source-inspired ideas), **Historical Note / History** (cautious context), and **Game Inspiration** (what the game invented or adapted). The codex carries a disclaimer that this is *inspired by* tradition, not a scholarly reconstruction, and that details vary across texts, translations, and retellings. The Lantern Eater boss is explicitly flagged as an original creation.
 
-1. Replace procedural art with AutoSprite-generated sheets.
-2. Add real audio/music layers for Day and Night.
-3. Split `src/main.ts` into modules once features stabilize.
-4. Add LDtk/Tiled level import.
-5. Add more boss attack patterns and seasonal mechanics.
-6. Add accessibility options: reduced shake, high contrast, remappable controls.
+## Art pipeline (AutoSprite-ready)
+
+All art is currently procedural (code-drawn) so the game runs with zero external assets. To swap in AutoSprite sheets, see `assets/asset-manifest.json` and `assets/autosprite-prompts.md` — each entity's `draw()` has an `ASSET HOOK` comment marking exactly where to blit sprite frames.
+
+## Future improvements
+
+Real sprite sheets and music stems, more boss patterns and seasonal mechanics, remappable controls, high-contrast mode, and a Tiled/LDtk level importer.
