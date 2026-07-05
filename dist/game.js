@@ -58,7 +58,8 @@ export class Game {
         this.combo = 0;
         this.comboT = 0;
         this.scorePops = [];
-        this.dragonMeter = 0; // 0..1 — fills from Torch Embers; full → become Zhulong
+        this.dragonMeter = 0; // 0..1 — fills from Torch Embers + gems; full → become Zhulong
+        this.gems = [];
         this.embers = [];
         this.transformT = 0; // >0 while the transformation cinematic plays
         this.difficulty = 1; // per-level aggression scalar (lower = easier)
@@ -110,6 +111,7 @@ export class Game {
         this.player.dragonTime = 0;
         this.player.dragonTrail = [];
         this.transformT = 0;
+        this.gems = (this.level.gems || []).map(g => ({ x: g.x, y: g.y, taken: false, rt: 0 }));
         this.clearT = 0;
         this.clearing = false;
         this.elapsed = 0;
@@ -215,6 +217,63 @@ export class Game {
             }
         }
         this.embers = this.embers.filter(e => e.life > 0);
+    }
+    // Torch-gems on the route: collect to fill the Dragon Gauge fast. Arena gems
+    // respawn so you can become the dragon mid-boss-fight.
+    updateGems(dt) {
+        if (this.player.dragonTime > 0)
+            return;
+        const pr = this.player.rect();
+        for (const g of this.gems) {
+            if (g.taken) {
+                if (g.rt > 0 && (g.rt -= dt) <= 0)
+                    g.taken = false;
+                continue;
+            }
+            if (overlap(pr, { x: g.x, y: g.y, w: 24, h: 24 })) {
+                g.taken = true;
+                g.rt = this.level.isBoss ? 5 : 0;
+                this.dragonMeter = Math.min(1, this.dragonMeter + 0.34);
+                this.particles.sparks(g.x + 12, g.y + 12, 22, '#ffd777');
+                this.audio.sfx('collect');
+                this.addScore(150, g.x + 12, g.y);
+                if (this.dragonMeter >= 1 && this.transformT <= 0)
+                    this.beginTransform();
+            }
+        }
+    }
+    drawGems(c) {
+        for (const g of this.gems) {
+            if (g.taken)
+                continue;
+            const x = g.x + 12 - this.camera.x, y = g.y + 12 - this.camera.y + Math.sin(this.time * 3 + g.x) * 5;
+            c.save();
+            c.globalCompositeOperation = 'lighter';
+            c.globalAlpha = 0.45 + 0.22 * Math.sin(this.time * 5 + g.x);
+            const gl = c.createRadialGradient(x, y, 0, x, y, 24);
+            gl.addColorStop(0, 'rgba(255,190,90,.85)');
+            gl.addColorStop(1, 'rgba(0,0,0,0)');
+            c.fillStyle = gl;
+            c.beginPath();
+            c.arc(x, y, 24, 0, Math.PI * 2);
+            c.fill();
+            c.restore();
+            c.save();
+            c.translate(x, y);
+            c.rotate(Math.PI / 4);
+            c.shadowColor = '#ffcf6a';
+            c.shadowBlur = 12;
+            const grad = c.createLinearGradient(-8, -8, 8, 8);
+            grad.addColorStop(0, '#fff1c0');
+            grad.addColorStop(0.5, '#ffb43c');
+            grad.addColorStop(1, '#d9541f');
+            c.fillStyle = grad;
+            c.fillRect(-8, -8, 16, 16);
+            c.strokeStyle = 'rgba(255,240,200,.85)';
+            c.lineWidth = 1.5;
+            c.strokeRect(-8, -8, 16, 16);
+            c.restore();
+        }
     }
     beginTransform() {
         this.transformT = 1.9;
@@ -545,6 +604,7 @@ export class Game {
             this.boss.update(this, dt);
         this.updateProjectiles(dt);
         this.updateEmbers(dt);
+        this.updateGems(dt);
         this.checkHazardsAndObjects();
         this.camera.follow(this.player.x + this.player.w / 2, this.player.y + this.player.h / 2, this.player.facing, this.player.vx, this.level.width, this.level.height, dt);
         if (this.level.windZones)
@@ -1006,6 +1066,7 @@ export class Game {
         bg.drawTiles(this, c);
         this.drawPlatforms(c);
         this.drawObjects(c);
+        this.drawGems(c);
         for (const e of this.enemies)
             e.draw(this, c);
         if (this.boss)

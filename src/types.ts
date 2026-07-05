@@ -60,6 +60,7 @@ export type LevelData = {
   relics: { id: string; x: number; y: number; noteId: string }[];
   shrines: { x: number; y: number; textId: string }[];
   entities: { kind: EntityKind; x: number; y: number }[];
+  gems?: { x: number; y: number }[];       // torch-gems on the route (fill the dragon meter)
   platforms?: MovingPlatform[];
   windZones?: Rect[];
   introLore: string;

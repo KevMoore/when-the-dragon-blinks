@@ -183,7 +183,7 @@ export function drawHowTo(game: Game, c: CanvasRenderingContext2D) {
   c.fillText('The Two Hosts', bx + 84, by + 26);
   c.fillStyle = 'rgba(255,255,255,.8)'; c.font = '13px Georgia';
   c.fillText('Sun-creatures wake by day, shadow-creatures by night. Blink to lull whichever hunts', bx + 84, by + 45);
-  c.fillText('you — asleep, they are harmless. Collect torch-embers, become the dragon, break the boss.', bx + 84, by + 61);
+  c.fillText('you — asleep, they are harmless. Gather torch-gems, become the dragon, and break the boss.', bx + 84, by + 61);
 
   // footer prompt (pulsing)
   const pulse = 0.55 + 0.45 * Math.sin(game.time * 3);

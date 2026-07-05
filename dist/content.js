@@ -34,6 +34,8 @@ function ground(m, w, h, segs) {
 function mp(x, y, w, o = {}) {
     return { x: x * TILE, y: y * TILE, w: w * TILE, ax: 0, ay: 0, speed: 1, phase: 0, ...o };
 }
+// torch-gem placed on tile coords (fills the dragon meter when collected)
+function gem(tx, ty) { return { x: tx * TILE, y: ty * TILE }; }
 // ---- Level 1: Mountain Gate ------------------------------------------------
 function makeLevel1() {
     const w = 156, h = 18;
@@ -67,6 +69,7 @@ function makeLevel1() {
             { kind: 'moth', x: 30 * TILE, y: 300 }, { kind: 'crawler', x: 52 * TILE, y: 380 }, { kind: 'guardian', x: 64 * TILE, y: 340 },
             { kind: 'sentry', x: 92 * TILE, y: 260 }, { kind: 'ghoul', x: 110 * TILE, y: 340 }, { kind: 'skull', x: 132 * TILE, y: 280 },
         ],
+        gems: [gem(20, 9), gem(35, 11), gem(53, 8), gem(81, 8), gem(118, 7)],
         platforms: [mp(34, 13, 3, { ax: 4 * TILE, speed: 0.7 })],
         introLore: 'intro-l1', outroLore: 'outro-l1', unlockCodexOnComplete: ['texts-vary'],
     };
@@ -113,6 +116,7 @@ function makeLevel2() {
             { kind: 'ghoul', x: 72 * TILE, y: 340 }, { kind: 'sentry', x: 108 * TILE, y: 260 }, { kind: 'skull', x: 134 * TILE, y: 290 }, { kind: 'ghoul', x: 156 * TILE, y: 330 },
             { kind: 'crawler', x: 40 * TILE, y: 340 }, { kind: 'wisp', x: 100 * TILE, y: 300 }, { kind: 'ghoul', x: 120 * TILE, y: 340 }, { kind: 'skull', x: 148 * TILE, y: 280 },
         ],
+        gems: [gem(14, 11), gem(28, 9), gem(56, 10), gem(104, 6), gem(150, 10)],
         platforms: [
             mp(56, 12, 3, { ax: 3 * TILE, speed: 0.8 }),
             mp(132, 13, 3, { ay: 3 * TILE, speed: 0.9 }), mp(135, 13, 3, { ay: 3 * TILE, speed: 0.9, phase: Math.PI }),
@@ -158,6 +162,7 @@ function makeLevel3() {
             mp(64, 14, 3, { crumble: true }), mp(114, 14, 3, { crumble: true }),
             mp(124, 11, 3, { ay: 3 * TILE, speed: 1.1 }),
         ],
+        gems: [gem(20, 13), gem(53, 4), gem(82, 11), gem(110, 13), gem(146, 10)],
         windZones: [{ x: 50 * TILE, y: 2 * TILE, w: 10 * TILE, h: 16 * TILE }, { x: 100 * TILE, y: 2 * TILE, w: 10 * TILE, h: 16 * TILE }],
         introLore: 'intro-l3', outroLore: 'outro-l3', unlockCodexOnComplete: ['breath-seasons'],
     };
@@ -179,6 +184,8 @@ function makeBossLevel() {
         spawn: { x: 150, y: 430 }, exit: { x: 1120, y: 356, w: 40, h: 92 },
         checkpoints: [{ x: 130, y: 12 * TILE - 24, w: 28, h: 56 }], relics: [],
         shrines: [{ x: 250, y: 14 * TILE, textId: 'shrine-boss-invention' }], entities: [],
+        // torch-gems in the arena (respawn) so you can build the meter and become the dragon mid-fight
+        gems: [gem(7, 13), gem(33, 13), gem(20, 8), gem(13, 11), gem(27, 11)],
         introLore: 'intro-boss', outroLore: 'outro-boss', unlockCodexOnComplete: ['game-inventions', 'myth-vs-adaptation'], isBoss: true,
     };
 }
