@@ -1,8 +1,8 @@
-// Enemy variety, each keyed to the day/night state:
-//  moth     — flutters; hunts the player in DAY
-//  guardian — stone walker; active in DAY, dormant/harmless at NIGHT
-//  wisp     — spirit; hunts and is dangerous at NIGHT
-//  sentry   — lantern turret; fires aimed shards in DAY
+// Enemies are the two forces the dragon's eye holds in balance:
+//  DAY (solar / stone):  moth, sentry (lantern turret), guardian
+//  NIGHT (shadow/spirit): wisp, skull, ghoul (jiangshi), crawler
+// Each rules its own world and falls dormant — harmless, easy prey — in the
+// other, so blinking day<->night is a combat tool, not just traversal.
 import { centerX, centerY, overlap, rand } from './math.js';
 import { GRAVITY, TILE } from './types.js';
 import { sprites } from './sprites.js';
@@ -82,25 +82,25 @@ export class Enemy {
         } // fell out of the world
         this.flash = Math.max(0, this.flash - dt);
         const p = game.player;
-        // Day/Night dormancy: stone guardians sleep at night, solar moths at night,
-        // spirit wisps by day. Everything else runs its GOAP brain continuously.
-        const dormant = (this.kind === 'guardian' && game.world !== 'day')
-            || (this.kind === 'moth' && game.world !== 'day')
-            || (this.kind === 'wisp' && game.world !== 'night');
+        // The eye decides which force is awake. Solar/stone creatures (moth, sentry,
+        // guardian) rule the DAY; shadow/spirit/undead (wisp, skull, ghoul, crawler)
+        // rule the NIGHT. In the wrong world they fall dormant — harmless, and easy
+        // prey — so blinking is a weapon, not just traversal.
+        const dormant = this.isDormant(game);
         if (dormant) {
-            if (this.kind === 'guardian') {
+            if (this.isGround()) {
                 this.vy += GRAVITY * dt;
                 game.moveEntity(this, 0, this.vy * dt);
             }
             else
-                this.y = this.baseY + Math.sin(game.time * 2 + this.phase) * 22;
+                this.y = this.baseY + Math.sin(game.time * 2 + this.phase) * 18;
         }
         else {
             const dx = centerX(p.rect()) - centerX(this.rect()), dy = centerY(p.rect()) - centerY(this.rect());
             const dist = Math.hypot(dx, dy);
             if (dist > this.aggro * game.difficulty) {
                 // out of aggro range — wait quietly until the player draws near
-                if (this.kind === 'ghoul' || this.kind === 'crawler' || this.kind === 'guardian') {
+                if (this.isGround()) {
                     this.vy += GRAVITY * dt;
                     game.moveEntity(this, 0, this.vy * dt);
                 }
@@ -119,14 +119,14 @@ export class Enemy {
         if (p.dashTime > 0 && overlap(this.rect(), p.rect()))
             this.hit(game, p.facing);
     }
+    // Is this a solar/stone DAY creature? (else it's a shadow/spirit NIGHT one)
+    dayKind() { return this.kind === 'moth' || this.kind === 'sentry' || this.kind === 'guardian'; }
+    isGround() { return this.kind === 'guardian' || this.kind === 'ghoul' || this.kind === 'crawler'; }
+    isDormant(game) { return this.dayKind() ? game.world !== 'day' : game.world !== 'night'; }
     dangerous(game) {
-        if (this.kind === 'guardian')
-            return game.world === 'day';
-        if (this.kind === 'wisp')
-            return game.world === 'night';
         if (this.kind === 'sentry')
             return false; // turret body is harmless; its shards hurt
-        return true; // moth always solid to touch (weak in night, but still bumps)
+        return !this.isDormant(game); // only awake, in-world creatures bite
     }
     hit(game, facing, dmg = 1) {
         this.hp -= dmg;
@@ -145,13 +145,7 @@ export class Enemy {
             game.spawnEmbers(centerX(this.rect()), centerY(this.rect()), this.points >= 200 ? 2 : 1);
         }
     }
-    dim(game) {
-        if (this.kind === 'wisp')
-            return game.world !== 'night';
-        if (this.kind === 'ghoul' || this.kind === 'skull' || this.kind === 'crawler')
-            return false; // always present
-        return game.world !== 'day'; // moth, guardian, sentry are day-active
-    }
+    dim(game) { return this.isDormant(game); }
     // Aura colour ties each enemy to the myth: warm fire for day/solar things,
     // cool spirit-light for night things.
     glowColor(_game) {
