@@ -36,6 +36,8 @@ if (_q.has('level')) {
     game.startLevel(n, false);
     if (_q.has('night'))
         game.tryToggleWorld(true);
+    if (_q.has('dragon'))
+        game.player.dragonTime = 12;
 }
 // dev aid: force-show the touch controls on non-touch devices for layout testing
 if (_q.has('touch'))

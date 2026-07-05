@@ -1,7 +1,7 @@
 // The shrine runner: responsive platformer feel — coyote time, jump buffering,
 // variable + apex-hang jump, corner correction, wall slide/jump, dash with
 // afterimages, and squash/stretch juice.
-import { clamp, lerp, rand, damp } from './math.js';
+import { clamp, lerp, rand, damp, mixHex, overlap } from './math.js';
 import { GRAVITY, TILE } from './types.js';
 import { sprites } from './sprites.js';
 import type { Rect } from './math.js';
@@ -36,6 +36,9 @@ export class Player {
   animName = 'idle'; animClock = 0;
   dropThrough = 0;
   airJumps = 1;              // mid-air jumps available (reset on landing)
+  dragonTime = 0;            // seconds remaining in Zhulong flight form
+  dragonTrail: { x: number; y: number }[] = [];
+  dragonFireCd = 0;
   wallDir = 0;            // -1 wall on left, 1 on right, 0 none
   wallLock = 0;          // brief control lock after a wall jump
   afterimages: After[] = [];
@@ -68,6 +71,7 @@ export class Player {
   }
 
   update(game: Game, dt: number) {
+    if (this.dragonTime > 0) { this.updateDragon(game, dt); return; }
     const input = game.input;
     this.animTime += dt;
     this.wallLock = Math.max(0, this.wallLock - dt);
@@ -247,6 +251,73 @@ export class Player {
     game.audio.sfx('boss');
     game.camera.addTrauma(0.32);
   }
+
+  // ---- Zhulong flight form ------------------------------------------------
+  private updateDragon(game: Game, dt: number) {
+    this.dragonTime -= dt;
+    this.invuln = 0.5;                       // untouchable while transformed
+    this.animTime += dt;
+    const i = game.input;
+    const dx = (i.down('right') ? 1 : 0) - (i.down('left') ? 1 : 0);
+    const dy = (i.down('down') ? 1 : 0) - (i.down('up') ? 1 : 0);
+    const sp = 385;
+    this.vx = dx * sp; this.vy = dy * sp;
+    if (dx !== 0) this.facing = dx < 0 ? -1 : 1;
+    // free flight, clamped to the level (no terrain collision)
+    this.x = clamp(this.x + this.vx * dt, TILE, game.level.width * TILE - this.w - TILE);
+    this.y = clamp(this.y + this.vy * dt, TILE, game.level.height * TILE - this.h - TILE);
+    const hx = this.x + this.w / 2, hy = this.y + this.h / 2;
+    this.dragonTrail.unshift({ x: hx, y: hy });
+    if (this.dragonTrail.length > 64) this.dragonTrail.pop();
+    // continuous fire-breath in the facing/aim direction
+    this.dragonFireCd -= dt;
+    if (this.dragonFireCd <= 0) {
+      this.dragonFireCd = 0.1;
+      const ax = this.facing, ay = dy * 0.5, len = Math.hypot(ax, ay) || 1;
+      game.projectiles.push({ x: hx + this.facing * 22, y: hy, vx: ax / len * 780, vy: ay / len * 780, r: 10, life: 1.1, kind: 'blast', hostile: false, dmg: 3, pierce: true, hit: new Set() });
+      game.particles.embers(hx + this.facing * 22, hy, 2);
+      if (Math.random() < 0.5) game.audio.sfx('attack');
+    }
+    // the dragon's body sweeps enemies aside
+    for (const e of game.enemies) if (e.alive && overlap(this.rect(), e.rect())) e.hit(game, this.facing, 3);
+    game.particles.embers(hx - this.facing * 16 + rand(-6, 6), hy + rand(-8, 8), 1);
+    if (this.dragonTime <= 0) {
+      this.dragonTrail.length = 0; this.vy = 0; this.invuln = 1.2;
+      let guard = 0;                                  // don't revert stuck inside terrain
+      while (game.overlapsSolid(this.rect()) && this.y > TILE && guard++ < 40) this.y -= TILE;
+      game.particles.sparks(hx, hy, 24, '#ffd777');
+      game.flashText('The dragon settles. Balance holds.');
+    }
+  }
+
+  private drawDragon(game: Game, c: CanvasRenderingContext2D) {
+    const trail = this.dragonTrail, cam = game.camera;
+    c.save();
+    for (let i = trail.length - 1; i >= 0; i--) {
+      const t = 1 - i / Math.max(1, trail.length);
+      const p = trail[i]; const x = p.x - cam.x, y = p.y - cam.y; const r = 3 + t * t * 13;
+      c.fillStyle = mixHex('#8a1810', '#ffcf5a', t);
+      c.shadowColor = '#ff7a2a'; c.shadowBlur = 8;
+      c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
+      if (i % 3 === 0 && t > 0.25) { c.fillStyle = '#ffd06a'; c.beginPath(); c.moveTo(x, y - r); c.lineTo(x - 4, y - r - 7); c.lineTo(x + 4, y - r - 7); c.closePath(); c.fill(); }
+    }
+    c.shadowBlur = 0;
+    const h = trail[0] || { x: this.x + this.w / 2, y: this.y + this.h / 2 };
+    const hx = h.x - cam.x, hy = h.y - cam.y, f = this.facing;
+    c.save(); c.translate(hx, hy); c.scale(f, 1);
+    c.fillStyle = '#c73320'; c.shadowColor = '#ff7a2a'; c.shadowBlur = 14;
+    c.beginPath(); c.ellipse(4, 0, 20, 15, 0, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.ellipse(20, 3, 12, 8, 0, 0, Math.PI * 2); c.fill();
+    c.shadowBlur = 0;
+    c.strokeStyle = '#ffd06a'; c.lineWidth = 3; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(-4, -10); c.quadraticCurveTo(-16, -22, -24, -14); c.stroke();
+    c.strokeStyle = '#ffe6a0'; c.lineWidth = 1.5;
+    c.beginPath(); c.moveTo(26, 7); c.quadraticCurveTo(42, 3, 54, 12); c.stroke();
+    c.beginPath(); c.moveTo(26, 9); c.quadraticCurveTo(40, 15, 50, 24); c.stroke();
+    c.fillStyle = '#fff0c0'; c.shadowColor = '#ffcf5a'; c.shadowBlur = 8; c.beginPath(); c.arc(8, -4, 3.6, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#3a0a0a'; c.beginPath(); c.arc(9, -4, 1.7, 0, Math.PI * 2); c.fill();
+    c.restore(); c.restore();
+  }
   private overlaps(r: Rect) { return this.x < r.x + r.w && this.x + this.w > r.x && this.y < r.y + r.h && this.y + this.h > r.y; }
 
   hurt(game: Game, amount = 1, pit = false) {
@@ -268,6 +339,7 @@ export class Player {
   }
 
   draw(game: Game, c: CanvasRenderingContext2D) {
+    if (this.dragonTime > 0) { this.drawDragon(game, c); return; }
     // afterimages
     for (const a of this.afterimages) {
       c.globalAlpha = (a.life / 0.22) * 0.35;

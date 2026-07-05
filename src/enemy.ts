@@ -91,6 +91,7 @@ export class Enemy {
       game.particles.sparks(centerX(this.rect()), centerY(this.rect()), 14);
       game.audio.sfx('collect');
       game.addScore(this.points, centerX(this.rect()), centerY(this.rect()));
+      game.spawnEmbers(centerX(this.rect()), centerY(this.rect()), this.points >= 200 ? 2 : 1);
     }
   }
 

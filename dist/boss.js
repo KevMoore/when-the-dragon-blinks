@@ -5,24 +5,24 @@ import { centerX, centerY, clamp, overlap, rand } from './math.js';
 import { sprites } from './sprites.js';
 export class LanternEater {
     constructor() {
-        this.x = 720;
-        this.y = 250;
-        this.w = 130;
-        this.h = 158;
-        this.hp = 24;
-        this.maxHp = 24;
+        this.x = 700;
+        this.y = 180;
+        this.w = 210;
+        this.h = 252;
+        this.hp = 30;
+        this.maxHp = 30;
         this.alive = true;
         this.state = 'intro';
         this.stateT = 1.4;
         this.attack = 'barrage';
         this.hurtFlash = 0;
         this.maskOpen = 0; // 0..1 openness of the mask (eye exposure)
-        this.homeX = 720;
+        this.homeX = 700;
         this.time = 0;
         this.phase = 1;
     }
-    bodyRect() { return { x: this.x + 24, y: this.y + 40, w: this.w - 48, h: this.h - 56 }; }
-    eyeRect() { return { x: this.x + this.w / 2 - 22, y: this.y + 30, w: 44, h: 44 }; }
+    bodyRect() { return { x: this.x + this.w * 0.16, y: this.y + this.h * 0.24, w: this.w * 0.68, h: this.h * 0.6 }; }
+    eyeRect() { return { x: this.x + this.w / 2 - 32, y: this.y + this.h * 0.15, w: 64, h: 64 }; }
     get vulnerable() { return this.state === 'recover' && this.maskOpen > 0.6; }
     update(game, dt) {
         if (!this.alive)
@@ -33,7 +33,7 @@ export class LanternEater {
         // idle float + drift toward a home offset above the player
         const targetX = clamp(centerX(game.player.rect()) - this.w / 2, 96, game.level.width * 32 - this.w - 96);
         this.x += (targetX - this.x) * (this.state === 'attack' ? 0.005 : 0.02);
-        this.y = 220 + Math.sin(this.time * 1.3) * 14;
+        this.y = 150 + Math.sin(this.time * 1.3) * 16;
         this.stateT -= dt;
         // mask openness follows recovery
         const wantOpen = this.state === 'recover' ? 1 : this.state === 'telegraph' ? 0.25 : 0;
@@ -181,6 +181,7 @@ export class LanternEater {
         }
         c.save();
         c.translate(sx + this.w / 2, sy + this.h / 2);
+        c.scale(this.w / 130, this.h / 158);
         const telegraph = this.state === 'telegraph';
         c.globalAlpha = this.hurtFlash > 0 ? 0.7 : 1;
         // smoky body

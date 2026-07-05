@@ -10,17 +10,17 @@ type BossState = 'intro' | 'idle' | 'telegraph' | 'attack' | 'recover';
 type Attack = 'barrage' | 'slam' | 'summon' | 'rain';
 
 export class LanternEater {
-  x = 720; y = 250; w = 130; h = 158;
-  hp = 24; maxHp = 24; alive = true;
+  x = 700; y = 180; w = 210; h = 252;
+  hp = 30; maxHp = 30; alive = true;
   state: BossState = 'intro';
   stateT = 1.4;
   attack: Attack = 'barrage';
   hurtFlash = 0; maskOpen = 0;      // 0..1 openness of the mask (eye exposure)
-  homeX = 720; time = 0;
+  homeX = 700; time = 0;
   phase = 1;
 
-  bodyRect(): Rect { return { x: this.x + 24, y: this.y + 40, w: this.w - 48, h: this.h - 56 }; }
-  eyeRect(): Rect { return { x: this.x + this.w / 2 - 22, y: this.y + 30, w: 44, h: 44 }; }
+  bodyRect(): Rect { return { x: this.x + this.w * 0.16, y: this.y + this.h * 0.24, w: this.w * 0.68, h: this.h * 0.6 }; }
+  eyeRect(): Rect { return { x: this.x + this.w / 2 - 32, y: this.y + this.h * 0.15, w: 64, h: 64 }; }
 
   get vulnerable() { return this.state === 'recover' && this.maskOpen > 0.6; }
 
@@ -32,7 +32,7 @@ export class LanternEater {
     // idle float + drift toward a home offset above the player
     const targetX = clamp(centerX(game.player.rect()) - this.w / 2, 96, game.level.width * 32 - this.w - 96);
     this.x += (targetX - this.x) * (this.state === 'attack' ? 0.005 : 0.02);
-    this.y = 220 + Math.sin(this.time * 1.3) * 14;
+    this.y = 150 + Math.sin(this.time * 1.3) * 16;
     this.stateT -= dt;
 
     // mask openness follows recovery
@@ -156,7 +156,7 @@ export class LanternEater {
       return;
     }
 
-    c.save(); c.translate(sx + this.w / 2, sy + this.h / 2);
+    c.save(); c.translate(sx + this.w / 2, sy + this.h / 2); c.scale(this.w / 130, this.h / 158);
     const telegraph = this.state === 'telegraph';
     c.globalAlpha = this.hurtFlash > 0 ? 0.7 : 1;
     // smoky body

@@ -56,6 +56,8 @@ export class Game {
         this.combo = 0;
         this.comboT = 0;
         this.scorePops = [];
+        this.dragonMeter = 0; // 0..1 — fills from Torch Embers; full → become Zhulong
+        this.embers = [];
         this.activatedCheckpoints = new Set();
         this.viewedShrines = new Set();
         this.dashHintShown = false;
@@ -90,6 +92,10 @@ export class Game {
         this.combo = 0;
         this.comboT = 0;
         this.scorePops = [];
+        this.dragonMeter = 0;
+        this.embers = [];
+        this.player.dragonTime = 0;
+        this.player.dragonTrail = [];
         this.elapsed = 0;
         this.message = null;
         this.camera.snap(0, 0);
@@ -133,6 +139,54 @@ export class Game {
         this.scorePops.push({ x, y, text: '+' + gained, t: 0, color: this.combo > 3 ? '#ffd777' : '#fff1ca' });
         if (this.scorePops.length > 40)
             this.scorePops.shift();
+    }
+    // Torch Embers: dropped by slain enemies; collecting them fills the Dragon Gauge.
+    spawnEmbers(x, y, n) {
+        for (let i = 0; i < n; i++)
+            this.embers.push({ x, y, vx: rand(-70, 70), vy: rand(-190, -90), life: 9 });
+        if (this.embers.length > 120)
+            this.embers.splice(0, this.embers.length - 120);
+    }
+    updateEmbers(dt) {
+        const p = this.player, pcx = p.x + p.w / 2, pcy = p.y + p.h / 2;
+        for (const e of this.embers) {
+            const dx = pcx - e.x, dy = pcy - e.y, d = Math.hypot(dx, dy);
+            if (d < 150) {
+                e.vx += (dx / d) * 900 * dt;
+                e.vy += (dy / d) * 900 * dt;
+            } // magnet
+            else
+                e.vy += 300 * dt;
+            e.vx *= 0.98;
+            e.vy *= 0.98;
+            e.x += e.vx * dt;
+            e.y += e.vy * dt;
+            e.life -= dt;
+            if (p.dragonTime <= 0 && d < 22) {
+                e.life = 0;
+                this.dragonMeter = Math.min(1, this.dragonMeter + 0.085);
+                this.score += 25;
+                this.particles.sparks(e.x, e.y, 4, '#ffd777');
+                this.audio.sfx('menu');
+                if (this.dragonMeter >= 1)
+                    this.startDragon();
+            }
+        }
+        this.embers = this.embers.filter(e => e.life > 0);
+    }
+    startDragon() {
+        this.dragonMeter = 0;
+        this.player.dragonTime = 12;
+        this.player.dragonTrail = [];
+        this.player.dragonFireCd = 0;
+        this.camera.addTrauma(0.8);
+        this.flash = 0.7;
+        this.flashColor = '#ffd777';
+        const cx = this.player.x + this.player.w / 2, cy = this.player.y + this.player.h / 2;
+        this.particles.ring(cx, cy, 34, 320, '#ffd777');
+        this.particles.sparks(cx, cy, 40, '#ff9d4d');
+        this.audio.sfx('victory');
+        this.flashText('ZHULONG AWAKENS — fly and burn the dark!');
     }
     completeLevel() {
         const id = this.level.id;
@@ -363,6 +417,7 @@ export class Game {
         if (this.boss)
             this.boss.update(this, dt);
         this.updateProjectiles(dt);
+        this.updateEmbers(dt);
         this.checkHazardsAndObjects();
         this.camera.follow(this.player.x + this.player.w / 2, this.player.y + this.player.h / 2, this.player.facing, this.player.vx, this.level.width, this.level.height, dt);
         if (this.level.windZones)
@@ -494,6 +549,7 @@ export class Game {
                 this.particles.sparks(relic.x + 11, relic.y + 11, 26, '#ffd777');
                 this.audio.sfx('collect');
                 this.addScore(500, relic.x + 11, relic.y);
+                this.dragonMeter = Math.min(1, this.dragonMeter + 0.25);
                 this.openLore(relic.noteId, 'playing');
             }
         }
@@ -759,10 +815,20 @@ export class Game {
             this.boss.draw(this, c);
         for (const pr of this.projectiles)
             this.drawProjectile(c, pr);
+        this.drawEmbers(c);
         this.player.draw(this, c);
         this.particles.draw(c, this.camera.x, this.camera.y, this.world);
         bg.drawLighting(this, c);
         bg.drawVignette(c);
+        if (this.player.dragonTime > 0) {
+            c.save();
+            c.globalCompositeOperation = 'lighter';
+            c.globalAlpha = 0.06 + 0.03 * Math.sin(this.time * 6);
+            c.fillStyle = '#ffb84a';
+            c.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
+            c.restore();
+            c.globalAlpha = 1;
+        }
         this.drawScorePops(c);
         ui.drawHUD(this, c);
         if (this.debug)
@@ -919,6 +985,22 @@ export class Game {
             c.globalAlpha = Math.max(0, 1 - s.t / 0.9);
             c.fillStyle = s.color;
             c.fillText(s.text, s.x - this.camera.x, s.y - this.camera.y - s.t * 42);
+        }
+        c.restore();
+        c.globalAlpha = 1;
+    }
+    drawEmbers(c) {
+        c.save();
+        for (const e of this.embers) {
+            const x = e.x - this.camera.x, y = e.y - this.camera.y;
+            const pulse = 0.7 + Math.sin(this.time * 8 + e.x) * 0.3;
+            c.globalAlpha = clamp(e.life, 0, 1);
+            c.shadowColor = '#ff9d4d';
+            c.shadowBlur = 10;
+            c.fillStyle = '#ffd777';
+            c.beginPath();
+            c.arc(x, y, 2.5 * pulse + 1.6, 0, Math.PI * 2);
+            c.fill();
         }
         c.restore();
         c.globalAlpha = 1;

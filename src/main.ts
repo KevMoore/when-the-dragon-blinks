@@ -40,6 +40,7 @@ if (_q.has('level')) {
   const n = Math.max(0, Math.min(3, parseInt(_q.get('level') || '0') || 0));
   game.startLevel(n, false);
   if (_q.has('night')) game.tryToggleWorld(true);
+  if (_q.has('dragon')) game.player.dragonTime = 12;
 }
 // dev aid: force-show the touch controls on non-touch devices for layout testing
 if (_q.has('touch')) document.body.classList.add('force-touch');

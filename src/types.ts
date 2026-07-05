@@ -25,6 +25,7 @@ export type Projectile = {
   dmg?: number; pierce?: boolean; hit?: Set<unknown>;
 };
 export type ScorePop = { x: number; y: number; text: string; t: number; color: string };
+export type Ember = { x: number; y: number; vx: number; vy: number; life: number };
 export type FloatingText = { text: string; t: number; max: number };
 export type CodexEntry = { id: string; title: string; body: string; unlockHint: string };
 export type LorePanel = {

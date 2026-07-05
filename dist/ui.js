@@ -60,6 +60,33 @@ export function drawHUD(game, c) {
         c.fill();
         c.restore();
     }
+    // dragon gauge (fills from torch embers) or active Zhulong timer
+    const gx = 18, gy = 62, gw = 190, gh = 11;
+    c.fillStyle = 'rgba(9,5,13,.5)';
+    c.fillRect(gx, gy, gw, gh);
+    c.strokeStyle = 'rgba(246,191,94,.3)';
+    c.strokeRect(gx + .5, gy + .5, gw, gh);
+    if (game.player.dragonTime > 0) {
+        const frac = clamp(game.player.dragonTime / 12, 0, 1);
+        const grad = c.createLinearGradient(gx, 0, gx + gw, 0);
+        grad.addColorStop(0, '#ffd777');
+        grad.addColorStop(1, '#ff7a2a');
+        c.fillStyle = grad;
+        c.fillRect(gx + 2, gy + 2, (gw - 4) * frac, gh - 4);
+        c.fillStyle = '#fff1ca';
+        c.font = 'bold 11px Georgia';
+        c.textAlign = 'left';
+        c.fillText('🐉 ZHULONG  ' + game.player.dragonTime.toFixed(1) + 's', gx + 5, gy - 3);
+    }
+    else {
+        const full = game.dragonMeter >= 1;
+        c.fillStyle = full ? '#ffd777' : '#b5762f';
+        c.fillRect(gx + 2, gy + 2, (gw - 4) * game.dragonMeter, gh - 4);
+        c.fillStyle = 'rgba(255,255,255,.6)';
+        c.font = '10px Georgia';
+        c.textAlign = 'left';
+        c.fillText(full ? 'Dragon ready!' : 'Dragon Gauge — collect torch embers', gx + 4, gy - 3);
+    }
     // day/night dial
     const dx = 250, dy = 36, day = game.dayAmount;
     c.fillStyle = 'rgba(9,5,13,.5)';
