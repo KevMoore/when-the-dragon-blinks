@@ -20,5 +20,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: radial-gradi
 .touch-right { right: max(18px, env(safe-area-inset-right)); }
 #touch-controls button { pointer-events: auto; width: clamp(56px, 8vw, 78px); height: clamp(56px, 8vw, 78px); border-radius: 999px; border: 1px solid rgba(246,191,94,.55); color: #fff7df; background: rgba(15,8,20,.62); box-shadow: 0 6px 20px rgba(0,0,0,.35), inset 0 0 20px rgba(246,191,94,.12); font-size: clamp(22px, 3vw, 32px); font-weight: 700; backdrop-filter: blur(8px); }
 #touch-controls button:active, #touch-controls button.active { transform: translateY(2px) scale(.97); background: rgba(217,74,58,.66); }
-@media (pointer: coarse) and (orientation: landscape) { #touch-controls { display: block; } }
-@media (orientation: portrait) and (max-width: 900px) { #rotate-overlay { display: flex; } #touch-controls { display: none; } }
+.touch-right button[data-action="jump"] { width: clamp(66px, 10vw, 92px); height: clamp(66px, 10vw, 92px); }
+#touch-pause { position: fixed; top: max(14px, env(safe-area-inset-top)); right: max(14px, env(safe-area-inset-right)); z-index: 8; display: none; pointer-events: auto; width: 46px; height: 46px; border-radius: 12px; border: 1px solid rgba(246,191,94,.5); color: #fff7df; background: rgba(15,8,20,.6); font-size: 15px; backdrop-filter: blur(8px); }
+#touch-pause:active { background: rgba(217,74,58,.6); }
+@media (pointer: coarse) and (orientation: landscape) { #touch-controls { display: block; } #touch-pause { display: block; } }
+@media (orientation: portrait) and (max-width: 900px) { #rotate-overlay { display: flex; } #touch-controls, #touch-pause { display: none; } }

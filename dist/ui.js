@@ -1,0 +1,416 @@
+// All HUD + menu/overlay rendering. Pure drawing driven by Game state;
+// input handling lives in game.ts.
+import { clamp, easeOutCubic } from './math.js';
+import { LOGICAL_W, LOGICAL_H } from './types.js';
+import { levels, codexEntries } from './content.js';
+const GOLD = '#ffd777', MOON = '#a9d6ff', PAPER = '#fff1ca';
+export function wrapText(c, text, x, y, maxW, lh) {
+    const words = text.split(' ');
+    let line = '', yy = y;
+    for (const w of words) {
+        const test = line + w + ' ';
+        if (c.measureText(test).width > maxW && line) {
+            c.fillText(line, x, yy);
+            line = w + ' ';
+            yy += lh;
+        }
+        else
+            line = test;
+    }
+    if (line) {
+        c.fillText(line, x, yy);
+        yy += lh;
+    }
+    return yy;
+}
+function labelColor(label) {
+    return label === 'Myth' ? GOLD : (label === 'Historical Note' || label === 'History') ? MOON : '#ffc0a0';
+}
+function panel(c, x, y, w, h, a = 0.9) {
+    c.fillStyle = `rgba(18,8,20,${a})`;
+    c.fillRect(x, y, w, h);
+    c.strokeStyle = 'rgba(246,191,94,.5)';
+    c.lineWidth = 2;
+    c.strokeRect(x + .5, y + .5, w - 1, h - 1);
+}
+// ---- HUD -------------------------------------------------------------------
+export function drawHUD(game, c) {
+    const p = game.player;
+    c.save();
+    // health as lantern pips
+    c.fillStyle = 'rgba(9,5,13,.5)';
+    c.fillRect(18, 16, 190, 40);
+    c.strokeStyle = 'rgba(246,191,94,.3)';
+    c.strokeRect(18.5, 16.5, 190, 40);
+    for (let i = 0; i < p.maxHp; i++) {
+        const on = i < p.hp;
+        const x = 40 + i * 32, y = 36;
+        c.save();
+        if (on) {
+            c.shadowColor = '#ff8b44';
+            c.shadowBlur = 10;
+        }
+        c.fillStyle = on ? '#ffb24a' : '#37222c';
+        c.beginPath();
+        c.moveTo(x, y - 9);
+        c.lineTo(x + 8, y);
+        c.lineTo(x, y + 10);
+        c.lineTo(x - 8, y);
+        c.closePath();
+        c.fill();
+        c.restore();
+    }
+    // day/night dial
+    const dx = 250, dy = 36, day = game.dayAmount;
+    c.fillStyle = 'rgba(9,5,13,.5)';
+    c.fillRect(dx - 24, 16, 240, 40);
+    c.strokeStyle = 'rgba(246,191,94,.3)';
+    c.strokeRect(dx - 23.5, 16.5, 240, 40);
+    c.save();
+    c.translate(dx, dy);
+    c.fillStyle = '#241428';
+    c.beginPath();
+    c.arc(0, 0, 14, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = day > 0.5 ? GOLD : MOON;
+    c.shadowColor = day > 0.5 ? '#ffb83b' : '#8bd2ff';
+    c.shadowBlur = 10;
+    c.beginPath();
+    c.arc(0, 0, 8 + Math.sin(game.time * 3) * 1, 0, Math.PI * 2);
+    c.fill();
+    c.restore();
+    c.fillStyle = day > 0.5 ? GOLD : MOON;
+    c.font = '17px Georgia';
+    c.textAlign = 'left';
+    c.fillText(day > 0.5 ? 'DAY · Eye Open' : 'NIGHT · Eye Closed', dx + 22, 33);
+    c.fillStyle = 'rgba(255,255,255,.7)';
+    c.font = '12px Georgia';
+    c.fillText('E / C / Y  ·  blink the world', dx + 22, 50);
+    // level title + relics
+    c.textAlign = 'right';
+    c.fillStyle = PAPER;
+    c.font = '17px Georgia';
+    c.fillText(game.level.title, LOGICAL_W - 20, 33);
+    c.fillStyle = GOLD;
+    c.font = '15px Georgia';
+    c.fillText('◆ Relics ' + game.save.relics.length + '/' + game.totalRelics(), LOGICAL_W - 20, 52);
+    // boss bar
+    if (game.boss && game.boss.alive) {
+        const bw = 520, bx = (LOGICAL_W - bw) / 2, by = 84;
+        c.textAlign = 'center';
+        c.fillStyle = PAPER;
+        c.font = '15px Georgia';
+        c.fillText(game.boss.vulnerable ? 'The eye is exposed — strike now!' : 'The Lantern Eater — blink to NIGHT and break its mask', LOGICAL_W / 2, by - 6);
+        c.fillStyle = 'rgba(8,4,8,.72)';
+        c.fillRect(bx, by, bw, 18);
+        c.strokeStyle = '#f1b55a';
+        c.strokeRect(bx + .5, by + .5, bw, 18);
+        const frac = clamp(game.boss.hp / game.boss.maxHp, 0, 1);
+        const grad = c.createLinearGradient(bx, 0, bx + bw, 0);
+        grad.addColorStop(0, '#ff6a3a');
+        grad.addColorStop(1, '#a62d2f');
+        c.fillStyle = game.boss.vulnerable ? '#8bd2ff' : grad;
+        c.fillRect(bx + 2, by + 2, (bw - 4) * frac, 14);
+    }
+    c.restore();
+}
+export function drawFloatingText(c, msg) {
+    c.save();
+    c.globalAlpha = clamp(1 - (msg.t - msg.max + 0.6) / 0.6, 0, 1) * clamp(msg.t / 0.2, 0, 1);
+    c.textAlign = 'center';
+    c.font = '20px Georgia';
+    const w = Math.max(360, c.measureText(msg.text).width + 60);
+    panel(c, LOGICAL_W / 2 - w / 2, 452, w, 40, 0.72);
+    c.fillStyle = PAPER;
+    c.fillText(msg.text, LOGICAL_W / 2, 478);
+    c.restore();
+}
+// ---- Title -----------------------------------------------------------------
+export function drawTitle(game, c) {
+    c.save();
+    c.textAlign = 'center';
+    c.shadowColor = '#d94a3a';
+    c.shadowBlur = 30;
+    c.fillStyle = '#ffe3a0';
+    c.font = '62px Georgia';
+    const bob = Math.sin(game.time * 1.2) * 3;
+    c.fillText('When the Dragon Blinks', LOGICAL_W / 2, 168 + bob);
+    c.shadowBlur = 0;
+    c.fillStyle = 'rgba(255,255,255,.82)';
+    c.font = '19px Georgia';
+    c.fillText('A mythic platformer inspired by Zhulong, the Torch Dragon', LOGICAL_W / 2, 206);
+    const opts = ['Begin Journey', 'Level Select', 'Myth & History', 'Settings'];
+    const px = LOGICAL_W / 2 - 165, py = 268;
+    panel(c, px, py, 330, 208, 0.72);
+    opts.forEach((o, i) => {
+        const y = py + 40 + i * 42;
+        const sel = i === game.titleSelection;
+        if (sel) {
+            c.fillStyle = 'rgba(246,191,94,.14)';
+            c.fillRect(px + 12, y - 26, 306, 36);
+        }
+        c.fillStyle = sel ? GOLD : PAPER;
+        c.font = sel ? '25px Georgia' : '21px Georgia';
+        c.fillText((sel ? '◆  ' : '') + o + (sel ? '  ◆' : ''), LOGICAL_W / 2, y);
+    });
+    c.fillStyle = 'rgba(255,255,255,.6)';
+    c.font = '13px Georgia';
+    c.fillText('↑/↓ or stick · Enter/A select · H codex · gamepad & touch supported', LOGICAL_W / 2, 500);
+    c.restore();
+}
+// ---- Level select ----------------------------------------------------------
+export function drawLevelSelect(game, c) {
+    c.save();
+    c.textAlign = 'center';
+    c.fillStyle = '#ffe3a0';
+    c.font = '46px Georgia';
+    c.fillText('Choose a Shrine Path', LOGICAL_W / 2, 92);
+    const cardW = 170, gap = 22, total = levels.length * cardW + (levels.length - 1) * gap;
+    const startX = (LOGICAL_W - total) / 2;
+    levels.forEach((lvl, i) => {
+        const x = startX + i * (cardW + gap), y = 168;
+        const unlocked = i <= game.save.highestUnlocked, sel = i === game.levelSelection;
+        c.fillStyle = unlocked ? 'rgba(20,9,22,.8)' : 'rgba(20,20,24,.45)';
+        c.fillRect(x, y, cardW, 210);
+        c.strokeStyle = sel ? GOLD : 'rgba(246,191,94,.3)';
+        c.lineWidth = sel ? 3 : 1;
+        c.strokeRect(x + .5, y + .5, cardW, 210);
+        c.fillStyle = unlocked ? PAPER : '#777';
+        c.font = '20px Georgia';
+        c.fillText(lvl.title.replace('Level ', 'L').replace('Boss: ', ''), x + cardW / 2, y + 40);
+        c.font = '13px Georgia';
+        c.fillStyle = unlocked ? 'rgba(255,255,255,.75)' : '#666';
+        wrapText(c, unlocked ? lvl.subtitle : 'Locked', x + 14, y + 74, cardW - 28, 18);
+        c.fillStyle = unlocked ? GOLD : '#555';
+        c.font = '40px Georgia';
+        c.fillText(unlocked ? (lvl.isBoss ? '☲' : '◈') : '⌧', x + cardW / 2, y + 150);
+        if (unlocked && game.save.completed.includes(lvl.id)) {
+            c.fillStyle = '#7bd06a';
+            c.font = '14px Georgia';
+            c.fillText('✓ restored', x + cardW / 2, y + 186);
+        }
+    });
+    c.fillStyle = 'rgba(255,255,255,.66)';
+    c.font = '15px Georgia';
+    c.fillText('←/→ choose · Enter start · Esc back', LOGICAL_W / 2, 430);
+    c.restore();
+}
+// ---- Codex -----------------------------------------------------------------
+export function drawCodex(game, c) {
+    c.save();
+    panel(c, 60, 44, LOGICAL_W - 120, LOGICAL_H - 92, 0.78);
+    c.fillStyle = '#ffe3a0';
+    c.font = '40px Georgia';
+    c.textAlign = 'center';
+    c.fillText('Myth & History', LOGICAL_W / 2, 90);
+    c.font = '13px Georgia';
+    c.fillStyle = 'rgba(255,255,255,.66)';
+    wrapText(c, 'This game is inspired by traditional accounts of Zhulong. It is not a literal scholarly reconstruction. Mythological details vary across sources, translations, and retellings.', LOGICAL_W / 2 - 300, 112, 600, 17);
+    const leftX = 92, top = 168;
+    codexEntries.forEach((e, i) => {
+        const unlocked = game.save.codex.includes(e.id), sel = i === game.codexSelection;
+        if (sel) {
+            c.fillStyle = 'rgba(246,191,94,.15)';
+            c.fillRect(leftX - 10, top + i * 36 - 22, 300, 30);
+        }
+        c.fillStyle = unlocked ? (sel ? GOLD : PAPER) : '#777';
+        c.font = '17px Georgia';
+        c.textAlign = 'left';
+        c.fillText((unlocked ? '◇ ' : '🔒 ') + e.title, leftX, top + i * 36);
+    });
+    const entry = codexEntries[game.codexSelection];
+    const unlocked = game.save.codex.includes(entry.id);
+    c.strokeStyle = 'rgba(246,191,94,.24)';
+    c.strokeRect(430.5, 160.5, LOGICAL_W - 500, 300);
+    c.fillStyle = unlocked ? '#ffe3a0' : '#999';
+    c.font = '26px Georgia';
+    c.textAlign = 'left';
+    c.fillText(entry.title, 456, 200);
+    c.fillStyle = unlocked ? PAPER : '#aaa';
+    c.font = '18px Georgia';
+    wrapText(c, unlocked ? entry.body : 'Locked — ' + entry.unlockHint + '.', 456, 238, LOGICAL_W - 540, 26);
+    c.fillStyle = 'rgba(255,255,255,.64)';
+    c.font = '15px Georgia';
+    c.textAlign = 'center';
+    c.fillText('↑/↓ choose · Esc back', LOGICAL_W / 2, LOGICAL_H - 66);
+    c.restore();
+}
+// ---- Settings --------------------------------------------------------------
+export function drawSettings(game, c) {
+    c.save();
+    panel(c, LOGICAL_W / 2 - 260, 110, 520, 320, 0.82);
+    c.textAlign = 'center';
+    c.fillStyle = '#ffe3a0';
+    c.font = '38px Georgia';
+    c.fillText('Settings', LOGICAL_W / 2, 168);
+    const s = game.save.settings;
+    const rows = [
+        { label: 'Master Volume', value: Math.round(s.master * 100) + '%', bar: s.master },
+        { label: 'Music', value: s.music ? 'On' : 'Off' },
+        { label: 'Screen Shake', value: s.shake ? 'On' : 'Off' },
+        { label: 'Reduced Motion', value: s.reducedMotion ? 'On' : 'Off' },
+        { label: 'Back', value: '' },
+    ];
+    rows.forEach((r, i) => {
+        const y = 220 + i * 42;
+        const sel = i === game.settingsSelection;
+        if (sel) {
+            c.fillStyle = 'rgba(246,191,94,.14)';
+            c.fillRect(LOGICAL_W / 2 - 230, y - 24, 460, 34);
+        }
+        c.textAlign = 'left';
+        c.fillStyle = sel ? GOLD : PAPER;
+        c.font = '20px Georgia';
+        c.fillText((sel ? '▸ ' : '  ') + r.label, LOGICAL_W / 2 - 214, y);
+        c.textAlign = 'right';
+        if (r.bar !== undefined) {
+            const bx = LOGICAL_W / 2 + 70, bw = 130;
+            c.fillStyle = 'rgba(255,255,255,.15)';
+            c.fillRect(bx, y - 12, bw, 10);
+            c.fillStyle = GOLD;
+            c.fillRect(bx, y - 12, bw * r.bar, 10);
+        }
+        else if (r.value) {
+            c.fillStyle = r.value === 'On' ? '#7bd06a' : PAPER;
+            c.fillText(r.value, LOGICAL_W / 2 + 200, y);
+        }
+    });
+    c.textAlign = 'center';
+    c.fillStyle = 'rgba(255,255,255,.64)';
+    c.font = '14px Georgia';
+    c.fillText('↑/↓ choose · ←/→ or Enter adjust · Esc back', LOGICAL_W / 2, 414);
+    c.restore();
+}
+// ---- Lore panel ------------------------------------------------------------
+export function drawLore(game, c) {
+    if (!game.lorePanel)
+        return;
+    const app = easeOutCubic(clamp(game.loreAnim, 0, 1));
+    c.save();
+    c.fillStyle = `rgba(4,2,7,${0.66 * app})`;
+    c.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
+    const w = 660, h = 380, x = (LOGICAL_W - w) / 2, y = (LOGICAL_H - h) / 2 - 6 + (1 - app) * 24;
+    c.globalAlpha = app;
+    panel(c, x, y, w, h, 0.94);
+    c.textAlign = 'center';
+    c.fillStyle = '#ffe3a0';
+    c.font = '32px Georgia';
+    c.fillText(game.lorePanel.title, LOGICAL_W / 2, y + 50);
+    let yy = y + 98;
+    c.textAlign = 'left';
+    for (const sec of game.lorePanel.sections) {
+        c.fillStyle = labelColor(sec.label);
+        c.font = 'bold 18px Georgia';
+        c.fillText(sec.label, x + 44, yy);
+        c.fillStyle = PAPER;
+        c.font = '20px Georgia';
+        yy = wrapText(c, sec.text, x + 44, yy + 28, w - 88, 27) + 20;
+    }
+    c.textAlign = 'center';
+    c.fillStyle = 'rgba(255,255,255,.62)';
+    c.font = '16px Georgia';
+    c.fillText('Enter / A / tap to continue', LOGICAL_W / 2, y + h - 26);
+    c.restore();
+    c.globalAlpha = 1;
+}
+// ---- Pause -----------------------------------------------------------------
+export function drawPause(game, c) {
+    c.save();
+    c.fillStyle = 'rgba(4,2,7,.62)';
+    c.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
+    panel(c, LOGICAL_W / 2 - 165, 150, 330, 240);
+    c.textAlign = 'center';
+    c.fillStyle = '#ffe3a0';
+    c.font = '40px Georgia';
+    c.fillText('Paused', LOGICAL_W / 2, 206);
+    const opts = ['Resume', 'Restart Level', 'Settings', 'Return to Title'];
+    opts.forEach((o, i) => {
+        const y = 250 + i * 34;
+        const sel = i === game.pauseSelection;
+        c.fillStyle = sel ? GOLD : PAPER;
+        c.font = sel ? '22px Georgia' : '19px Georgia';
+        c.fillText((sel ? '▸ ' : '') + o, LOGICAL_W / 2, y);
+    });
+    c.restore();
+}
+// ---- Completion screens ----------------------------------------------------
+export function drawLevelComplete(game, c) {
+    c.save();
+    c.fillStyle = 'rgba(4,2,7,.68)';
+    c.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
+    c.textAlign = 'center';
+    c.fillStyle = '#ffe3a0';
+    c.font = '46px Georgia';
+    c.fillText('Shrine Path Restored', LOGICAL_W / 2, 190);
+    c.fillStyle = PAPER;
+    c.font = '20px Georgia';
+    c.fillText('A new Myth & History entry has been unlocked.', LOGICAL_W / 2, 238);
+    const t = game.lastLevelTime;
+    if (t > 0) {
+        c.fillStyle = GOLD;
+        c.font = '18px Georgia';
+        c.fillText('Time  ' + t.toFixed(1) + 's' + (game.lastWasBest ? '   ★ new best' : ''), LOGICAL_W / 2, 274);
+    }
+    c.fillStyle = 'rgba(255,255,255,.85)';
+    c.font = '17px Georgia';
+    c.fillText('Enter / tap: continue · Esc: title', LOGICAL_W / 2, 320);
+    c.restore();
+}
+export function drawGameComplete(game, c) {
+    c.save();
+    c.fillStyle = 'rgba(4,2,7,.74)';
+    c.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
+    c.textAlign = 'center';
+    c.fillStyle = '#ffe3a0';
+    c.font = '48px Georgia';
+    c.fillText('The Dragon Blinks Again', LOGICAL_W / 2, 104);
+    panel(c, 168, 138, LOGICAL_W - 336, 268, 0.88);
+    c.textAlign = 'left';
+    let yy = 184;
+    c.font = '18px Georgia';
+    yy = labelled(c, 'Myth', 'Zhulong is remembered as a vast dragon associated with cosmic light, darkness, and natural cycles.', 208, yy, LOGICAL_W - 416);
+    yy = labelled(c, 'History', 'Accounts appear in old Chinese mythological and geographical traditions. Details vary across texts, translations, and retellings.', 208, yy + 14, LOGICAL_W - 416);
+    yy = labelled(c, 'Game Inspiration', 'The Day/Night mechanic adapts the eye motif. The shrine runner and Lantern Eater are original inventions created for the game.', 208, yy + 14, LOGICAL_W - 416);
+    const opts = ['Myth & History', 'Replay Levels', 'Return to Title'];
+    c.textAlign = 'center';
+    opts.forEach((o, i) => {
+        const sel = i === game.completeSelection;
+        c.fillStyle = sel ? GOLD : PAPER;
+        c.font = sel ? '20px Georgia' : '17px Georgia';
+        c.fillText((sel ? '▸ ' : '') + o, LOGICAL_W / 2 - 220 + i * 220, 436);
+    });
+    c.restore();
+}
+function labelled(c, label, text, x, y, w) {
+    c.fillStyle = labelColor(label);
+    c.font = 'bold 18px Georgia';
+    c.textAlign = 'left';
+    c.fillText(label, x, y);
+    c.fillStyle = PAPER;
+    c.font = '17px Georgia';
+    return wrapText(c, text, x, y + 24, w, 23);
+}
+// ---- Debug overlay ---------------------------------------------------------
+export function drawDebug(game, c) {
+    c.save();
+    c.strokeStyle = '#00ff99';
+    c.lineWidth = 1;
+    const p = game.player.rect();
+    c.strokeRect(p.x - game.camera.x, p.y - game.camera.y, p.w, p.h);
+    if (game.player.attackTimer > 0) {
+        const a = game.player.attackRect();
+        c.strokeStyle = '#ff0';
+        c.strokeRect(a.x - game.camera.x, a.y - game.camera.y, a.w, a.h);
+    }
+    c.strokeStyle = '#00ff99';
+    for (const s of game.solidsForRect({ x: game.camera.x, y: game.camera.y, w: LOGICAL_W, h: LOGICAL_H })) {
+        c.strokeStyle = s.oneWay ? '#3af' : '#00ff99';
+        c.strokeRect(s.x - game.camera.x, s.y - game.camera.y, s.w, s.h);
+    }
+    c.fillStyle = '#00ff99';
+    c.font = '12px monospace';
+    c.textAlign = 'left';
+    c.fillText(`vx ${game.player.vx.toFixed(0)} vy ${game.player.vy.toFixed(0)} grounded ${game.player.grounded} wall ${game.player.wallDir}`, 20, LOGICAL_H - 20);
+    c.restore();
+}
+//# sourceMappingURL=ui.js.map
