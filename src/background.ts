@@ -289,30 +289,50 @@ function drawSpan(game: Game, c: CanvasRenderingContext2D, th: Theme, a: number,
   pts.push({ x: rightX, y: topY(b)! });
   const minY = Math.min(...pts.map(p => p.y));
 
-  // soil body
+  const traceTop = () => { c.moveTo(pts[0].x, pts[0].y); for (let i = 1; i < pts.length; i++) { const m = { x: (pts[i - 1].x + pts[i].x) / 2, y: (pts[i - 1].y + pts[i].y) / 2 }; c.quadraticCurveTo(pts[i - 1].x, pts[i - 1].y, m.x, m.y); } c.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y); };
+  const surfY = (x: number) => topY(x)!;
+
+  // ---- DIRT body: soil gradient, speckle texture, visible rocks, roots ----
   c.save();
-  c.beginPath();
-  c.moveTo(pts[0].x, pts[0].y);
-  for (let i = 1; i < pts.length; i++) { const m = { x: (pts[i - 1].x + pts[i].x) / 2, y: (pts[i - 1].y + pts[i].y) / 2 }; c.quadraticCurveTo(pts[i - 1].x, pts[i - 1].y, m.x, m.y); }
-  c.lineTo(rightX, bottom); c.lineTo(leftX, bottom); c.closePath();
-  const g = c.createLinearGradient(0, minY, 0, minY + 260);
-  g.addColorStop(0, th.soilTop); g.addColorStop(1, th.soilBot);
+  c.beginPath(); traceTop(); c.lineTo(rightX, bottom); c.lineTo(leftX, bottom); c.closePath();
+  const g = c.createLinearGradient(0, minY, 0, minY + 300);
+  g.addColorStop(0, th.soilTop); g.addColorStop(0.5, mixHex(th.soilTop, th.soilBot, 0.55)); g.addColorStop(1, th.soilBot);
   c.fillStyle = g; c.fill();
-  // strata + rocks embedded in the soil
   c.clip();
-  c.strokeStyle = 'rgba(0,0,0,.14)'; c.lineWidth = 2;
-  for (let k = 0; k < 3; k++) { c.beginPath(); c.moveTo(leftX, minY + 40 + k * 46); c.bezierCurveTo(leftX + (rightX - leftX) / 3, minY + 30 + k * 46, leftX + (rightX - leftX) * 2 / 3, minY + 54 + k * 46, rightX, minY + 40 + k * 46); c.stroke(); }
-  c.fillStyle = 'rgba(0,0,0,.16)';
-  for (let x = a; x <= b; x++) { const r = hash(x * 3 + 11); if (r < 0.3) { const rx = x * TILE + 16 - camX, ry = (topY(x)! + 34 + r * 120); c.beginPath(); c.ellipse(rx, ry, 7 + r * 6, 4 + r * 3, 0, 0, Math.PI * 2); c.fill(); } }
+  // dirt speckle
+  for (let x = a; x <= b; x++) for (let s = 0; s < 4; s++) {
+    const r = hash(x * 31 + s * 7 + 2);
+    const px = x * TILE + r * TILE - camX, py = surfY(x) + 12 + hash(x * 5 + s * 19) * 150;
+    c.fillStyle = r < 0.5 ? 'rgba(0,0,0,.16)' : 'rgba(255,225,190,.05)';
+    c.fillRect(px, py, 2, 2);
+  }
+  // rocks embedded in dirt (2-tone, rounded)
+  for (let x = a; x <= b; x++) for (let s = 0; s < 2; s++) {
+    const r = hash(x * 17 + s * 101 + 5); if (r > 0.5) continue;
+    const rx = x * TILE + 3 + hash(x * 5 + s) * 26 - camX, ry = surfY(x) + 16 + hash(x * 9 + s * 13) * 140, rw = 4 + r * 9;
+    drawStone(c, rx, ry, rw, th);
+  }
+  // roots hanging from the grass into the dirt
+  c.strokeStyle = mixHex(th.grassLo, th.soilBot, 0.5); c.lineWidth = 1.4; c.lineCap = 'round';
+  for (let x = a; x <= b; x++) { if (hash(x * 23 + 9) > 0.28) continue; const rx = x * TILE + 16 - camX, ry = surfY(x) + 12; c.beginPath(); c.moveTo(rx, ry); c.quadraticCurveTo(rx + 3, ry + 8, rx - 2, ry + 16); c.stroke(); }
   c.restore();
 
-  // grass rim (thick) + highlight
+  // ---- GRASS turf band with a scalloped underside + blades ----
+  const gt = 12;
   c.save();
-  c.lineJoin = 'round'; c.lineCap = 'round';
-  const rim = () => { c.beginPath(); c.moveTo(pts[0].x, pts[0].y); for (let i = 1; i < pts.length; i++) { const m = { x: (pts[i - 1].x + pts[i].x) / 2, y: (pts[i - 1].y + pts[i].y) / 2 }; c.quadraticCurveTo(pts[i - 1].x, pts[i - 1].y, m.x, m.y); } };
-  c.strokeStyle = th.grassLo; c.lineWidth = 9; rim(); c.stroke();
-  c.strokeStyle = th.grass; c.lineWidth = 5; rim(); c.stroke();
-  c.strokeStyle = mixHex(th.grass, '#e8ffb0', 0.4); c.lineWidth = 1.6; rim(); c.stroke();
+  c.beginPath();
+  traceTop();
+  for (let i = pts.length - 1; i >= 0; i--) { const p = pts[i]; const wob = Math.sin((p.x + camX) * 0.4) * 3 + Math.sin((p.x + camX) * 0.13) * 2; c.lineTo(p.x, p.y + gt + wob); }
+  c.closePath();
+  const gg = c.createLinearGradient(0, minY - 2, 0, minY + gt + 6);
+  gg.addColorStop(0, mixHex(th.grass, '#e8ffb0', 0.35)); gg.addColorStop(0.5, th.grass); gg.addColorStop(1, th.grassLo);
+  c.fillStyle = gg; c.fill();
+  c.restore();
+  // bright top highlight + blades
+  c.save(); c.lineJoin = 'round'; c.lineCap = 'round';
+  c.strokeStyle = mixHex(th.grass, '#f0ffc0', 0.5); c.lineWidth = 1.4; c.beginPath(); traceTop(); c.stroke();
+  c.strokeStyle = th.grassLo;
+  for (let x = a; x <= b; x++) { const wx = x * TILE, sy = surfY(x); for (let k = 0; k < 3; k++) { const bx = wx + 6 + k * 9 - camX, sway = Math.sin(game.time * 1.4 + x + k) * 1.2; c.lineWidth = 1.3; c.beginPath(); c.moveTo(bx, sy + 2); c.quadraticCurveTo(bx + sway, sy - 4, bx + sway * 1.6, sy - 8); c.stroke(); } }
   c.restore();
 
   // cliff shading at the two edges (pit walls)
@@ -326,6 +346,15 @@ function drawSpan(game: Game, c: CanvasRenderingContext2D, th: Theme, a: number,
 
   // surface decorations
   for (let x = a; x <= b; x++) drawDecor(game, c, th, x, topY(x)!, camX);
+}
+
+function drawStone(c: CanvasRenderingContext2D, x: number, y: number, w: number, th: Theme) {
+  c.fillStyle = mixHex(th.soilBot, '#9a8a78', 0.5);
+  c.beginPath(); c.ellipse(x, y, w, w * 0.72, 0, 0, Math.PI * 2); c.fill();
+  c.fillStyle = 'rgba(255,240,220,.14)';
+  c.beginPath(); c.ellipse(x - w * 0.28, y - w * 0.3, w * 0.5, w * 0.28, 0, 0, Math.PI * 2); c.fill();
+  c.fillStyle = 'rgba(0,0,0,.3)';
+  c.beginPath(); c.ellipse(x, y + w * 0.36, w * 0.92, w * 0.3, 0, 0, Math.PI * 2); c.fill();
 }
 
 function drawDecor(game: Game, c: CanvasRenderingContext2D, th: Theme, x: number, sy: number, camX: number) {
