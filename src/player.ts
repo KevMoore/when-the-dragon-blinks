@@ -377,6 +377,7 @@ export class Player {
   private overlaps(r: Rect) { return this.x < r.x + r.w && this.x + this.w > r.x && this.y < r.y + r.h && this.y + this.h > r.y; }
 
   hurt(game: Game, amount = 1, pit = false) {
+    if (this.dragonTime > 0) return;    // Zhulong incarnate — nothing touches the dragon
     if (this.invuln > 0 && !pit) return;
     this.hp -= amount;
     this.invuln = 1.1;

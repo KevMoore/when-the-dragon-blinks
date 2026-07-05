@@ -61,7 +61,7 @@ export class Game {
   transformT = 0;            // >0 while the transformation cinematic plays
   difficulty = 1;            // per-level aggression scalar (lower = easier)
   clearT = 0; clearing = false; clearOutro = ''; clearNext: GameMode = 'levelComplete';
-  bossDeathT = 0; bossDeathX = 0; bossDeathY = 0; private bossClimax = false;
+  bossDeathT = 0; bossDeathX = 0; bossDeathY = 0; bossClimax = false;
   private activatedCheckpoints = new Set<number>();
   private viewedShrines = new Set<number>();
   private dashHintShown = false;
@@ -274,54 +274,120 @@ export class Game {
     this.flashText('The Lantern Eater breaks — the stolen dawn floods free.');
   }
 
-  // The Lantern Eater ruptures: escalating light eruption, a climax flash that
-  // releases the hoarded dawn, then the stage-clear card.
+  // The Lantern Eater's end: a slow-mo crack, an escalating light eruption, a
+  // glass-shatter rupture that frees the hoarded dawn, and Zhulong rising over it.
   private updateBossDeath(dt: number) {
-    const dur = 2.7, p = clamp(1 - this.bossDeathT / dur, 0, 1);
+    const dur = 3.2, p = clamp(1 - this.bossDeathT / dur, 0, 1);
     this.bossDeathT -= dt;
-    this.dayAmount = clamp(this.dayAmount + dt * 0.75, this.dayAmount, 1);   // dawn returns
+    if (p > 0.16) this.dayAmount = clamp(this.dayAmount + dt * 0.7, this.dayAmount, 1);   // dawn returns
     this.eyeReact = Math.max(this.eyeReact, 0.5 + 0.5 * Math.abs(Math.sin(this.time * 18)));
-    this.particles.embers(this.bossDeathX, this.bossDeathY, 1 + Math.floor(p * 3));
-    this.particles.sparks(this.bossDeathX, this.bossDeathY, 2, '#ffe6a0');
-    if (Math.random() < 0.1 + p * 0.22) { this.camera.addTrauma(0.28 + p * 0.4); this.particles.ring(this.bossDeathX, this.bossDeathY, 24, 300 + p * 240, '#ffd777'); }
-    if (!this.bossClimax && p > 0.66) {   // the rupture
-      this.bossClimax = true;
-      this.flash = 1; this.flashColor = '#fff4d8'; this.camera.addTrauma(1.1); this.audio.sfx('boss');
-      this.particles.ring(this.bossDeathX, this.bossDeathY, 30, 640, '#fff2c8');
-      this.particles.sparks(this.bossDeathX, this.bossDeathY, 60, '#ffd777');
-      this.particles.embers(this.bossDeathX, this.bossDeathY, 40);
+    if (p > 0.16 && p < 0.62) {   // eruption build
+      this.particles.embers(this.bossDeathX, this.bossDeathY, 1 + Math.floor(p * 3));
+      this.particles.sparks(this.bossDeathX, this.bossDeathY, 2, '#ffe6a0');
+      if (Math.random() < 0.1 + p * 0.22) { this.camera.addTrauma(0.26 + p * 0.4); this.particles.ring(this.bossDeathX, this.bossDeathY, 24, 320, '#ffd777'); }
     }
+    if (!this.bossClimax && p > 0.62) {   // the shatter
+      this.bossClimax = true;
+      this.flash = 1; this.flashColor = '#fff6dc'; this.camera.addTrauma(1.25); this.audio.sfx('boss');
+      this.particles.ring(this.bossDeathX, this.bossDeathY, 30, 720, '#fff2c8');
+      this.particles.sparks(this.bossDeathX, this.bossDeathY, 80, '#ffd777');
+      this.particles.embers(this.bossDeathX, this.bossDeathY, 70);
+    }
+    if (p > 0.72) this.particles.embers(this.bossDeathX, this.bossDeathY - 24, 2);   // rising to the dragon
     if (this.bossDeathT <= 0) { this.bossDeathT = 0; this.completeLevel(); }
   }
 
   private drawBossDeathCinematic(c: CanvasRenderingContext2D) {
-    const dur = 2.7, p = clamp(1 - this.bossDeathT / dur, 0, 1);
+    const dur = 3.2, p = clamp(1 - this.bossDeathT / dur, 0, 1);
     const x = this.bossDeathX - this.camera.x, y = this.bossDeathY - this.camera.y;
-    c.save();
-    c.globalCompositeOperation = 'lighter';
-    // rotating god-rays bursting from the rupture
-    const rays = 16, rot = this.time * 0.7;
-    for (let i = 0; i < rays; i++) {
-      const a = rot + (i / rays) * Math.PI * 2;
-      c.save(); c.translate(x, y); c.rotate(a);
-      c.globalAlpha = (0.12 + 0.4 * p) * (0.6 + 0.4 * Math.sin(this.time * 6 + i));
-      const g = c.createLinearGradient(0, 0, 900, 0);
-      g.addColorStop(0, 'rgba(255,232,175,0.85)'); g.addColorStop(1, 'rgba(0,0,0,0)');
-      c.fillStyle = g; c.beginPath(); c.moveTo(0, 0); c.lineTo(900, -26 - 46 * p); c.lineTo(900, 26 + 46 * p); c.closePath(); c.fill();
+
+    // Phase 1 — slow-mo beat: a vignette closes on the boss, a searing crack forms
+    if (p < 0.2) {
+      const t = 1 - p / 0.2;
+      c.save();
+      const v = c.createRadialGradient(x, y, 40, x, y, 520);
+      v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, `rgba(2,1,4,${0.85 * t})`);
+      c.fillStyle = v; c.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
+      c.globalCompositeOperation = 'lighter'; c.globalAlpha = t;
+      c.strokeStyle = '#fff2c8'; c.lineWidth = 2 + (1 - t) * 3; c.shadowColor = '#ffd777'; c.shadowBlur = 16;
+      c.beginPath(); c.moveTo(x, y - 20 - 50 * (1 - t)); c.lineTo(x + 4, y); c.lineTo(x - 3, y + 34); c.lineTo(x + 2, y + 40 + 50 * (1 - t)); c.stroke();
+      c.restore(); c.globalAlpha = 1; c.shadowBlur = 0;
+    }
+
+    // Eruption — rotating god-rays, core bloom, shockwaves
+    if (p > 0.12) {
+      const rp = clamp((p - 0.12) / 0.6, 0, 1);
+      c.save(); c.globalCompositeOperation = 'lighter';
+      const rays = 16, rot = this.time * 0.7;
+      for (let i = 0; i < rays; i++) {
+        const a = rot + (i / rays) * Math.PI * 2;
+        c.save(); c.translate(x, y); c.rotate(a);
+        c.globalAlpha = (0.12 + 0.4 * rp) * (0.6 + 0.4 * Math.sin(this.time * 6 + i));
+        const g = c.createLinearGradient(0, 0, 900, 0);
+        g.addColorStop(0, 'rgba(255,232,175,0.85)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+        c.fillStyle = g; c.beginPath(); c.moveTo(0, 0); c.lineTo(900, -26 - 46 * rp); c.lineTo(900, 26 + 46 * rp); c.closePath(); c.fill();
+        c.restore();
+      }
+      const rad = 70 + 300 * rp + (this.bossClimax ? 140 : 0);
+      const core = c.createRadialGradient(x, y, 0, x, y, rad);
+      core.addColorStop(0, `rgba(255,250,225,${0.6 + 0.4 * rp})`); core.addColorStop(0.45, `rgba(255,185,95,${0.35 * rp})`); core.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = core; c.beginPath(); c.arc(x, y, rad, 0, Math.PI * 2); c.fill();
       c.restore();
+      for (let r = 0; r < 3; r++) {
+        const rr = p * 1.5 - r * 0.22;
+        if (rr > 0 && rr < 1) { c.globalAlpha = (1 - rr) * 0.6; c.strokeStyle = '#ffe6a0'; c.lineWidth = 5 * (1 - rr) + 1; c.beginPath(); c.arc(x, y, rr * 560, 0, Math.PI * 2); c.stroke(); }
+      }
+      c.globalAlpha = 1;
     }
-    // core bloom
-    const rad = 70 + 300 * p + (this.bossClimax ? 120 : 0);
-    const core = c.createRadialGradient(x, y, 0, x, y, rad);
-    core.addColorStop(0, `rgba(255,250,225,${0.6 + 0.4 * p})`); core.addColorStop(0.45, `rgba(255,185,95,${0.35 * p})`); core.addColorStop(1, 'rgba(0,0,0,0)');
-    c.fillStyle = core; c.beginPath(); c.arc(x, y, rad, 0, Math.PI * 2); c.fill();
-    // expanding shockwave rings
+
+    // Phase 3 — the sky shatters like glass at the rupture
+    if (p > 0.6 && p < 0.9) this.drawGlassFracture(c, x, y, clamp((p - 0.6) / 0.28, 0, 1));
+    // Phase 4 — Zhulong rises over the freed dawn
+    if (p > 0.68) this.drawRisingDragon(c, x, y, clamp((p - 0.68) / 0.32, 0, 1));
+  }
+
+  private drawGlassFracture(c: CanvasRenderingContext2D, x: number, y: number, fp: number) {
+    c.save();
+    c.globalAlpha = (1 - fp) * 0.5; c.fillStyle = '#fff6e2'; c.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
+    c.globalAlpha = 0.85 * (1 - fp * 0.5); c.strokeStyle = '#ffffff'; c.shadowColor = '#ffe6a0'; c.shadowBlur = 8; c.lineWidth = 1.6; c.lineCap = 'round';
+    const N = 13, maxLen = 700 * fp;
+    for (let i = 0; i < N; i++) {
+      let px = x, py = y, ang = (i / N) * Math.PI * 2 + Math.sin(i * 3.1) * 0.2, len = 0;
+      c.beginPath(); c.moveTo(px, py);
+      for (let seg = 0; seg < 5 && len < maxLen; seg++) {
+        const step = 60 + (Math.sin(i * 7 + seg * 2.3) * 0.5 + 0.5) * 80;
+        ang += Math.sin(i * 4 + seg * 1.7) * 0.4;
+        px += Math.cos(ang) * step; py += Math.sin(ang) * step; len += step;
+        c.lineTo(px, py);
+        if (seg > 0 && seg % 2 === 0) { const ba = ang + (Math.sin(i + seg) > 0 ? 0.6 : -0.6); c.moveTo(px, py); c.lineTo(px + Math.cos(ba) * 42, py + Math.sin(ba) * 42); c.moveTo(px, py); }
+      }
+      c.stroke();
+    }
+    c.restore(); c.globalAlpha = 1; c.shadowBlur = 0;
+  }
+
+  private drawRisingDragon(c: CanvasRenderingContext2D, x: number, y: number, dp: number) {
+    const cy = y - 120 * dp;
+    c.save();
+    c.globalAlpha = Math.min(1, dp * 1.4);
+    c.globalCompositeOperation = 'lighter';
+    const halo = c.createRadialGradient(x, cy - 40, 0, x, cy - 40, 320 * dp + 90);
+    halo.addColorStop(0, 'rgba(255,224,150,0.5)'); halo.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = halo; c.beginPath(); c.arc(x, cy - 40, 320 * dp + 90, 0, Math.PI * 2); c.fill();
     c.globalCompositeOperation = 'source-over';
-    for (let r = 0; r < 3; r++) {
-      const rp = p * 1.5 - r * 0.22;
-      if (rp > 0 && rp < 1) { c.globalAlpha = (1 - rp) * 0.6; c.strokeStyle = '#ffe6a0'; c.lineWidth = 5 * (1 - rp) + 1; c.beginPath(); c.arc(x, y, rp * 560, 0, Math.PI * 2); c.stroke(); }
+    const col = '#c8402c', segs = 60, amp = 62 * dp, span = 300 * dp;
+    c.strokeStyle = col; c.lineCap = 'round'; c.lineJoin = 'round'; c.shadowColor = '#ffb060'; c.shadowBlur = 18 * dp;
+    c.beginPath();
+    for (let i = 0; i <= segs; i++) {
+      const q = i / segs, yy = cy + 60 - q * (span + 130 * dp), xx = x + Math.sin(q * 6 + this.time) * amp * (1 - q * 0.3);
+      c.lineWidth = Math.max(2, (20 * dp + 4) * (1 - q * 0.7));
+      i === 0 ? c.moveTo(xx, yy) : c.lineTo(xx, yy);
     }
-    c.restore(); c.globalAlpha = 1;
+    c.stroke();
+    const hx = x + Math.sin(6 + this.time) * amp * 0.7, hy = cy + 60 - (span + 130 * dp);
+    c.fillStyle = col; c.shadowBlur = 22 * dp; c.beginPath(); c.ellipse(hx, hy, 16 * dp + 4, 10 * dp + 3, 0, 0, Math.PI * 2); c.fill();
+    c.shadowBlur = 0; c.fillStyle = '#ffe08a'; c.beginPath(); c.arc(hx + 4 * dp, hy - 2, 2.5 * dp + 1, 0, Math.PI * 2); c.fill();
+    c.restore(); c.globalAlpha = 1; c.shadowBlur = 0;
   }
 
   // ---- collision ---------------------------------------------------------

@@ -44,6 +44,12 @@ if (_q.has('level')) {
         game.completeLevel();
     if (_q.has('bossdeath'))
         game.onBossDefeated();
+    if (_q.has('bdp')) { // hold the boss-death cinematic at a given progress for screenshots
+        const pv = Math.max(0, Math.min(0.99, parseFloat(_q.get('bdp') || '0.75')));
+        const hold = () => { game.bossDeathT = 3.2 * (1 - pv); if (pv > 0.62)
+            game.bossClimax = true; requestAnimationFrame(hold); };
+        hold();
+    }
 }
 // dev aid: force-show the touch controls on non-touch devices for layout testing
 if (_q.has('touch'))
