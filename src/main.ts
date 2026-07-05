@@ -46,6 +46,13 @@ if (_q.has('level')) {
 }
 // dev aid: force-show the touch controls on non-touch devices for layout testing
 if (_q.has('touch')) document.body.classList.add('force-touch');
+// dev aid: hold an aim pose for screenshots — ?pose=up|updiag|down|downdiag
+if (_q.has('pose')) {
+  const m: Record<string, [number, number]> = { up: [0, -1], updiag: [0.7, -0.7], down: [0, 1], downdiag: [0.7, 0.7] };
+  const v = m[_q.get('pose') || 'up'] || [0, -1];
+  const hook = () => { game.input.stickX = v[0]; game.input.stickY = v[1]; game.player.attackTimer = 1; if (v[1] > 0) game.player.grounded = false; requestAnimationFrame(hook); };
+  hook();
+}
 
 const STEP = 1 / 60;
 let last = performance.now();

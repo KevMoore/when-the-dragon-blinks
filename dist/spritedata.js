@@ -6,6 +6,10 @@ export function loadSprites() {
     loadStill('gate', 'assets/sprites/structures/gate.png');
     loadStill('shrine', 'assets/sprites/structures/shrine.png');
     loadStill('checkpoint', 'assets/sprites/structures/checkpoint.png');
+    loadStill('aimup', 'assets/sprites/player/aimup.png');
+    loadStill('aimupdiag', 'assets/sprites/player/aimupdiag.png');
+    loadStill('aimdown', 'assets/sprites/player/aimdown.png');
+    loadStill('aimdowndiag', 'assets/sprites/player/aimdowndiag.png');
     const S = 'assets/sprites/';
     const add = (key, path, fw, fps, loop) => sprites.add(key, { src: S + path, fw, fh: fw, frames: 8, cols: 3, fps, loop });
     // player

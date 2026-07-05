@@ -85,7 +85,7 @@ Text is separated into **Myth** (source-inspired ideas), **Historical Note / His
 
 ## Art pipeline (AutoSprite)
 
-Character art — the **player** (idle/run/jump/attack), all four **enemies** (moth, wisp, guardian, sentry), and the **boss** (idle/attack) — is generated with [AutoSprite](https://www.autosprite.io) and lives in `assets/sprites/` as 8-frame sheets. `src/spritedata.ts` registers them into the `SpriteBank` (`src/sprites.ts`); every entity falls back to procedural art until its sheet finishes loading, so the game always runs even with assets missing. Tiles, parallax, shrines/relics, and the HUD remain procedural. See `assets/asset-manifest.json` for the full map and how to regenerate a sheet.
+Character art — the **player** (idle/run/jump/attack + **directional aim poses**: up, up-diagonal, down, down-diagonal), all four **enemies** (moth, wisp, guardian, sentry), and the **boss** (idle/attack) — is generated with [AutoSprite](https://www.autosprite.io) and lives in `assets/sprites/` as 8-frame sheets. `src/spritedata.ts` registers them into the `SpriteBank` (`src/sprites.ts`); every entity falls back to procedural art until its sheet finishes loading, so the game always runs even with assets missing. Tiles, parallax, shrines/relics, and the HUD remain procedural. See `assets/asset-manifest.json` for the full map and how to regenerate a sheet.
 
 ## Future improvements
 

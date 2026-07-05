@@ -3,7 +3,7 @@
 // afterimages, and squash/stretch juice.
 import { clamp, lerp, rand, damp, mixHex, overlap } from './math.js';
 import { GRAVITY, TILE } from './types.js';
-import { sprites } from './sprites.js';
+import { sprites, stills } from './sprites.js';
 import type { Rect } from './math.js';
 import type { Game } from './game.js';
 
@@ -426,6 +426,23 @@ export class Player {
     const bob = this.grounded ? Math.sin(this.animTime * 16) * speed * 2 : 0;
     const idle = this.grounded && speed < 0.05 ? Math.sin(this.animTime * 3) * 1.2 : 0;
 
+    // ---- Directional aim pose: while firing up/down/diagonally, show the
+    // matching AutoSprite pose (falls through to the attack sheet for forward) ----
+    const aimKey = this.attackTimer > 0 ? this.aimPoseKey(game) : '';
+    if (aimKey && stills[aimKey]?.ready) {
+      c.save();
+      c.translate(sx + this.w / 2, sy + this.h + bob + idle);
+      c.scale(this.facing * this.scaleX, this.scaleY);
+      stills[aimKey].draw(c, 0, 0, 76, true);
+      c.restore();
+      const eyeCol = game.world === 'day' ? '#ffd277' : '#a9d6ff';
+      c.save(); c.globalCompositeOperation = 'lighter'; c.shadowColor = eyeCol; c.shadowBlur = 14; c.fillStyle = eyeCol;
+      c.beginPath(); c.arc(sx + this.w / 2 + this.facing * 3, sy + this.h * 0.42 + bob, 2.6, 0, Math.PI * 2); c.fill(); c.restore();
+      this.drawShotFx(game, c);
+      if (blink) c.globalAlpha = 1;
+      return;
+    }
+
     // ---- Sprite path: use AutoSprite sheet when loaded ----
     const sheet = sprites.get('player/' + this.animName);
     if (sheet && sheet.ready) {
@@ -475,10 +492,30 @@ export class Player {
     this.drawShotFx(game, c);
   }
 
+  // bucket the aim elevation into a directional pose (empty = fire forward)
+  private aimPoseKey(game: Game): string {
+    const [dx, dy] = this.aim(game);
+    const el = Math.atan2(dy, Math.max(1e-4, Math.abs(dx)));   // -π/2 up .. +π/2 down
+    if (el < -1.02) return 'aimup';
+    if (el < -0.39) return 'aimupdiag';
+    if (el > 1.02) return 'aimdown';
+    if (el > 0.39) return 'aimdowndiag';
+    return '';
+  }
+
   private drawShotFx(game: Game, c: CanvasRenderingContext2D) {
     const sx = this.x - game.camera.x, sy = this.y - game.camera.y;
     const [dx, dy] = this.aim(game);
     const cx = sx + this.w / 2, cy = sy + this.h * 0.42;
+    // aim reticle: show the exact line dragon-light will travel while aiming
+    const aiming = this.attackTimer > 0 || Math.hypot(game.input.stickX, game.input.stickY) > 0.3;
+    if (aiming) {
+      const rx = cx + dx * 36, ry = cy + dy * 36;
+      c.save(); c.globalAlpha = 0.55; c.strokeStyle = game.world === 'day' ? '#ffd777' : '#a9d6ff'; c.lineWidth = 1.5;
+      c.beginPath(); c.arc(rx, ry, 4.5, 0, Math.PI * 2); c.stroke();
+      c.globalAlpha = 0.3; c.beginPath(); c.moveTo(cx + dx * 18, cy + dy * 18); c.lineTo(rx - dx * 7, ry - dy * 7); c.stroke();
+      c.restore(); c.globalAlpha = 1;
+    }
     if (this.charging && this.chargeT > 0.12) {
       const cr = Math.min(1, this.chargeT / 0.5);
       const gx = cx + dx * 20, gy = cy + dy * 14, rad = 9 + cr * 16;
