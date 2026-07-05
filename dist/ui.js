@@ -185,23 +185,24 @@ export function drawTitle(game, c) {
     c.fillStyle = 'rgba(255,255,255,.82)';
     c.font = '19px Georgia';
     c.fillText('A mythic platformer inspired by Zhulong, the Torch Dragon', LOGICAL_W / 2, 206);
-    const opts = ['Begin Journey', 'Level Select', 'Myth & History', 'Settings', 'How to Play'];
-    const px = LOGICAL_W / 2 - 165, py = 254;
-    panel(c, px, py, 330, 236, 0.72);
+    const opts = ['Begin Journey', 'Level Select', 'Myth & History', 'Settings', 'How to Play', 'Start Fresh'];
+    const px = LOGICAL_W / 2 - 165, py = 244;
+    panel(c, px, py, 330, 262, 0.72);
     opts.forEach((o, i) => {
-        const y = py + 40 + i * 42;
+        const y = py + 38 + i * 40;
         const sel = i === game.titleSelection;
         if (sel) {
             c.fillStyle = 'rgba(246,191,94,.14)';
-            c.fillRect(px + 12, y - 26, 306, 36);
+            c.fillRect(px + 12, y - 24, 306, 34);
         }
-        c.fillStyle = sel ? GOLD : PAPER;
-        c.font = sel ? '25px Georgia' : '21px Georgia';
-        c.fillText((sel ? '◆  ' : '') + o + (sel ? '  ◆' : ''), LOGICAL_W / 2, y);
+        const fresh = i === 5;
+        c.fillStyle = sel ? GOLD : fresh ? 'rgba(255,255,255,.62)' : PAPER;
+        c.font = sel ? '24px Georgia' : fresh ? '17px Georgia' : '20px Georgia';
+        c.fillText((sel ? '◆  ' : '') + o + (sel ? '  ◆' : '') + (fresh ? '  ⟲' : ''), LOGICAL_W / 2, y);
     });
-    c.fillStyle = 'rgba(255,255,255,.6)';
-    c.font = '12px Georgia';
-    c.fillText('↑/↓ or stick · Enter/A select · H codex · gamepad & touch supported', LOGICAL_W / 2, 512);
+    c.fillStyle = 'rgba(255,255,255,.55)';
+    c.font = '11px Georgia';
+    c.fillText('↑/↓ or stick · Enter/A select · H codex · Start Fresh wipes progress', LOGICAL_W / 2, 520);
     c.restore();
 }
 // Once-only (re-viewable) onboarding: controls + the core blink tactic.

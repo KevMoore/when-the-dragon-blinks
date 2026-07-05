@@ -11,7 +11,7 @@ import { LanternEater } from './boss.js';
 import { Platform } from './platform.js';
 import { stills } from './sprites.js';
 import { levels, loreTexts, codexEntries } from './content.js';
-import { loadSave, persist } from './storage.js';
+import { loadSave, persist, freshSave } from './storage.js';
 import * as bg from './background.js';
 import * as ui from './ui.js';
 export class Game {
@@ -983,7 +983,7 @@ export class Game {
         this.transition = 1;
         if (Math.random() < 0.9)
             this.particles.stars(LOGICAL_W);
-        const opts = 5;
+        const opts = 6;
         if (this.input.just('up')) {
             this.titleSelection = (this.titleSelection + opts - 1) % opts;
             this.audio.sfx('menu');
@@ -997,9 +997,9 @@ export class Game {
             return;
         }
         if (this.input.pointer?.clicked) {
-            const y = this.input.pointer.y, py = 254;
+            const y = this.input.pointer.y, py = 244;
             for (let i = 0; i < opts; i++)
-                if (y > py + 14 + i * 42 && y < py + 50 + i * 42) {
+                if (y > py + 14 + i * 40 && y < py + 48 + i * 40) {
                     this.titleSelection = i;
                     this.chooseTitle();
                 }
@@ -1027,6 +1027,15 @@ export class Game {
             this.howtoT = 0;
             this.state = 'howto';
         }
+        else if (this.titleSelection === 5)
+            this.startFresh();
+    }
+    // Wipe all progress (keep audio prefs) and replay from Level 1 with the intro.
+    startFresh() {
+        this.save = freshSave(this.save.settings);
+        this.persistSave();
+        this.score = 0;
+        this.startLevel(0, true);
     }
     updateLevelSelect() {
         if (this.input.just('back')) {

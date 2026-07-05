@@ -13,7 +13,7 @@ import { LanternEater } from './boss.js';
 import { Platform } from './platform.js';
 import { stills } from './sprites.js';
 import { levels, loreTexts, codexEntries } from './content.js';
-import { loadSave, persist, type SaveData } from './storage.js';
+import { loadSave, persist, freshSave, type SaveData } from './storage.js';
 import * as bg from './background.js';
 import * as ui from './ui.js';
 
@@ -683,13 +683,13 @@ export class Game {
     this.eyeBlink = blink > 0.4 ? 1 : clamp((blink + 1) / 1.4, 0.1, 1);
     this.transition = 1;
     if (Math.random() < 0.9) this.particles.stars(LOGICAL_W);
-    const opts = 5;
+    const opts = 6;
     if (this.input.just('up')) { this.titleSelection = (this.titleSelection + opts - 1) % opts; this.audio.sfx('menu'); }
     if (this.input.just('down')) { this.titleSelection = (this.titleSelection + 1) % opts; this.audio.sfx('menu'); }
     if (this.input.just('codex')) { this.state = 'codex'; return; }
     if (this.input.pointer?.clicked) {
-      const y = this.input.pointer.y, py = 254;
-      for (let i = 0; i < opts; i++) if (y > py + 14 + i * 42 && y < py + 50 + i * 42) { this.titleSelection = i; this.chooseTitle(); }
+      const y = this.input.pointer.y, py = 244;
+      for (let i = 0; i < opts; i++) if (y > py + 14 + i * 40 && y < py + 48 + i * 40) { this.titleSelection = i; this.chooseTitle(); }
     }
     if (this.input.just('confirm')) this.chooseTitle();
   }
@@ -700,6 +700,14 @@ export class Game {
     else if (this.titleSelection === 2) this.state = 'codex';
     else if (this.titleSelection === 3) { this.settingsReturn = 'title'; this.settingsSelection = 0; this.state = 'settings'; }
     else if (this.titleSelection === 4) { this.howtoReturn = 'title'; this.howtoT = 0; this.state = 'howto'; }
+    else if (this.titleSelection === 5) this.startFresh();
+  }
+  // Wipe all progress (keep audio prefs) and replay from Level 1 with the intro.
+  startFresh() {
+    this.save = freshSave(this.save.settings);
+    this.persistSave();
+    this.score = 0;
+    this.startLevel(0, true);
   }
   private updateLevelSelect() {
     if (this.input.just('back')) { this.state = 'title'; return; }

@@ -10,6 +10,8 @@ const fallback = () => ({
     seenIntro: false,
     settings: { master: 0.7, music: true, shake: true, reducedMotion: false },
 });
+// A clean save (keeps the player's audio/settings prefs) — for "Start Fresh".
+export function freshSave(settings) { return { ...fallback(), settings: { ...settings } }; }
 export function loadSave() {
     try {
         const raw = JSON.parse(localStorage.getItem(SAVE_KEY) || '{}');
