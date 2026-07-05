@@ -3,9 +3,10 @@
 //  guardian — stone walker; active in DAY, dormant/harmless at NIGHT
 //  wisp     — spirit; hunts and is dangerous at NIGHT
 //  sentry   — lantern turret; fires aimed shards in DAY
-import { centerX, centerY, lerp, overlap, rand } from './math.js';
-import { GRAVITY } from './types.js';
+import { centerX, centerY, overlap, rand } from './math.js';
+import { GRAVITY, TILE } from './types.js';
 import { sprites } from './sprites.js';
+import { Brain, lineOfSight, groundBrain, rangedBrain, flyerBrain } from './ai.js';
 import type { Rect } from './math.js';
 import type { EntityKind } from './types.js';
 import type { Game } from './game.js';
@@ -15,7 +16,9 @@ export class Enemy {
   x: number; y: number; w = 28; h = 28; vx = 0; vy = 0;
   alive = true; hp = 2; baseY: number; baseX: number;
   phase = Math.random() * 10; flash = 0; fireTimer = rand(1, 2.4);
-  points = 100;
+  points = 100; grounded = false;
+  brain: Brain;
+  bb: Record<string, any> = {};
 
   constructor(kind: EntityKind, x: number, y: number) {
     this.kind = kind; this.x = x; this.y = y; this.baseY = y; this.baseX = x;
@@ -26,64 +29,38 @@ export class Enemy {
     if (kind === 'ghoul') { this.w = 32; this.h = 46; this.hp = 4; this.points = 180; }
     if (kind === 'skull') { this.w = 30; this.h = 30; this.hp = 2; this.points = 140; }
     if (kind === 'crawler') { this.w = 42; this.h = 22; this.hp = 2; this.points = 120; }
+    this.brain = kind === 'sentry' ? rangedBrain()
+      : (kind === 'ghoul' || kind === 'crawler' || kind === 'guardian') ? groundBrain()
+        : flyerBrain();
   }
   rect(): Rect { return { x: this.x, y: this.y, w: this.w, h: this.h }; }
 
+  // is there solid ground just ahead in `dir` (so a walker won't step into a pit)?
+  private groundAhead(game: Game, dir: number): boolean {
+    const ax = this.x + this.w / 2 + dir * (this.w / 2 + 5);
+    const ch = game.tileAt(Math.floor(ax / TILE), Math.floor((this.y + this.h + 4) / TILE));
+    return ch === '#' || ch === 'g' || ch === 'D' || ch === 'N' || ch === 'o';
+  }
+
   update(game: Game, dt: number) {
     if (!this.alive) return;
+    if (this.y > game.level.height * TILE + 80) { this.alive = false; return; }  // fell out of the world
     this.flash = Math.max(0, this.flash - dt);
     const p = game.player;
 
-    if (this.kind === 'moth') {
-      const active = game.world === 'day';
-      const dx = centerX(p.rect()) - centerX(this.rect());
-      const dy = centerY(p.rect()) - centerY(this.rect());
-      if (active && Math.abs(dx) < 380) { this.vx = lerp(this.vx, Math.sign(dx) * 110, 0.05); this.vy = lerp(this.vy, Math.sign(dy) * 70, 0.04); }
-      else { this.vx = Math.sin(game.time * 1.8 + this.phase) * 40; this.vy = Math.cos(game.time * 2.2 + this.phase) * 24; }
-      this.x += this.vx * dt; this.y += this.vy * dt;
-    } else if (this.kind === 'wisp') {
-      const active = game.world === 'night';
-      this.y = this.baseY + Math.sin(game.time * 2.4 + this.phase) * 26;
-      if (active) {
-        const dx = centerX(p.rect()) - centerX(this.rect());
-        if (Math.abs(dx) < 420) this.x = lerp(this.x, this.x + Math.sign(dx) * 60, 0.02);
-        this.x += Math.sin(game.time + this.phase) * 30 * dt;
-      }
-    } else if (this.kind === 'guardian') {
-      if (game.world === 'day') {
-        this.vx = Math.sin(game.time * 0.8 + this.phase) * 78;
-        this.vy += GRAVITY * dt;
-        game.moveEntity(this, this.vx * dt, this.vy * dt);
-      }
-    } else if (this.kind === 'sentry') {
-      if (game.world === 'day') {
-        this.fireTimer -= dt;
-        if (this.fireTimer <= 0) {
-          this.fireTimer = rand(1.6, 2.4);
-          const ang = Math.atan2(centerY(p.rect()) - centerY(this.rect()), centerX(p.rect()) - centerX(this.rect()));
-          game.projectiles.push({ x: centerX(this.rect()), y: centerY(this.rect()), vx: Math.cos(ang) * 220, vy: Math.sin(ang) * 220, r: 7, life: 3, kind: 'shard', hostile: true });
-          game.audio.sfx('attack');
-        }
-      }
-    } else if (this.kind === 'ghoul') {
-      // marching undead — walks relentlessly toward the player (faster at night)
-      const dir = Math.sign(centerX(p.rect()) - centerX(this.rect()));
-      this.vx = dir * (game.world === 'night' ? 82 : 54);
-      this.vy += GRAVITY * dt;
-      game.moveEntity(this, this.vx * dt, this.vy * dt);
-    } else if (this.kind === 'crawler') {
-      // fast low scuttler that chases along the ground
-      const dir = Math.sign(centerX(p.rect()) - centerX(this.rect()));
-      this.vx = dir * 140;
-      this.vy += GRAVITY * dt;
-      game.moveEntity(this, this.vx * dt, this.vy * dt);
-    } else if (this.kind === 'skull') {
-      // flying spirit skull that homes and weaves through the air
+    // Day/Night dormancy: stone guardians sleep at night, solar moths at night,
+    // spirit wisps by day. Everything else runs its GOAP brain continuously.
+    const dormant = (this.kind === 'guardian' && game.world !== 'day')
+      || (this.kind === 'moth' && game.world !== 'day')
+      || (this.kind === 'wisp' && game.world !== 'night');
+    if (dormant) {
+      if (this.kind === 'guardian') { this.vy += GRAVITY * dt; game.moveEntity(this, 0, this.vy * dt); }
+      else this.y = this.baseY + Math.sin(game.time * 2 + this.phase) * 22;
+    } else {
       const dx = centerX(p.rect()) - centerX(this.rect()), dy = centerY(p.rect()) - centerY(this.rect());
-      const d = Math.hypot(dx, dy) || 1;
-      this.vx = lerp(this.vx, (dx / d) * 96, 0.04);
-      this.vy = lerp(this.vy, (dy / d) * 78 + Math.sin(game.time * 3 + this.phase) * 34, 0.05);
-      this.x += this.vx * dt; this.y += this.vy * dt;
+      const dist = Math.hypot(dx, dy);
+      const los = lineOfSight(game, centerX(this.rect()), centerY(this.rect()), centerX(p.rect()), centerY(p.rect()));
+      this.brain.update({ e: this, game, dx, dy, dist, los, bb: this.bb }, dt);
     }
 
     const dangerous = this.dangerous(game);
