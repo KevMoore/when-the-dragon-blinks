@@ -59,6 +59,7 @@ export class Game {
         this.dragonMeter = 0; // 0..1 — fills from Torch Embers; full → become Zhulong
         this.embers = [];
         this.transformT = 0; // >0 while the transformation cinematic plays
+        this.difficulty = 1; // per-level aggression scalar (lower = easier)
         this.activatedCheckpoints = new Set();
         this.viewedShrines = new Set();
         this.dashHintShown = false;
@@ -76,6 +77,7 @@ export class Game {
     startLevel(i, withIntro = true) {
         this.currentLevelIndex = clamp(i, 0, levels.length - 1);
         this.level = levels[this.currentLevelIndex];
+        this.difficulty = [0.75, 1.0, 1.2, 1.05][this.currentLevelIndex] ?? 1.0;
         this.world = 'day';
         this.transition = 1;
         this.dayAmount = 1;

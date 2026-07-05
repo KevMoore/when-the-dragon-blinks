@@ -90,7 +90,7 @@ function groundStep(c: Ctx, desiredVx: number, dt: number) {
 // ---- brain factories -------------------------------------------------------
 export function groundBrain(): Brain {
   const NEAR = 48;
-  const speed = (c: Ctx) => c.e.kind === 'crawler' ? 145 : c.e.kind === 'ghoul' ? (c.game.world === 'night' ? 84 : 56) : 74;
+  const speed = (c: Ctx) => (c.e.kind === 'crawler' ? 145 : c.e.kind === 'ghoul' ? (c.game.world === 'night' ? 84 : 56) : 74) * c.game.difficulty;
   const actions: Action[] = [
     { name: 'retreat', cost: 1, pre: { threatened: true }, post: { threatened: false },
       run(c, dt) { groundStep(c, -Math.sign(c.dx) * 95, dt); c.bb.rt = (c.bb.rt || 0) + dt; if (c.bb.rt > 0.9 || c.dist > 340) { c.bb.rt = 0; return true; } return false; } },
@@ -114,7 +114,7 @@ export function rangedBrain(): Brain {
       run(c, dt) {
         const e = c.e, g = c.game; e.fireTimer -= dt;
         if (e.fireTimer <= 0) {
-          e.fireTimer = rand(1.1, 1.8);
+          e.fireTimer = rand(1.1, 1.8) / c.game.difficulty;
           const ang = Math.atan2(c.dy, c.dx);
           g.projectiles.push({ x: centerX(e.rect()), y: centerY(e.rect()), vx: Math.cos(ang) * 250, vy: Math.sin(ang) * 250, r: 7, life: 3, kind: 'shard', hostile: true });
           g.audio.sfx('attack');
@@ -141,7 +141,8 @@ export function flyerBrain(): Brain {
       run(c, dt) {
         const p = c.game.player; const tx = p.x + p.w / 2, ty = p.y + p.h / 2;
         const d = Math.hypot(tx - centerX(c.e.rect()), ty - centerY(c.e.rect())) || 1;
-        c.e.x += (tx - centerX(c.e.rect())) / d * 300 * dt; c.e.y += (ty - centerY(c.e.rect())) / d * 300 * dt;
+        const ds = 300 * c.game.difficulty;
+        c.e.x += (tx - centerX(c.e.rect())) / d * ds * dt; c.e.y += (ty - centerY(c.e.rect())) / d * ds * dt;
         c.bb.dt = (c.bb.dt || 0) + dt;
         if (c.bb.dt > 0.6 || d < NEAR) { c.bb.dt = 0; c.bb.side = undefined; c.bb.positioned = false; return true; } return false;
       } },

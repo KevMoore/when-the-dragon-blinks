@@ -20,6 +20,7 @@ export class Enemy {
         this.fireTimer = rand(1, 2.4);
         this.points = 100;
         this.grounded = false;
+        this.aggro = 340;
         this.bb = {};
         this.kind = kind;
         this.x = x;
@@ -63,6 +64,7 @@ export class Enemy {
         this.brain = kind === 'sentry' ? rangedBrain()
             : (kind === 'ghoul' || kind === 'crawler' || kind === 'guardian') ? groundBrain()
                 : flyerBrain();
+        this.aggro = kind === 'sentry' ? 420 : kind === 'skull' ? 360 : (kind === 'ghoul' || kind === 'crawler' || kind === 'guardian') ? 300 : 340;
     }
     rect() { return { x: this.x, y: this.y, w: this.w, h: this.h }; }
     // is there solid ground just ahead in `dir` (so a walker won't step into a pit)?
@@ -96,8 +98,19 @@ export class Enemy {
         else {
             const dx = centerX(p.rect()) - centerX(this.rect()), dy = centerY(p.rect()) - centerY(this.rect());
             const dist = Math.hypot(dx, dy);
-            const los = lineOfSight(game, centerX(this.rect()), centerY(this.rect()), centerX(p.rect()), centerY(p.rect()));
-            this.brain.update({ e: this, game, dx, dy, dist, los, bb: this.bb }, dt);
+            if (dist > this.aggro * game.difficulty) {
+                // out of aggro range — wait quietly until the player draws near
+                if (this.kind === 'ghoul' || this.kind === 'crawler' || this.kind === 'guardian') {
+                    this.vy += GRAVITY * dt;
+                    game.moveEntity(this, 0, this.vy * dt);
+                }
+                else
+                    this.y = this.baseY + Math.sin(game.time * 2 + this.phase) * 14;
+            }
+            else {
+                const los = lineOfSight(game, centerX(this.rect()), centerY(this.rect()), centerX(p.rect()), centerY(p.rect()));
+                this.brain.update({ e: this, game, dx, dy, dist, los, bb: this.bb }, dt);
+            }
         }
         const dangerous = this.dangerous(game);
         if (dangerous && overlap(this.rect(), p.rect()))

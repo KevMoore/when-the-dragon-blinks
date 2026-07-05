@@ -56,9 +56,8 @@ function makeLevel1(): LevelData {
     relics: [{ id: 'l1-hidden-night-path', x: 82 * TILE, y: 7 * TILE - 26, noteId: 'relic-eye-fragment' }],
     shrines: [{ x: 10 * TILE, y: 12 * TILE, textId: 'shrine-who-is-zhulong' }],
     entities: [
-      { kind: 'moth', x: 28 * TILE, y: 300 }, { kind: 'crawler', x: 44 * TILE, y: 380 }, { kind: 'guardian', x: 56 * TILE, y: 340 },
-      { kind: 'ghoul', x: 84 * TILE, y: 340 }, { kind: 'sentry', x: 96 * TILE, y: 260 }, { kind: 'skull', x: 116 * TILE, y: 280 }, { kind: 'guardian', x: 140 * TILE, y: 330 },
-      { kind: 'skull', x: 50 * TILE, y: 260 }, { kind: 'crawler', x: 70 * TILE, y: 360 }, { kind: 'ghoul', x: 108 * TILE, y: 300 }, { kind: 'moth', x: 130 * TILE, y: 280 },
+      { kind: 'moth', x: 30 * TILE, y: 300 }, { kind: 'crawler', x: 52 * TILE, y: 380 }, { kind: 'guardian', x: 64 * TILE, y: 340 },
+      { kind: 'sentry', x: 92 * TILE, y: 260 }, { kind: 'ghoul', x: 110 * TILE, y: 340 }, { kind: 'skull', x: 132 * TILE, y: 280 },
     ],
     platforms: [mp(34, 13, 3, { ax: 4 * TILE, speed: 0.7 })],
     introLore: 'intro-l1', outroLore: 'outro-l1', unlockCodexOnComplete: ['texts-vary'],
