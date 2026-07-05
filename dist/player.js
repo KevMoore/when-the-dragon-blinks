@@ -39,6 +39,7 @@ export class Player {
         this.animTime = 0;
         this.animName = 'idle';
         this.animClock = 0;
+        this.dropThrough = 0;
         this.wallDir = 0; // -1 wall on left, 1 on right, 0 none
         this.wallLock = 0; // brief control lock after a wall jump
         this.afterimages = [];
@@ -124,6 +125,13 @@ export class Player {
             this.jumpBuffer = JUMP_BUFFER;
         else
             this.jumpBuffer = Math.max(0, this.jumpBuffer - dt);
+        // drop through a jump-through platform: hold Down + Jump
+        this.dropThrough = Math.max(0, this.dropThrough - dt);
+        if (this.grounded && input.down('down') && this.jumpBuffer > 0 && game.onOneWayGround(this)) {
+            this.dropThrough = 0.2;
+            this.jumpBuffer = 0;
+            this.vy = Math.max(this.vy, 40);
+        }
         // jump: ground/coyote, else wall jump
         if (this.jumpBuffer > 0 && (this.coyote > 0 || this.grounded)) {
             this.doJump(game);

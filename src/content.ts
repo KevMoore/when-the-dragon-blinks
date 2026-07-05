@@ -14,103 +14,129 @@ function rect(map: string[][], x: number, y: number, w: number, h: number, c: st
 }
 function row(map: string[][], x: number, y: number, w: number, c: string) { rect(map, x, y, w, 1, c); }
 function toStrings(map: string[][]): string[] { return map.map(r => r.join('')); }
+
+/** Build continuous rolling ground from stepped segments.
+ *  segs: sorted {x, top}; `top` is the grass row for columns >= x until the next
+ *  segment. top === null leaves a pit. Grass caps the surface, stone fills below. */
+function ground(m: string[][], w: number, h: number, segs: { x: number; top: number | null }[]) {
+  let si = 0;
+  for (let x = 0; x < w; x++) {
+    while (si + 1 < segs.length && segs[si + 1].x <= x) si++;
+    const top = segs[si].top;
+    if (top === null) continue;
+    setTile(m, x, top, 'g');
+    for (let y = top + 1; y < h; y++) setTile(m, x, y, '#');
+  }
+}
 function mp(x: number, y: number, w: number, o: Partial<MovingPlatform> = {}): MovingPlatform {
   return { x: x * TILE, y: y * TILE, w: w * TILE, ax: 0, ay: 0, speed: 1, phase: 0, ...o };
 }
 
 // ---- Level 1: Mountain Gate ------------------------------------------------
 function makeLevel1(): LevelData {
-  const w = 118, h = 18;
+  const w = 156, h = 18;
   const m = emptyMap(w, h);
-  row(m, 0, 16, w, '#'); row(m, 0, 17, w, '#');
-  // opening steps
-  row(m, 8, 14, 4, 'g'); row(m, 14, 12, 4, 'g'); row(m, 21, 11, 5, 'D');
-  row(m, 30, 13, 4, 'g'); row(m, 30, 15, 4, '^');           // spike pit lip
-  row(m, 38, 12, 3, 'o'); row(m, 43, 10, 4, 'N');           // hidden night step
-  row(m, 50, 13, 6, 'g'); row(m, 58, 15, 3, '^');
-  row(m, 62, 12, 4, 'g'); row(m, 69, 10, 4, 'D');
-  row(m, 76, 12, 5, 'g'); row(m, 84, 11, 3, 'o');
-  row(m, 90, 13, 6, 'g'); row(m, 98, 15, 4, '^');
-  row(m, 103, 12, 5, 'g'); row(m, 110, 9, 6, '#');          // gate landing
-  rect(m, 114, 9, 2, 7, '#');
-  // secret night staircase to the relic alcove (each step is 2 tiles, reachable)
-  row(m, 47, 8, 3, 'N'); row(m, 44, 6, 5, 'N');
+  ground(m, w, h, [
+    { x: 0, top: 14 }, { x: 16, top: 13 }, { x: 26, top: 14 }, { x: 34, top: null }, { x: 38, top: 14 },
+    { x: 50, top: 12 }, { x: 62, top: 14 }, { x: 70, top: 13 }, { x: 78, top: null }, { x: 82, top: 14 },
+    { x: 94, top: 12 }, { x: 106, top: 14 }, { x: 116, top: 11 }, { x: 128, top: 11 }, { x: 138, top: 12 }, { x: 150, top: 12 },
+  ]);
+  rect(m, 154, 7, 2, 11, '#');                       // end wall
+  // Mario-style jump-through platforms (cover & vantage points)
+  row(m, 20, 10, 5, 'o'); row(m, 52, 9, 6, 'o'); row(m, 96, 9, 5, 'o'); row(m, 120, 8, 6, 'o');
+  row(m, 42, 11, 4, 'D');                            // day-only cover
+  // night spirit bridge across the 2nd pit + a night ladder up to the relic
+  row(m, 77, 13, 6, 'N'); row(m, 84, 10, 4, 'N'); row(m, 80, 7, 6, 'N');
+  row(m, 40, 13, 4, 'F'); row(m, 108, 13, 4, 'S');   // stateful hazards on the ground
   return {
-    id: 'mountain-gate', title: 'Level 1: Mountain Gate', subtitle: 'Learn to climb toward the eye',
+    id: 'mountain-gate', title: 'Level 1: Mountain Gate', subtitle: 'March, shoot, and blink toward the eye',
     theme: 'mountain', width: w, height: h, tiles: toStrings(m),
-    spawn: { x: 64, y: 430 }, exit: { x: 111 * TILE, y: 5 * TILE, w: 44, h: 4 * TILE },
-    checkpoints: [{ x: 51 * TILE, y: 12 * TILE - 24, w: 28, h: 56 }, { x: 90 * TILE, y: 12 * TILE - 24, w: 28, h: 56 }],
-    relics: [{ id: 'l1-hidden-night-path', x: 45 * TILE, y: 6 * TILE - 26, noteId: 'relic-eye-fragment' }],
-    shrines: [{ x: 16 * TILE, y: 11 * TILE, textId: 'shrine-who-is-zhulong' }],
-    entities: [{ kind: 'moth', x: 26 * TILE, y: 300 }, { kind: 'guardian', x: 54 * TILE, y: 384 }, { kind: 'moth', x: 78 * TILE, y: 300 }, { kind: 'guardian', x: 94 * TILE, y: 384 }],
-    platforms: [mp(33, 12, 3, { ax: 4 * TILE, speed: 0.7 })],
+    spawn: { x: 64, y: 400 }, exit: { x: 150 * TILE, y: 7 * TILE, w: 44, h: 6 * TILE },
+    checkpoints: [{ x: 36 * TILE, y: 14 * TILE - 40, w: 28, h: 56 }, { x: 106 * TILE, y: 14 * TILE - 40, w: 28, h: 56 }],
+    relics: [{ id: 'l1-hidden-night-path', x: 82 * TILE, y: 7 * TILE - 26, noteId: 'relic-eye-fragment' }],
+    shrines: [{ x: 10 * TILE, y: 12 * TILE, textId: 'shrine-who-is-zhulong' }],
+    entities: [
+      { kind: 'moth', x: 28 * TILE, y: 300 }, { kind: 'sentry', x: 44 * TILE, y: 350 }, { kind: 'guardian', x: 56 * TILE, y: 340 },
+      { kind: 'wisp', x: 84 * TILE, y: 300 }, { kind: 'sentry', x: 96 * TILE, y: 260 }, { kind: 'moth', x: 116 * TILE, y: 290 }, { kind: 'guardian', x: 140 * TILE, y: 330 },
+    ],
+    platforms: [mp(34, 13, 3, { ax: 4 * TILE, speed: 0.7 })],
     introLore: 'intro-l1', outroLore: 'outro-l1', unlockCodexOnComplete: ['texts-vary'],
   };
 }
 
 // ---- Level 2: The Blinking Bridge -----------------------------------------
 function makeLevel2(): LevelData {
-  const w = 128, h = 18;
+  const w = 170, h = 18;
   const m = emptyMap(w, h);
-  row(m, 0, 16, w, '#'); row(m, 0, 17, w, '#');
-  // alternating day/night stepping stones over a gap
-  row(m, 8, 13, 4, 'D'); row(m, 15, 11, 4, 'N'); row(m, 22, 13, 4, 'D');
-  row(m, 29, 10, 4, 'N'); row(m, 36, 12, 4, 'D'); row(m, 43, 9, 5, 'N');
-  // a chasm you cross only with correct switching
-  rect(m, 50, 14, 18, 3, '.');                                   // pit
-  row(m, 50, 15, 18, '^');                                       // spikes at bottom
-  row(m, 52, 12, 3, 'D'); row(m, 57, 10, 3, 'N'); row(m, 62, 12, 3, 'D');
-  row(m, 70, 13, 5, 'g'); row(m, 78, 11, 4, 'N'); row(m, 85, 13, 4, 'D');
-  // upper optional collectible route (night bridge) with a reachable night ladder
-  row(m, 47, 7, 3, 'N'); row(m, 44, 5, 20, 'N'); rect(m, 43, 4, 1, 3, '#');
-  row(m, 92, 12, 6, 'g'); row(m, 100, 10, 4, 'D'); row(m, 107, 12, 5, 'N');
-  row(m, 114, 10, 8, '#'); rect(m, 120, 10, 2, 6, '#');
-  row(m, 66, 14, 3, 'F'); row(m, 96, 14, 3, 'S');                // stateful hazards
+  ground(m, w, h, [
+    { x: 0, top: 14 }, { x: 14, top: 13 }, { x: 22, top: null }, { x: 32, top: 14 },
+    { x: 44, top: 12 }, { x: 54, top: null }, { x: 64, top: 14 }, { x: 76, top: 13 },
+    { x: 86, top: null }, { x: 96, top: 14 }, { x: 108, top: 12 }, { x: 120, top: 14 },
+    { x: 130, top: null }, { x: 140, top: 14 }, { x: 152, top: 12 }, { x: 164, top: 12 },
+  ]);
+  rect(m, 168, 7, 2, 11, '#');
+  // chasm crossings — alternate day/night platforms to pass
+  row(m, 24, 13, 3, 'D'); row(m, 28, 11, 3, 'N');
+  row(m, 55, 12, 3, 'N'); row(m, 59, 13, 3, 'D');
+  row(m, 87, 12, 3, 'D'); row(m, 91, 11, 3, 'N');
+  row(m, 22, 16, 10, '^'); row(m, 54, 16, 10, '^'); row(m, 86, 16, 10, '^'); row(m, 130, 16, 10, '^');
+  // jump-through vantage + long moon-bridge relic route
+  row(m, 44, 9, 5, 'o'); row(m, 108, 9, 5, 'o');
+  row(m, 104, 10, 3, 'N'); row(m, 106, 8, 3, 'N'); row(m, 100, 6, 16, 'N');
+  row(m, 36, 13, 4, 'F'); row(m, 116, 11, 4, 'S');
   return {
-    id: 'blinking-bridge', title: 'Level 2: The Blinking Bridge', subtitle: 'Day and night become the path',
+    id: 'blinking-bridge', title: 'Level 2: The Blinking Bridge', subtitle: 'Blink the world to make the path',
     theme: 'bridge', width: w, height: h, tiles: toStrings(m),
-    spawn: { x: 64, y: 430 }, exit: { x: 115 * TILE, y: 6 * TILE, w: 44, h: 4 * TILE },
-    checkpoints: [{ x: 37 * TILE, y: 11 * TILE - 24, w: 28, h: 56 }, { x: 71 * TILE, y: 12 * TILE - 24, w: 28, h: 56 }, { x: 93 * TILE, y: 11 * TILE - 24, w: 28, h: 56 }],
-    relics: [{ id: 'l2-moon-bridge', x: 54 * TILE, y: 5 * TILE - 26, noteId: 'relic-blinking-image' }],
-    shrines: [{ x: 9 * TILE, y: 12 * TILE, textId: 'shrine-eye-day-night' }],
-    entities: [{ kind: 'moth', x: 30 * TILE, y: 260 }, { kind: 'wisp', x: 58 * TILE, y: 300 }, { kind: 'sentry', x: 74 * TILE, y: 384 }, { kind: 'wisp', x: 102 * TILE, y: 300 }, { kind: 'guardian', x: 116 * TILE, y: 288 }],
-    platforms: [mp(52, 12, 3, { ay: 3 * TILE, speed: 0.9 }), mp(62, 12, 3, { ay: 3 * TILE, speed: 0.9, phase: Math.PI })],
+    spawn: { x: 64, y: 400 }, exit: { x: 164 * TILE, y: 7 * TILE, w: 44, h: 6 * TILE },
+    checkpoints: [{ x: 40 * TILE, y: 12 * TILE - 40, w: 28, h: 56 }, { x: 96 * TILE, y: 14 * TILE - 40, w: 28, h: 56 }, { x: 140 * TILE, y: 14 * TILE - 40, w: 28, h: 56 }],
+    relics: [{ id: 'l2-moon-bridge', x: 108 * TILE, y: 6 * TILE - 26, noteId: 'relic-blinking-image' }],
+    shrines: [{ x: 8 * TILE, y: 12 * TILE, textId: 'shrine-eye-day-night' }],
+    entities: [
+      { kind: 'moth', x: 18 * TILE, y: 300 }, { kind: 'sentry', x: 46 * TILE, y: 340 }, { kind: 'wisp', x: 58 * TILE, y: 300 },
+      { kind: 'guardian', x: 72 * TILE, y: 340 }, { kind: 'sentry', x: 108 * TILE, y: 260 }, { kind: 'wisp', x: 134 * TILE, y: 300 }, { kind: 'guardian', x: 156 * TILE, y: 330 },
+    ],
+    platforms: [
+      mp(56, 12, 3, { ax: 3 * TILE, speed: 0.8 }),
+      mp(132, 13, 3, { ay: 3 * TILE, speed: 0.9 }), mp(135, 13, 3, { ay: 3 * TILE, speed: 0.9, phase: Math.PI }),
+    ],
     introLore: 'intro-l2', outroLore: 'outro-l2', unlockCodexOnComplete: ['blinking-image'],
   };
 }
 
 // ---- Level 3: Breath Cavern -----------------------------------------------
 function makeLevel3(): LevelData {
-  const w = 132, h = 20;
+  const w = 172, h = 20;
   const m = emptyMap(w, h);
-  row(m, 0, 18, w, '#'); row(m, 0, 19, w, '#');
-  row(m, 6, 15, 4, 'g'); row(m, 12, 13, 4, 'D'); row(m, 19, 11, 4, 'g');
-  row(m, 12, 17, 3, 'F'); row(m, 26, 17, 3, 'S');
-  row(m, 26, 13, 4, 'N'); row(m, 33, 15, 4, 'g');
-  // wind updraft shaft climbing
-  rect(m, 40, 8, 6, 10, '.'); row(m, 40, 6, 3, 'o'); row(m, 45, 4, 3, 'o'); row(m, 41, 2, 4, '#');
-  row(m, 48, 13, 4, 'D'); row(m, 55, 11, 4, 'N'); row(m, 62, 14, 5, 'g');
-  row(m, 62, 17, 5, 'F');
-  row(m, 70, 12, 4, 'g'); row(m, 77, 10, 4, 'D'); row(m, 84, 12, 4, 'N');
-  // second updraft
-  rect(m, 90, 6, 6, 12, '.'); row(m, 91, 4, 4, '#');
-  row(m, 98, 13, 5, 'g'); row(m, 106, 11, 4, 'D'); row(m, 113, 9, 5, 'N');
-  row(m, 120, 8, 10, '#'); rect(m, 128, 8, 2, 10, '#');
+  ground(m, w, h, [
+    { x: 0, top: 16 }, { x: 14, top: 15 }, { x: 24, top: 16 }, { x: 32, top: 14 }, { x: 42, top: 16 },
+    { x: 50, top: null }, { x: 60, top: 15 }, { x: 72, top: 16 }, { x: 82, top: 14 }, { x: 92, top: 16 },
+    { x: 100, top: null }, { x: 110, top: 16 }, { x: 122, top: 14 }, { x: 134, top: 16 },
+    { x: 146, top: 13 }, { x: 158, top: 13 }, { x: 168, top: 13 },
+  ]);
+  rect(m, 170, 8, 2, 12, '#');
+  // updraft shafts (ride the dragon's breath up and across the pits)
+  row(m, 52, 5, 3, 'o'); rect(m, 55, 3, 4, 2, '#');         // relic ledge atop shaft 1
+  // jump-through vantage + day/night cover
+  row(m, 34, 11, 4, 'o'); row(m, 122, 10, 4, 'o');
+  row(m, 72, 13, 4, 'D'); row(m, 110, 13, 4, 'N');
+  row(m, 26, 15, 4, 'F'); row(m, 134, 15, 4, 'S');
   return {
-    id: 'breath-cavern', title: 'Level 3: Breath Cavern', subtitle: 'The mountain moves with dragon breath',
+    id: 'breath-cavern', title: 'Level 3: Breath Cavern', subtitle: 'The cavern moves with dragon breath',
     theme: 'cavern', width: w, height: h, tiles: toStrings(m),
-    spawn: { x: 64, y: 480 }, exit: { x: 121 * TILE, y: 4 * TILE, w: 44, h: 4 * TILE },
-    checkpoints: [{ x: 34 * TILE, y: 14 * TILE - 24, w: 28, h: 56 }, { x: 63 * TILE, y: 13 * TILE - 24, w: 28, h: 56 }, { x: 99 * TILE, y: 12 * TILE - 24, w: 28, h: 56 }],
-    relics: [{ id: 'l3-breath-current', x: 44 * TILE, y: 3 * TILE, noteId: 'relic-breath-seasons' }],
-    shrines: [{ x: 7 * TILE, y: 14 * TILE, textId: 'shrine-breath' }],
-    entities: [{ kind: 'wisp', x: 30 * TILE, y: 300 }, { kind: 'moth', x: 52 * TILE, y: 280 }, { kind: 'sentry', x: 72 * TILE, y: 352 }, { kind: 'wisp', x: 108 * TILE, y: 300 }, { kind: 'guardian', x: 122 * TILE, y: 224 }],
-    platforms: [
-      mp(48, 13, 3, { ax: 5 * TILE, speed: 0.8 }),
-      mp(70, 12, 3, { crumble: true }),
-      mp(98, 13, 3, { crumble: true }),
-      mp(84, 12, 3, { ay: 3 * TILE, speed: 1.1 }),
+    spawn: { x: 64, y: 470 }, exit: { x: 166 * TILE, y: 8 * TILE, w: 44, h: 6 * TILE },
+    checkpoints: [{ x: 44 * TILE, y: 16 * TILE - 40, w: 28, h: 56 }, { x: 92 * TILE, y: 16 * TILE - 40, w: 28, h: 56 }, { x: 134 * TILE, y: 16 * TILE - 40, w: 28, h: 56 }],
+    relics: [{ id: 'l3-breath-current', x: 53 * TILE, y: 5 * TILE - 26, noteId: 'relic-breath-seasons' }],
+    shrines: [{ x: 8 * TILE, y: 14 * TILE, textId: 'shrine-breath' }],
+    entities: [
+      { kind: 'wisp', x: 30 * TILE, y: 350 }, { kind: 'moth', x: 44 * TILE, y: 300 }, { kind: 'sentry', x: 74 * TILE, y: 382 },
+      { kind: 'guardian', x: 92 * TILE, y: 460 }, { kind: 'wisp', x: 116 * TILE, y: 350 }, { kind: 'sentry', x: 146 * TILE, y: 382 }, { kind: 'guardian', x: 158 * TILE, y: 380 },
     ],
-    windZones: [{ x: 40 * TILE, y: 2 * TILE, w: 6 * TILE, h: 16 * TILE }, { x: 90 * TILE, y: 4 * TILE, w: 6 * TILE, h: 14 * TILE }],
+    platforms: [
+      mp(84, 13, 3, { ax: 5 * TILE, speed: 0.8 }),
+      mp(64, 14, 3, { crumble: true }), mp(114, 14, 3, { crumble: true }),
+      mp(124, 11, 3, { ay: 3 * TILE, speed: 1.1 }),
+    ],
+    windZones: [{ x: 50 * TILE, y: 2 * TILE, w: 10 * TILE, h: 16 * TILE }, { x: 100 * TILE, y: 2 * TILE, w: 10 * TILE, h: 16 * TILE }],
     introLore: 'intro-l3', outroLore: 'outro-l3', unlockCodexOnComplete: ['breath-seasons'],
   };
 }

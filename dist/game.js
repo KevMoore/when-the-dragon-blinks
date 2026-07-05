@@ -191,6 +191,15 @@ export class Game {
     overlapsSolid(r, world = this.world) {
         return this.solidsForRect(r, world).some(s => !s.oneWay && overlap(r, s));
     }
+    /** Is the entity standing on a one-way (jump-through) tile? */
+    onOneWayGround(e) {
+        const y = Math.floor((e.y + e.h + 2) / TILE);
+        const x0 = Math.floor((e.x + 2) / TILE), x1 = Math.floor((e.x + e.w - 2) / TILE);
+        for (let x = x0; x <= x1; x++)
+            if (this.tileAt(x, y) === 'o')
+                return true;
+        return false;
+    }
     moveEntity(e, dx, dy, corner = false) {
         const steps = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) / 6));
         const sx = dx / steps, sy = dy / steps;
