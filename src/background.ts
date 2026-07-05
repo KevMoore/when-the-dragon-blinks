@@ -460,12 +460,18 @@ function drawHazard(game: Game, c: CanvasRenderingContext2D, x: number, y: numbe
 export function drawWind(game: Game, c: CanvasRenderingContext2D) {
   for (const z of game.level.windZones || []) {
     const sx = z.x - game.camera.x, sy = z.y - game.camera.y;
-    c.save(); c.globalAlpha = game.world === 'day' ? 0.16 : 0.26;
-    c.strokeStyle = game.world === 'day' ? '#ffe19a' : '#bfeeff'; c.lineWidth = 2;
-    for (let i = 0; i < 7; i++) {
-      const y = sy + ((i * 42 + game.time * 90) % z.h);
-      c.beginPath(); c.moveTo(sx + 18 + Math.sin(game.time * 2 + i) * 12, y);
-      c.bezierCurveTo(sx + z.w / 2, y - 28, sx + z.w - 22, y + 22, sx + z.w - 8, y - 14); c.stroke();
+    c.save(); c.globalAlpha = game.world === 'day' ? 0.18 : 0.28;
+    c.strokeStyle = game.world === 'day' ? '#ffe19a' : '#bfeeff'; c.lineWidth = 2; c.lineCap = 'round';
+    for (let i = 0; i < 8; i++) {
+      // updraft: streams rise upward (y decreases over time)
+      const y = sy + z.h - ((i * 40 + game.time * 150) % z.h);
+      const wob = Math.sin(game.time * 2 + i) * 10;
+      c.beginPath();
+      c.moveTo(sx + 20 + wob, y);
+      c.bezierCurveTo(sx + z.w * 0.35, y - 18, sx + z.w * 0.65, y - 34, sx + z.w - 18 + wob, y - 46);
+      c.stroke();
+      // little upward chevron at the head of each stream
+      c.beginPath(); c.moveTo(sx + z.w - 24 + wob, y - 40); c.lineTo(sx + z.w - 18 + wob, y - 48); c.lineTo(sx + z.w - 12 + wob, y - 40); c.stroke();
     }
     c.restore();
   }

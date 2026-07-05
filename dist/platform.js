@@ -59,8 +59,8 @@ export class Platform {
             }
         }
         else {
-            // sinusoidal travel
-            const t = time * this.speed + this.phase;
+            // sinusoidal travel (slightly quicker for more timing pressure)
+            const t = time * this.speed * 1.3 + this.phase;
             this.x = this.ox + Math.sin(t) * this.ax;
             this.y = this.oy + Math.sin(t) * this.ay;
         }
@@ -70,7 +70,7 @@ export class Platform {
     touch() {
         if (this.crumble && !this.touched) {
             this.touched = true;
-            this.fallTimer = 0.45;
+            this.fallTimer = 0.3;
         }
     }
 }

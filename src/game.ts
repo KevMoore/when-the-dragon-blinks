@@ -80,7 +80,7 @@ export class Game {
   startLevel(i: number, withIntro = true) {
     this.currentLevelIndex = clamp(i, 0, levels.length - 1);
     this.level = levels[this.currentLevelIndex];
-    this.difficulty = [0.75, 1.0, 1.2, 1.05][this.currentLevelIndex] ?? 1.0;
+    this.difficulty = [0.85, 1.1, 1.32, 1.15][this.currentLevelIndex] ?? 1.0;
     this.world = 'day'; this.transition = 1; this.dayAmount = 1; this.flash = 0;
     this.audio.setWorld('day', true);
     this.player.reset(this.level.spawn);
