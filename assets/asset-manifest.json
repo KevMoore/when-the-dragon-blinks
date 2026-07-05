@@ -1,22 +1,16 @@
 {
-  "style": "mythic Chinese fantasy, painterly pixel-art, red-gold-black palette with moon-blue accents",
-  "currentImplementation": "Procedural Canvas2D art is used so the game runs with zero external assets.",
-  "autospriteMcpStatus": "AutoSprite MCP was not connected to the build session, so procedural art is shipped. Generate sheets with autosprite-prompts.md and drop them in, then swap the marked draw hooks.",
-  "recommendedAtlasPlan": {
-    "player": "assets/sprites/player.png — 64x64 cells: idle, run(6), jump, fall, land, dash, attack, hurt",
-    "enemies": "assets/sprites/enemies.png — moth 48x48, wisp 48x48, guardian 48x64, sentry 48x64",
-    "boss": "assets/sprites/lantern-eater.png — 192x192 cells: idle, telegraph, attack, summon, hurt, defeated",
-    "tiles": "assets/tiles/mountain-temple.png — 32x32 tiles: stone(#), grass(g), one-way(o), day(D), night(N), spikes(^), fire(F), spirit(S)",
-    "backgrounds": "assets/backgrounds/*.png — mountains, temples, mist, red-sun sky, moon-star sky, dragon-eye cloud, lanterns",
-    "ui": "assets/ui/*.png — logo, buttons, day/night dial, lantern pips, relic icon, panel frame"
+  "style": "mythic Chinese fantasy, painterly game sprite, red-gold-black palette with moon-blue accents",
+  "currentImplementation": "AutoSprite-generated character sheets are integrated for the player, all four enemies, and the boss. Tiles, backgrounds, and UI remain procedural (code-drawn).",
+  "generatedBy": "AutoSprite MCP (autosprite.io). Characters created + animated via generate_spritesheet; sheets are 8 frames in a 3-column grid.",
+  "spriteSheets": {
+    "player": { "dir": "assets/sprites/player/", "frame": 128, "anims": ["idle", "run", "jump", "attack"] },
+    "moth": { "dir": "assets/sprites/moth/", "frame": 96, "anims": ["idle"] },
+    "wisp": { "dir": "assets/sprites/wisp/", "frame": 96, "anims": ["idle"] },
+    "guardian": { "dir": "assets/sprites/guardian/", "frame": 128, "anims": ["idle", "walk"] },
+    "sentry": { "dir": "assets/sprites/sentry/", "frame": 96, "anims": ["idle"] },
+    "boss": { "dir": "assets/sprites/boss/", "frame": 160, "anims": ["idle", "attack"] }
   },
-  "replaceProceduralHooks": {
-    "note": "Each draw method contains an `ASSET HOOK` comment marking where to blit sprite frames.",
-    "src/player.ts": "Player.draw — body between the ASSET HOOK markers",
-    "src/enemy.ts": "Enemy.draw — per-kind block between the ASSET HOOK markers",
-    "src/boss.ts": "LanternEater.draw — mask/body/eye",
-    "src/background.ts": "drawTiles (per-tile), drawSky/drawParallax (layers)",
-    "src/game.ts": "drawObjects (shrine/relic/checkpoint/exit), drawPlatforms",
-    "src/ui.ts": "drawHUD (lantern pips, day/night dial)"
-  }
+  "loader": "src/spritedata.ts registers every sheet into the SpriteBank (src/sprites.ts). Entities fall back to procedural art until a sheet's Image finishes loading.",
+  "stillProcedural": ["tiles (src/background.ts drawTiles)", "parallax + sky (src/background.ts)", "shrine/relic/checkpoint/exit (src/game.ts drawObjects)", "HUD (src/ui.ts)"],
+  "regenerate": "In a session with AutoSprite MCP connected, re-run generate_spritesheet for a character and overwrite the PNG under assets/sprites/<name>/."
 }

@@ -2,6 +2,7 @@
 // while it charges and attacks, then opens during recovery. You can only wound the
 // exposed eye while the world is at NIGHT — so the fight forces you to blink.
 import { centerX, centerY, clamp, overlap, rand } from './math.js';
+import { sprites } from './sprites.js';
 export class LanternEater {
     constructor() {
         this.x = 720;
@@ -137,6 +138,47 @@ export class LanternEater {
         if (!this.alive)
             return;
         const sx = this.x - game.camera.x, sy = this.y - game.camera.y;
+        const telegraphNow = this.state === 'telegraph';
+        // ---- Sprite path ----
+        const anim = this.maskOpen > 0.3 ? 'attack' : 'idle';
+        const sheet = sprites.get('boss/' + anim) || sprites.get('boss/idle');
+        if (sheet && sheet.ready) {
+            const face = centerX(game.player.rect()) < centerX(this.bodyRect()) ? -1 : 1;
+            const targetH = this.h * 1.2;
+            c.save();
+            c.globalAlpha = this.hurtFlash > 0 ? 0.7 : 1;
+            // aura keyed to state
+            c.shadowColor = this.vulnerable ? '#a9d6ff' : telegraphNow ? '#ffcf7a' : '#ff8b44';
+            c.shadowBlur = telegraphNow ? 30 + Math.sin(this.time * 30) * 10 : this.vulnerable ? 28 : 16;
+            c.translate(sx + this.w / 2, sy + this.h / 2);
+            c.scale(face, 1);
+            sheet.blit(c, sheet.frameAt(this.time), targetH, false);
+            c.restore();
+            // exposed-eye highlight when vulnerable
+            if (this.vulnerable) {
+                c.save();
+                c.globalCompositeOperation = 'lighter';
+                const g = c.createRadialGradient(sx + this.w / 2, sy + 44, 0, sx + this.w / 2, sy + 44, 60);
+                g.addColorStop(0, 'rgba(140,210,255,.8)');
+                g.addColorStop(1, 'rgba(0,0,0,0)');
+                c.fillStyle = g;
+                c.beginPath();
+                c.arc(sx + this.w / 2, sy + 44, 60, 0, Math.PI * 2);
+                c.fill();
+                c.restore();
+            }
+            c.globalAlpha = 1;
+            if (telegraphNow) {
+                c.save();
+                c.globalAlpha = 0.6 + Math.sin(this.time * 24) * 0.4;
+                c.fillStyle = '#ffcf7a';
+                c.font = 'bold 40px Georgia';
+                c.textAlign = 'center';
+                c.fillText('!', sx + this.w / 2, sy - 14);
+                c.restore();
+            }
+            return;
+        }
         c.save();
         c.translate(sx + this.w / 2, sy + this.h / 2);
         const telegraph = this.state === 'telegraph';

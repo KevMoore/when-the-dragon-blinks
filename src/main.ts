@@ -2,6 +2,9 @@
 // and portrait-orientation handling for mobile.
 import { LOGICAL_W, LOGICAL_H } from './types.js';
 import { Game } from './game.js';
+import { loadSprites } from './spritedata.js';
+
+loadSprites();
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;

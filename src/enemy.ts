@@ -5,6 +5,7 @@
 //  sentry   — lantern turret; fires aimed shards in DAY
 import { centerX, centerY, lerp, overlap, rand } from './math.js';
 import { GRAVITY } from './types.js';
+import { sprites } from './sprites.js';
 import type { Rect } from './math.js';
 import type { EntityKind } from './types.js';
 import type { Game } from './game.js';
@@ -90,9 +91,35 @@ export class Enemy {
     }
   }
 
+  private dim(game: Game): boolean {
+    if (this.kind === 'wisp') return game.world !== 'night';
+    return game.world !== 'day'; // moth, guardian, sentry are day-active
+  }
+
   draw(game: Game, c: CanvasRenderingContext2D) {
     if (!this.alive) return;
     const sx = this.x - game.camera.x, sy = this.y - game.camera.y;
+
+    // ---- Sprite path ----
+    const walking = this.kind === 'guardian' && game.world === 'day' && Math.abs(this.vx) > 6;
+    const sheet = (walking && sprites.get('enemy/guardian/walk')?.ready)
+      ? sprites.get('enemy/guardian/walk')
+      : sprites.get('enemy/' + this.kind + '/idle');
+    if (sheet && sheet.ready) {
+      const grounded = this.kind === 'guardian';
+      const targetH = this.h * (grounded ? 1.7 : 2.1);
+      let face = this.vx < -4 ? -1 : this.vx > 4 ? 1 : 1;
+      if (this.kind === 'wisp' || this.kind === 'moth') face = centerX(game.player.rect()) < centerX(this.rect()) ? -1 : 1;
+      c.save();
+      c.globalAlpha = (this.dim(game) ? 0.5 : 1) * (this.flash > 0 ? 0.7 : 1);
+      const cy = grounded ? sy + this.h : sy + this.h / 2;
+      c.translate(sx + this.w / 2, cy);
+      c.scale(face, 1);
+      sheet.blit(c, sheet.frameAt(game.time + this.phase), targetH, grounded);
+      c.restore(); c.globalAlpha = 1;
+      return;
+    }
+
     c.save();
     c.translate(sx + this.w / 2, sy + this.h / 2);
     if (this.flash > 0) c.globalAlpha = 0.7;

@@ -79,9 +79,9 @@ Collision uses AABB with separate X/Y resolution, movement subdivision to avoid 
 
 Text is separated into **Myth** (source-inspired ideas), **Historical Note / History** (cautious context), and **Game Inspiration** (what the game invented or adapted). The codex carries a disclaimer that this is *inspired by* tradition, not a scholarly reconstruction, and that details vary across texts, translations, and retellings. The Lantern Eater boss is explicitly flagged as an original creation.
 
-## Art pipeline (AutoSprite-ready)
+## Art pipeline (AutoSprite)
 
-All art is currently procedural (code-drawn) so the game runs with zero external assets. To swap in AutoSprite sheets, see `assets/asset-manifest.json` and `assets/autosprite-prompts.md` — each entity's `draw()` has an `ASSET HOOK` comment marking exactly where to blit sprite frames.
+Character art — the **player** (idle/run/jump/attack), all four **enemies** (moth, wisp, guardian, sentry), and the **boss** (idle/attack) — is generated with [AutoSprite](https://www.autosprite.io) and lives in `assets/sprites/` as 8-frame sheets. `src/spritedata.ts` registers them into the `SpriteBank` (`src/sprites.ts`); every entity falls back to procedural art until its sheet finishes loading, so the game always runs even with assets missing. Tiles, parallax, shrines/relics, and the HUD remain procedural. See `assets/asset-manifest.json` for the full map and how to regenerate a sheet.
 
 ## Future improvements
 

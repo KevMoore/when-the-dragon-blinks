@@ -1,0 +1,23 @@
+// Registers the AutoSprite-generated sheets. Called once at boot; sheets load
+// asynchronously and each entity falls back to procedural art until ready.
+// All sheets are 8 frames in a 3-column grid; frame size varies per subject.
+import { sprites } from './sprites.js';
+export function loadSprites() {
+    const S = 'assets/sprites/';
+    const add = (key, path, fw, fps, loop) => sprites.add(key, { src: S + path, fw, fh: fw, frames: 8, cols: 3, fps, loop });
+    // player
+    add('player/idle', 'player/idle.png', 128, 8, true);
+    add('player/run', 'player/run.png', 128, 14, true);
+    add('player/jump', 'player/jump.png', 128, 12, false);
+    add('player/attack', 'player/attack.png', 128, 18, false);
+    // enemies
+    add('enemy/moth/idle', 'moth/idle.png', 96, 12, true);
+    add('enemy/wisp/idle', 'wisp/idle.png', 96, 8, true);
+    add('enemy/guardian/idle', 'guardian/idle.png', 128, 8, true);
+    add('enemy/guardian/walk', 'guardian/walk.png', 128, 10, true);
+    add('enemy/sentry/idle', 'sentry/idle.png', 96, 8, true);
+    // boss
+    add('boss/idle', 'boss/idle.png', 160, 8, true);
+    add('boss/attack', 'boss/attack.png', 160, 12, true);
+}
+//# sourceMappingURL=spritedata.js.map

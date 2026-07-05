@@ -3,6 +3,7 @@
 // afterimages, and squash/stretch juice.
 import { clamp, lerp, rand, damp } from './math.js';
 import { GRAVITY, TILE } from './types.js';
+import { sprites } from './sprites.js';
 const RUN_ACCEL = 4200;
 const AIR_ACCEL = 2600;
 const MAX_SPEED = 258;
@@ -34,6 +35,8 @@ export class Player {
         this.scaleX = 1;
         this.scaleY = 1;
         this.animTime = 0;
+        this.animName = 'idle';
+        this.animClock = 0;
         this.wallDir = 0; // -1 wall on left, 1 on right, 0 none
         this.wallLock = 0; // brief control lock after a wall jump
         this.afterimages = [];
@@ -192,6 +195,16 @@ export class Player {
         for (const a of this.afterimages)
             a.life -= dt;
         this.afterimages = this.afterimages.filter(a => a.life > 0);
+        // animation state for sprite playback
+        const desired = this.attackTimer > 0 ? 'attack'
+            : !this.grounded ? 'jump'
+                : Math.abs(this.vx) > 26 ? 'run' : 'idle';
+        if (desired !== this.animName) {
+            this.animName = desired;
+            this.animClock = 0;
+        }
+        else
+            this.animClock += dt;
         // pit death
         if (this.y > game.level.height * TILE + 240)
             this.hurt(game, 1, true);
@@ -245,6 +258,49 @@ export class Player {
         const speed = Math.abs(this.vx) / MAX_SPEED;
         const bob = this.grounded ? Math.sin(this.animTime * 16) * speed * 2 : 0;
         const idle = this.grounded && speed < 0.05 ? Math.sin(this.animTime * 3) * 1.2 : 0;
+        // ---- Sprite path: use AutoSprite sheet when loaded ----
+        const sheet = sprites.get('player/' + this.animName);
+        if (sheet && sheet.ready) {
+            const targetH = this.h * 1.72; // sprite slightly overhangs the AABB
+            c.save();
+            // shadow under feet
+            c.fillStyle = 'rgba(0,0,0,.3)';
+            c.beginPath();
+            c.ellipse(sx + this.w / 2, sy + this.h - 1, 16, 5, 0, 0, Math.PI * 2);
+            c.fill();
+            c.translate(sx + this.w / 2, sy + this.h + bob + idle);
+            c.scale(this.facing * this.scaleX, this.scaleY);
+            sheet.blit(c, sheet.frameAt(this.animClock), targetH, true);
+            c.restore();
+            // eye-shard glow overlay (keyed to world state), at the chest
+            const eyeCol = game.world === 'day' ? '#ffd277' : '#a9d6ff';
+            c.save();
+            c.globalCompositeOperation = 'lighter';
+            c.shadowColor = eyeCol;
+            c.shadowBlur = 14;
+            c.fillStyle = eyeCol;
+            c.beginPath();
+            c.arc(sx + this.w / 2 + this.facing * 3, sy + this.h * 0.42 + bob, 2.6 + Math.sin(this.animTime * 6) * 0.6, 0, Math.PI * 2);
+            c.fill();
+            c.restore();
+            // attack flourish reuses the pulse arc
+            if (this.attackTimer > 0) {
+                const t = this.attackTimer / 0.16;
+                c.save();
+                c.translate(sx + this.w / 2, sy + this.h / 2);
+                c.scale(this.facing, 1);
+                c.globalAlpha = t;
+                c.strokeStyle = eyeCol;
+                c.lineWidth = 5;
+                c.beginPath();
+                c.arc(24, -2, 18 + (1 - t) * 16, -1.3, 1.3);
+                c.stroke();
+                c.restore();
+            }
+            if (blink)
+                c.globalAlpha = 1;
+            return;
+        }
         c.save();
         c.translate(sx + this.w / 2, sy + this.h / 2 + bob + idle);
         c.scale(this.facing * this.scaleX, this.scaleY);
