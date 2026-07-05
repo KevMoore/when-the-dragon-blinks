@@ -290,6 +290,26 @@ export class Player {
     }
   }
 
+  private drawSummon(game: Game, c: CanvasRenderingContext2D) {
+    const p = clamp(1 - game.transformT / 1.9, 0, 1);
+    const rise = Math.sin(p * Math.PI) * 22;
+    const sx = this.x - game.camera.x, sy = this.y - game.camera.y - rise;
+    const cx = sx + this.w / 2, cy = sy + this.h / 2;
+    c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha = Math.sin(p * Math.PI);
+    const g = c.createRadialGradient(cx, cy, 0, cx, cy, 74);
+    g.addColorStop(0, `rgba(255,214,130,${0.5 + 0.4 * Math.sin(game.time * 22)})`); g.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = g; c.beginPath(); c.arc(cx, cy, 74, 0, Math.PI * 2); c.fill();
+    c.restore(); c.globalAlpha = 1;
+    const hasSummon = !!sprites.get('player/summon')?.ready;
+    const sheet = hasSummon ? sprites.get('player/summon') : sprites.get('player/idle');
+    if (sheet && sheet.ready) {
+      const frame = hasSummon ? Math.min(7, Math.floor(p * 8)) : sheet.frameAt(this.animClock);
+      c.save(); c.translate(sx + this.w / 2, sy + this.h); c.scale(this.facing, 1);
+      c.shadowColor = '#ffcf5a'; c.shadowBlur = 22;
+      sheet.blit(c, frame, this.h * 1.72, true); c.restore();
+    }
+  }
+
   private drawDragon(game: Game, c: CanvasRenderingContext2D) {
     const trail = this.dragonTrail, cam = game.camera;
     // Prefer the AutoSprite dragon: a short glowing trail + the dragon at the head.
@@ -358,6 +378,7 @@ export class Player {
   }
 
   draw(game: Game, c: CanvasRenderingContext2D) {
+    if (game.transformT > 0) { this.drawSummon(game, c); return; }
     if (this.dragonTime > 0) { this.drawDragon(game, c); return; }
     // afterimages
     for (const a of this.afterimages) {

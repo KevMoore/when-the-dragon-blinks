@@ -55,6 +55,7 @@ export class Game {
   scorePops: ScorePop[] = [];
   dragonMeter = 0;            // 0..1 — fills from Torch Embers; full → become Zhulong
   embers: Ember[] = [];
+  transformT = 0;            // >0 while the transformation cinematic plays
   private activatedCheckpoints = new Set<number>();
   private viewedShrines = new Set<number>();
   private dashHintShown = false;
@@ -89,7 +90,7 @@ export class Game {
     this.activatedCheckpoints.clear();
     this.viewedShrines.clear();
     this.combo = 0; this.comboT = 0; this.scorePops = [];
-    this.dragonMeter = 0; this.embers = []; this.player.dragonTime = 0; this.player.dragonTrail = [];
+    this.dragonMeter = 0; this.embers = []; this.player.dragonTime = 0; this.player.dragonTrail = []; this.transformT = 0;
     this.elapsed = 0; this.message = null;
     this.camera.snap(0, 0);
     this.camera.follow(this.player.x, this.player.y, 1, 0, this.level.width, this.level.height, 0.016);
@@ -141,19 +142,36 @@ export class Game {
         this.score += 25;
         this.particles.sparks(e.x, e.y, 4, '#ffd777');
         this.audio.sfx('menu');
-        if (this.dragonMeter >= 1) this.startDragon();
+        if (this.dragonMeter >= 1) this.beginTransform();
       }
     }
     this.embers = this.embers.filter(e => e.life > 0);
   }
-  private startDragon() {
-    this.dragonMeter = 0;
-    this.player.dragonTime = 12; this.player.dragonTrail = []; this.player.dragonFireCd = 0;
-    this.camera.addTrauma(0.8); this.flash = 0.7; this.flashColor = '#ffd777';
+  private beginTransform() {
+    this.transformT = 1.9; this.dragonMeter = 0;
+    this.player.vx = 0; this.player.vy = 0; this.player.animClock = 0;
+    this.audio.sfx('victory'); this.camera.addTrauma(0.45);
     const cx = this.player.x + this.player.w / 2, cy = this.player.y + this.player.h / 2;
-    this.particles.ring(cx, cy, 34, 320, '#ffd777'); this.particles.sparks(cx, cy, 40, '#ff9d4d');
-    this.audio.sfx('victory');
-    this.flashText('ZHULONG AWAKENS — fly and burn the dark!');
+    this.particles.ring(cx, cy, 30, 240, '#ffd777');
+  }
+  private updateTransform(dt: number) {
+    this.transformT -= dt;
+    this.player.animClock += dt;
+    const p = 1 - this.transformT / 1.9;
+    const cx = this.player.x + this.player.w / 2, cy = this.player.y + this.player.h / 2;
+    // embers spiral inward, then burst outward at the flash
+    if (p < 0.55 && this.particles.list.length < 560) {
+      const a = this.time * 6 + this.particles.list.length, r = 80 + Math.random() * 90;
+      this.particles.list.push({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r, vx: -Math.cos(a) * 260, vy: -Math.sin(a) * 260, life: 0.5, maxLife: 0.5, size: rand(2, 4), kind: 'spark', color: '#ffd777', grav: 0 });
+    }
+    if (Math.abs(p - 0.5) < 0.03) { this.camera.addTrauma(0.7); this.particles.ring(cx, cy, 40, 420, '#ffd777'); this.particles.sparks(cx, cy, 46, '#ff9d4d'); this.audio.sfx('boss'); }
+    if (this.transformT <= 0) this.startDragon();
+  }
+  private startDragon() {
+    this.transformT = 0; this.dragonMeter = 0;
+    this.player.dragonTime = 12; this.player.dragonTrail = []; this.player.dragonFireCd = 0;
+    this.camera.addTrauma(0.6); this.flash = 0.6; this.flashColor = '#ffd777';
+    this.flashText('Fly, Torch Dragon — burn the dark!');
   }
 
   completeLevel() {
@@ -307,6 +325,7 @@ export class Game {
   }
 
   private updatePlaying(dt: number) {
+    if (this.transformT > 0) { this.updateTransform(dt); return; }
     if (!this.dashHintShown && this.isTouch()) { this.dashHintShown = true; this.flashText('Tip: double-tap ◀ / ▶ to dash'); }
     if (this.input.just('pause')) { this.state = 'paused'; this.pauseSelection = 0; return; }
     if (this.input.just('toggle')) this.tryToggleWorld();
@@ -528,6 +547,7 @@ export class Game {
         if (this.state === 'levelComplete') ui.drawLevelComplete(this, c);
         if (this.state === 'gameComplete') ui.drawGameComplete(this, c);
     }
+    if (this.transformT > 0) this.drawTransformCinematic(c);
     // toggle flash
     if (this.flash > 0.01) { c.globalAlpha = this.flash * 0.5; c.fillStyle = this.flashColor; c.fillRect(-40, -40, LOGICAL_W + 80, LOGICAL_H + 80); c.globalAlpha = 1; }
     c.restore();
@@ -644,6 +664,51 @@ export class Game {
       c.fillText(s.text, s.x - this.camera.x, s.y - this.camera.y - s.t * 42);
     }
     c.restore(); c.globalAlpha = 1;
+  }
+
+  // The transformation interstitial: darken, god-rays, shockwaves, the great eye
+  // opening, a flash, and calligraphic title — a moment of wonderment.
+  private drawTransformCinematic(c: CanvasRenderingContext2D) {
+    const dur = 1.9, p = clamp(1 - this.transformT / dur, 0, 1);
+    const cx = this.player.x + this.player.w / 2 - this.camera.x, cy = this.player.y + this.player.h / 2 - this.camera.y;
+    const swell = Math.sin(p * Math.PI);
+    // focus vignette closing in on the hero
+    const dark = swell * 0.75;
+    const vg = c.createRadialGradient(cx, cy, 30, cx, cy, 560);
+    vg.addColorStop(0, 'rgba(8,3,2,0)'); vg.addColorStop(1, `rgba(6,2,2,${dark})`);
+    c.fillStyle = vg; c.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
+    // rotating god-rays from the hero
+    c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha = swell * 0.5;
+    c.translate(cx, cy); c.rotate(this.time * 1.1);
+    for (let i = 0; i < 12; i++) { c.rotate(Math.PI * 2 / 12); c.fillStyle = 'rgba(255,200,90,.5)'; c.beginPath(); c.moveTo(0, 0); c.lineTo(580, -26); c.lineTo(580, 26); c.closePath(); c.fill(); }
+    c.restore();
+    // expanding shockwave rings
+    c.save(); c.globalCompositeOperation = 'lighter';
+    for (let k = 0; k < 3; k++) { const rp = p * 1.4 - k * 0.18; if (rp > 0 && rp < 1) { c.globalAlpha = (1 - rp) * 0.6; c.strokeStyle = '#ffd777'; c.lineWidth = 4; c.beginPath(); c.arc(cx, cy, rp * 460, 0, Math.PI * 2); c.stroke(); } }
+    c.restore(); c.globalAlpha = 1;
+    // the great eye opening high above
+    const open = clamp((p - 0.12) / 0.5, 0, 1), ex = LOGICAL_W / 2, ey = 150;
+    c.save(); c.globalAlpha = clamp(p / 0.3, 0, 1) * clamp((1 - p) / 0.25, 0, 1);
+    c.shadowColor = '#ff4a28'; c.shadowBlur = 40;
+    c.fillStyle = '#160406'; c.beginPath(); c.ellipse(ex, ey, 150, 60 * (0.12 + open * 0.88), 0, 0, Math.PI * 2); c.fill();
+    const iris = c.createRadialGradient(ex, ey, 2, ex, ey, 58);
+    iris.addColorStop(0, '#ffe0a0'); iris.addColorStop(0.4, '#f0452c'); iris.addColorStop(1, '#8a1810');
+    c.fillStyle = iris; c.beginPath(); c.ellipse(ex, ey, 26, 58 * open, 0, 0, Math.PI * 2); c.fill();
+    c.restore(); c.globalAlpha = 1; c.shadowBlur = 0;
+    // white-gold flash at the midpoint
+    const flash = Math.max(0, 1 - Math.abs(p - 0.5) / 0.12);
+    if (flash > 0) { c.globalAlpha = flash * 0.85; c.fillStyle = '#fff2c8'; c.fillRect(-40, -40, LOGICAL_W + 80, LOGICAL_H + 80); c.globalAlpha = 1; }
+    // calligraphic title, in after the flash and out at the very end
+    const tin = clamp((p - 0.42) / 0.25, 0, 1) * clamp((1 - p) / 0.18, 0, 1);
+    if (tin > 0) {
+      c.save(); c.globalAlpha = tin; c.textAlign = 'center';
+      c.shadowColor = '#ff6a2a'; c.shadowBlur = 34; c.fillStyle = '#ffdf9a'; c.font = 'bold 88px Georgia';
+      c.fillText('烛龍', LOGICAL_W / 2, 260 - swell * 6);
+      c.shadowBlur = 12; c.font = '22px Georgia'; c.fillStyle = '#fff1ca';
+      c.fillText('Z H U L O N G   A W A K E N S', LOGICAL_W / 2, 300 - swell * 6);
+      c.restore(); c.globalAlpha = 1;
+    }
+    c.shadowBlur = 0;
   }
 
   private drawEmbers(c: CanvasRenderingContext2D) {
