@@ -166,8 +166,8 @@ export const levels: LevelData[] = [makeLevel1(), makeLevel2(), makeLevel3(), ma
 // ---- Lore panels -----------------------------------------------------------
 export const loreTexts: Record<string, LorePanel> = {
   'intro-l1': { title: 'Before the Mountain Gate', nextMode: 'playing', sections: [
-    { label: 'Myth', text: 'Zhulong, the Torch Dragon or Candle Dragon, is imagined in some traditions as a cosmic being of light, darkness, and turning cycles.' },
-    { label: 'Game Inspiration', text: 'You carry a small fragment of the dragon eye. It awakens as you climb.' }] },
+    { label: 'Myth', text: 'Zhulong, the Torch Dragon or Candle Dragon, is imagined in some traditions as a cosmic being of light, darkness, and turning cycles — day when his eye opens, night when it closes.' },
+    { label: 'Game Inspiration', text: 'The Lantern Eater has trapped the dawn, and the eye no longer turns on its own. You carry a fragment of it. With it you can blink the sky — and the two hosts answer: sun-things wake by day, shadow-things by night. Wake the eye, climb to the gate.' }] },
   'outro-l1': { title: 'After Level 1', nextMode: 'levelComplete', sections: [
     { label: 'Historical Note', text: 'Descriptions of Zhulong vary across ancient texts, translations, and later retellings. Some emphasize a red serpentine body and a human-like face.' },
     { label: 'Game Inspiration', text: 'The shrine runner, relics, and gate trials are original inventions that help introduce the myth.' }] },
@@ -195,7 +195,7 @@ export const loreTexts: Record<string, LorePanel> = {
     { label: 'Game Inspiration', text: 'The distant eye in the sky is this game’s way of making that cosmic scale visible while you play.' }] },
   'shrine-eye-day-night': { title: 'Lore Shrine: The Eye', nextMode: 'playing', sections: [
     { label: 'Myth', text: 'The opening and closing of Zhulong’s eyes is linked in some accounts with the arrival of day and night.' },
-    { label: 'Game Inspiration', text: 'Press the blink button to shift between sunlight and spirit-shadow.' }] },
+    { label: 'Game Inspiration', text: 'Blink to shift between sunlight and spirit-shadow — and use it in a fight. Sun-things fall asleep in the dark; shadow-things fall asleep in the light. Blink to disarm whichever host hunts you, then strike them while they dream.' }] },
   'shrine-breath': { title: 'Lore Shrine: The Breath', nextMode: 'playing', sections: [
     { label: 'Myth', text: 'Zhulong’s breath is sometimes described as a force of wind or seasonal change.' },
     { label: 'Game Inspiration', text: 'The rising gusts in this cavern are a playable metaphor for dragon breath, not a literal history.' }] },
@@ -217,6 +217,7 @@ export const loreTexts: Record<string, LorePanel> = {
 export const codexEntries: CodexEntry[] = [
   { id: 'who-is-zhulong', title: 'Who is Zhulong?', unlockHint: 'Unlocked from the start', body: 'Zhulong, also known as Torch Dragon or Candle Dragon, is a figure from Chinese mythology. Some accounts describe a vast red, serpentine being with a human-like face and cosmic powers.' },
   { id: 'eye-day-night', title: 'The Eye of Day and Night', unlockHint: 'Unlocked from the start', body: 'In some accounts, Zhulong opens his eyes and there is day; he closes his eyes and there is night. This game adapts that image into the blink mechanic.' },
+  { id: 'two-hosts', title: 'The Two Hosts', unlockHint: 'Unlocked from the start', body: 'With the eye unbalanced, the world holds two hosts of creatures. Solar and stone things — moths, lantern sentries, stone guardians — wake and hunt by day. Shadow, spirit, and restless dead — wisps, spirit skulls, jiangshi, and crawlers — wake and hunt by night. Each is only dangerous in its own world; blink to the other and it falls dormant, harmless, easy to strike. Holding the right eye is a weapon. (An original game system built on the day/night eye motif.)' },
   { id: 'texts-vary', title: 'Details Vary', unlockHint: 'Complete Level 1', body: 'Myths change across texts, regions, translations, and retellings. The game uses careful wording because it is inspired by tradition rather than claiming to be a literal reconstruction.' },
   { id: 'blinking-image', title: 'Blinking as a Mythic Image', unlockHint: 'Complete Level 2', body: 'A mythic image can turn a natural cycle into something memorable. Zhulong’s eye gives day and night a body, a rhythm, and a story.' },
   { id: 'breath-seasons', title: 'Breath, Wind, and Seasons', unlockHint: 'Complete Level 3', body: 'Some descriptions associate Zhulong’s breath with wind, weather, winter, summer, or seasonal change. Breath Cavern turns this into rising currents and shifting danger.' },
