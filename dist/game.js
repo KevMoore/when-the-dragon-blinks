@@ -86,6 +86,8 @@ export class Game {
         this.player.reset(this.level.spawn);
         this.player.checkpoint = { ...this.level.spawn };
         this.enemies = this.level.entities.map(e => new Enemy(e.kind, e.x, e.y));
+        for (const en of this.enemies)
+            this.snapEnemySpawn(en);
         this.platforms = (this.level.platforms || []).map(p => new Platform(p));
         this.boss = this.level.isBoss ? new LanternEater() : null;
         this.projectiles = [];
@@ -109,6 +111,31 @@ export class Game {
             this.openLore(this.level.introLore, 'playing');
         else
             this.state = 'playing';
+    }
+    // Keep spawned enemies out of pits/walls: walkers snap onto the nearest solid
+    // ground column; flyers get lifted out of any terrain they overlap.
+    snapEnemySpawn(en) {
+        const walker = en.kind === 'ghoul' || en.kind === 'crawler' || en.kind === 'guardian';
+        if (walker) {
+            for (let dx = 0; dx <= 10; dx++) {
+                for (const s of dx === 0 ? [0] : [dx, -dx]) {
+                    const px = en.x + s * TILE;
+                    const gy = this.groundYBelow(px, en.w, en.y);
+                    if (gy < this.level.height * TILE) {
+                        en.x = px;
+                        en.y = gy - en.h;
+                        en.baseY = en.y;
+                        return;
+                    }
+                }
+            }
+        }
+        else {
+            let guard = 0;
+            while (this.overlapsSolid(en.rect()) && en.y > TILE && guard++ < 30)
+                en.y -= TILE;
+            en.baseY = en.y;
+        }
     }
     openLore(id, nextMode) {
         const base = loreTexts[id];
