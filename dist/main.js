@@ -42,6 +42,8 @@ if (_q.has('level')) {
         game.transformT = 1.05;
     if (_q.has('clear'))
         game.completeLevel();
+    if (_q.has('bossdeath'))
+        game.onBossDefeated();
 }
 // dev aid: force-show the touch controls on non-touch devices for layout testing
 if (_q.has('touch'))

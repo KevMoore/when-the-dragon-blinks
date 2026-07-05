@@ -67,6 +67,10 @@ export class Game {
         this.clearing = false;
         this.clearOutro = '';
         this.clearNext = 'levelComplete';
+        this.bossDeathT = 0;
+        this.bossDeathX = 0;
+        this.bossDeathY = 0;
+        this.bossClimax = false;
         this.activatedCheckpoints = new Set();
         this.viewedShrines = new Set();
         this.dashHintShown = false;
@@ -114,6 +118,8 @@ export class Game {
         this.gems = (this.level.gems || []).map(g => ({ x: g.x, y: g.y, taken: false, rt: 0 }));
         this.clearT = 0;
         this.clearing = false;
+        this.bossDeathT = 0;
+        this.bossClimax = false;
         this.elapsed = 0;
         this.message = null;
         this.camera.snap(0, 0);
@@ -352,11 +358,99 @@ export class Game {
         }
     }
     onBossDefeated() {
-        if (this.boss)
-            this.addScore(5000, this.boss.x + this.boss.w / 2, this.boss.y + 40);
+        if (!this.boss) {
+            this.completeLevel();
+            return;
+        }
+        this.addScore(5000, this.boss.x + this.boss.w / 2, this.boss.y + 40);
+        this.bossDeathX = this.boss.x + this.boss.w / 2;
+        this.bossDeathY = this.boss.y + this.boss.h * 0.42;
+        this.bossDeathT = 2.7;
+        this.bossClimax = false;
         this.audio.sfx('victory');
-        this.flashText('Balance restored. The dragon blinks again.');
-        this.completeLevel();
+        this.audio.sfx('boss');
+        this.camera.addTrauma(0.9);
+        this.eyeReact = 1;
+        this.flashText('The Lantern Eater breaks — the stolen dawn floods free.');
+    }
+    // The Lantern Eater ruptures: escalating light eruption, a climax flash that
+    // releases the hoarded dawn, then the stage-clear card.
+    updateBossDeath(dt) {
+        const dur = 2.7, p = clamp(1 - this.bossDeathT / dur, 0, 1);
+        this.bossDeathT -= dt;
+        this.dayAmount = clamp(this.dayAmount + dt * 0.75, this.dayAmount, 1); // dawn returns
+        this.eyeReact = Math.max(this.eyeReact, 0.5 + 0.5 * Math.abs(Math.sin(this.time * 18)));
+        this.particles.embers(this.bossDeathX, this.bossDeathY, 1 + Math.floor(p * 3));
+        this.particles.sparks(this.bossDeathX, this.bossDeathY, 2, '#ffe6a0');
+        if (Math.random() < 0.1 + p * 0.22) {
+            this.camera.addTrauma(0.28 + p * 0.4);
+            this.particles.ring(this.bossDeathX, this.bossDeathY, 24, 300 + p * 240, '#ffd777');
+        }
+        if (!this.bossClimax && p > 0.66) { // the rupture
+            this.bossClimax = true;
+            this.flash = 1;
+            this.flashColor = '#fff4d8';
+            this.camera.addTrauma(1.1);
+            this.audio.sfx('boss');
+            this.particles.ring(this.bossDeathX, this.bossDeathY, 30, 640, '#fff2c8');
+            this.particles.sparks(this.bossDeathX, this.bossDeathY, 60, '#ffd777');
+            this.particles.embers(this.bossDeathX, this.bossDeathY, 40);
+        }
+        if (this.bossDeathT <= 0) {
+            this.bossDeathT = 0;
+            this.completeLevel();
+        }
+    }
+    drawBossDeathCinematic(c) {
+        const dur = 2.7, p = clamp(1 - this.bossDeathT / dur, 0, 1);
+        const x = this.bossDeathX - this.camera.x, y = this.bossDeathY - this.camera.y;
+        c.save();
+        c.globalCompositeOperation = 'lighter';
+        // rotating god-rays bursting from the rupture
+        const rays = 16, rot = this.time * 0.7;
+        for (let i = 0; i < rays; i++) {
+            const a = rot + (i / rays) * Math.PI * 2;
+            c.save();
+            c.translate(x, y);
+            c.rotate(a);
+            c.globalAlpha = (0.12 + 0.4 * p) * (0.6 + 0.4 * Math.sin(this.time * 6 + i));
+            const g = c.createLinearGradient(0, 0, 900, 0);
+            g.addColorStop(0, 'rgba(255,232,175,0.85)');
+            g.addColorStop(1, 'rgba(0,0,0,0)');
+            c.fillStyle = g;
+            c.beginPath();
+            c.moveTo(0, 0);
+            c.lineTo(900, -26 - 46 * p);
+            c.lineTo(900, 26 + 46 * p);
+            c.closePath();
+            c.fill();
+            c.restore();
+        }
+        // core bloom
+        const rad = 70 + 300 * p + (this.bossClimax ? 120 : 0);
+        const core = c.createRadialGradient(x, y, 0, x, y, rad);
+        core.addColorStop(0, `rgba(255,250,225,${0.6 + 0.4 * p})`);
+        core.addColorStop(0.45, `rgba(255,185,95,${0.35 * p})`);
+        core.addColorStop(1, 'rgba(0,0,0,0)');
+        c.fillStyle = core;
+        c.beginPath();
+        c.arc(x, y, rad, 0, Math.PI * 2);
+        c.fill();
+        // expanding shockwave rings
+        c.globalCompositeOperation = 'source-over';
+        for (let r = 0; r < 3; r++) {
+            const rp = p * 1.5 - r * 0.22;
+            if (rp > 0 && rp < 1) {
+                c.globalAlpha = (1 - rp) * 0.6;
+                c.strokeStyle = '#ffe6a0';
+                c.lineWidth = 5 * (1 - rp) + 1;
+                c.beginPath();
+                c.arc(x, y, rp * 560, 0, Math.PI * 2);
+                c.stroke();
+            }
+        }
+        c.restore();
+        c.globalAlpha = 1;
     }
     // ---- collision ---------------------------------------------------------
     tileAt(tx, ty) {
@@ -571,6 +665,10 @@ export class Game {
         this.audio.playMusic(key);
     }
     updatePlaying(dt) {
+        if (this.bossDeathT > 0) {
+            this.updateBossDeath(dt);
+            return;
+        }
         if (this.clearT > 0) {
             this.updateClear(dt);
             return;
@@ -1047,6 +1145,8 @@ export class Game {
                 if (this.state === 'gameComplete')
                     ui.drawGameComplete(this, c);
         }
+        if (this.bossDeathT > 0)
+            this.drawBossDeathCinematic(c);
         if (this.transformT > 0)
             this.drawTransformCinematic(c);
         if (this.clearT > 0)

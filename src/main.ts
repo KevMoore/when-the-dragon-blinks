@@ -43,6 +43,7 @@ if (_q.has('level')) {
   if (_q.has('dragon')) game.player.dragonTime = 12;
   if (_q.has('transform')) game.transformT = 1.05;
   if (_q.has('clear')) game.completeLevel();
+  if (_q.has('bossdeath')) game.onBossDefeated();
 }
 // dev aid: force-show the touch controls on non-touch devices for layout testing
 if (_q.has('touch')) document.body.classList.add('force-touch');
