@@ -8,7 +8,9 @@
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; height: 100%; overflow: hidden; background: radial-gradient(circle at 50% 30%, #301226, #0a0611 70%); font-family: Georgia, 'Times New Roman', serif; color: white; }
 #game-shell { position: fixed; inset: 0; display: grid; place-items: center; touch-action: none; user-select: none; }
-#game { width: 100vw; height: 100vh; object-fit: contain; display: block; image-rendering: auto; }
+#game { width: 100vw; height: 100vh; object-fit: contain; display: block; image-rendering: auto; touch-action: none; }
+/* kill double-tap-to-zoom / text selection on every interactive surface */
+#game, #touch-controls, #touch-controls button, #touch-pause, .rotate-card { touch-action: none; -webkit-user-select: none; user-select: none; }
 #rotate-overlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; padding: 24px; background: radial-gradient(circle at 50% 35%, #331329, #08050d); z-index: 10; }
 .rotate-card { max-width: 520px; padding: 28px; border: 1px solid rgba(246,191,94,.45); border-radius: 24px; background: rgba(12,6,18,.7); text-align: center; box-shadow: 0 24px 80px rgba(0,0,0,.4); }
 .rotate-card h1 { margin: 12px 0 6px; color: var(--gold); }

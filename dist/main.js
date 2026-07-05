@@ -17,6 +17,17 @@ function resize() {
 }
 window.addEventListener('resize', resize);
 resize();
+// Mobile: kill double-tap-to-zoom and pinch-zoom. iOS Safari ignores both
+// user-scalable=no and touch-action for these gestures, so guard them in JS.
+let _lastTouchEnd = 0;
+document.addEventListener('touchend', e => {
+    const now = performance.now();
+    if (now - _lastTouchEnd < 350)
+        e.preventDefault();
+    _lastTouchEnd = now;
+}, { passive: false });
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('dblclick', e => e.preventDefault());
 const game = new Game(ctx);
 // Optional deep-link for testing/sharing: index.html?level=0..3 jumps straight in.
 const _q = new URLSearchParams(location.search);
