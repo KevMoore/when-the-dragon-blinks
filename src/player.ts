@@ -98,9 +98,10 @@ export class Player {
     const accel = this.grounded ? (this.crouching ? RUN_ACCEL * 0.5 : RUN_ACCEL) : AIR_ACCEL;
     if (moving) { this.vx += Math.sign(mx) * accel * dt; this.facing = mx < 0 ? -1 : 1; }
     else this.vx = lerp(this.vx, 0, this.grounded ? 0.26 : 0.06);
-    // the whole stick throw scales top speed: gentle creep near centre, full
-    // speed only at full extension (keys/dpad report 1 → full)
-    const cap = MAX_SPEED * crouchMul * (moving ? 0.3 + 0.7 * Math.min(1, Math.abs(mx)) : 1);
+    // the further you push the dial, the faster you run: a slow creep near
+    // centre ramping to a full sprint at the rim (keys/d-pad report 1 → sprint)
+    const spd = Math.min(1, Math.abs(mx));
+    const cap = MAX_SPEED * crouchMul * (moving ? 0.24 + 0.94 * spd : 1.18);
     this.vx = clamp(this.vx, -cap, cap);
 
     // wall contact (only meaningful in the air)
