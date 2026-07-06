@@ -361,7 +361,7 @@ function ensureProps() {
     if (propsInit)
         return;
     propsInit = true;
-    for (const n of ['pagoda', 'shishi', 'pine', 'stele', 'palace', 'crystal', 'spikes_rock', 'spikes_ice']) {
+    for (const n of ['pagoda', 'shishi', 'pine', 'stele', 'palace', 'crystal', 'spikes_rock', 'spikes_ice', 'terrain_top', 'terrain_fill']) {
         const im = new Image();
         im.onload = () => (propReady[n] = true);
         im.src = 'assets/sprites/props/' + n + '.png';
@@ -416,9 +416,19 @@ export function drawThreeSlice(c, img, x, y, w, h, capFrac = 0.26, mid = [0.4, 0
     c.drawImage(img, 0, 0, srcCap, ih, x, y, capW, h); // left cap
     c.drawImage(img, iw - srcCap, 0, srcCap, ih, x + w - capW, y, capW, h); // right cap
     const m0 = iw * mid[0], mw = iw * (mid[1] - mid[0]), dstMw = Math.max(4, mw * s);
-    for (let dx2 = x + capW; dx2 < x + w - capW - 0.5; dx2 += dstMw) { // tiled middle
+    let k = 0;
+    for (let dx2 = x + capW; dx2 < x + w - capW - 0.5; dx2 += dstMw, k++) { // tiled middle
         const dw2 = Math.min(dstMw, x + w - capW - dx2);
-        c.drawImage(img, m0, 0, mw * (dw2 / dstMw), ih, dx2, y, dw2, h);
+        if (k % 2 === 0)
+            c.drawImage(img, m0, 0, mw * (dw2 / dstMw), ih, dx2, y, dw2, h);
+        else {
+            // mirror alternate tiles so every seam meets its own reflection — seamless
+            c.save();
+            c.translate(dx2 + dw2 / 2, 0);
+            c.scale(-1, 1);
+            c.drawImage(img, m0, 0, mw * (dw2 / dstMw), ih, -dw2 / 2, y, dw2, h);
+            c.restore();
+        }
     }
 }
 // draw an arbitrary image tinted toward a colour (atmospheric), at dw×dh
@@ -855,59 +865,43 @@ function drawSpan(game, c, th, a, b, camX, camY, bottom, topY) {
         c.quadraticCurveTo(pts[i - 1].x, pts[i - 1].y, m.x, m.y);
     } c.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y); };
     const surfY = (x) => topY(x);
-    // ---- DIRT body: soil gradient, speckle texture, visible rocks, roots ----
+    // ---- ROCK body: seamless AutoSprite fill texture, world-anchored + tinted
+    // to the act's palette (replaces the old gradient/speckle/strata) ----
     c.save();
     c.beginPath();
     traceTop();
     c.lineTo(rightX, bottom);
     c.lineTo(leftX, bottom);
     c.closePath();
-    const g = c.createLinearGradient(0, minY, 0, minY + 300);
-    g.addColorStop(0, th.soilTop);
-    g.addColorStop(0.5, mixHex(th.soilTop, th.soilBot, 0.55));
-    g.addColorStop(1, th.soilBot);
-    c.fillStyle = g;
-    c.fill();
-    c.clip();
-    // dirt speckle
-    for (let x = a; x <= b; x++)
-        for (let s = 0; s < 4; s++) {
-            const r = hash(x * 31 + s * 7 + 2);
-            const px = x * TILE + r * TILE - camX, py = surfY(x) + 12 + hash(x * 5 + s * 19) * 150;
-            c.fillStyle = r < 0.5 ? 'rgba(0,0,0,.16)' : 'rgba(255,225,190,.05)';
-            c.fillRect(px, py, 2, 2);
-        }
-    // rocks embedded in dirt (2-tone, rounded)
-    for (let x = a; x <= b; x++)
-        for (let s = 0; s < 2; s++) {
-            const r = hash(x * 17 + s * 101 + 5);
-            if (r > 0.5)
-                continue;
-            const rx = x * TILE + 3 + hash(x * 5 + s) * 26 - camX, ry = surfY(x) + 16 + hash(x * 9 + s * 13) * 140, rw = 4 + r * 9;
-            drawStone(c, rx, ry, rw, th);
-        }
-    // roots hanging from the grass into the dirt
-    c.strokeStyle = mixHex(th.grassLo, th.soilBot, 0.5);
-    c.lineWidth = 1.4;
-    c.lineCap = 'round';
-    for (let x = a; x <= b; x++) {
-        if (hash(x * 23 + 9) > 0.28)
-            continue;
-        const rx = x * TILE + 16 - camX, ry = surfY(x) + 12;
-        c.beginPath();
-        c.moveTo(rx, ry);
-        c.quadraticCurveTo(rx + 3, ry + 8, rx - 2, ry + 16);
-        c.stroke();
+    const fillImg = propImgs['terrain_fill'];
+    if (fillImg && propReady['terrain_fill']) {
+        c.clip();
+        const pat = c.createPattern(fillImg, 'repeat');
+        const ox = -(((camX % 256) + 256) % 256), oy = -(((camY % 256) + 256) % 256);
+        c.save();
+        c.translate(ox, oy);
+        c.fillStyle = pat;
+        c.fillRect(leftX - ox - 8, minY - 24 - oy, rightX - leftX + 16, bottom - minY + 60);
+        c.restore();
+        // theme wash so each act keeps its palette over the neutral rock
+        c.globalAlpha = 0.42;
+        c.fillStyle = mixHex(th.soilTop, th.soilBot, 0.45);
+        c.fillRect(leftX - 8, minY - 24, rightX - leftX + 16, bottom - minY + 60);
+        c.globalAlpha = 1;
+        // darken with depth
+        const dg = c.createLinearGradient(0, minY, 0, minY + 320);
+        dg.addColorStop(0, 'rgba(0,0,0,0)');
+        dg.addColorStop(1, 'rgba(0,0,0,.5)');
+        c.fillStyle = dg;
+        c.fillRect(leftX - 8, minY - 24, rightX - leftX + 16, bottom - minY + 60);
     }
-    // sediment strata (world-anchored horizontal bands) — depth below the surface
-    c.strokeStyle = 'rgba(0,0,0,.14)';
-    c.lineWidth = 5;
-    for (let wy = Math.floor(camY / 66) * 66; wy < camY + LOGICAL_H + 66; wy += 66) {
-        const sy = wy - camY;
-        c.beginPath();
-        c.moveTo(leftX - 6, sy + Math.sin(wy * 0.02) * 5);
-        c.lineTo(rightX + 6, sy + Math.sin(wy * 0.02 + 2) * 5);
-        c.stroke();
+    else {
+        const g = c.createLinearGradient(0, minY, 0, minY + 300);
+        g.addColorStop(0, th.soilTop);
+        g.addColorStop(1, th.soilBot);
+        c.fillStyle = g;
+        c.fill();
+        c.clip();
     }
     // glowing mineral veins in the act's accent colour, faintly shimmering
     c.save();
@@ -956,24 +950,73 @@ function drawSpan(game, c, th, a, b, camX, camY, bottom, topY) {
         drawPropImg(c, 'crystal', cxp, cyp, 32 + hash(x * 3) * 16, 0.92);
     }
     c.restore();
-    // ---- GRASS turf band with a scalloped underside + blades ----
-    const gt = 12;
-    c.save();
-    c.beginPath();
-    traceTop();
-    for (let i = pts.length - 1; i >= 0; i--) {
-        const p = pts[i];
-        const wob = Math.sin((p.x + camX) * 0.4) * 3 + Math.sin((p.x + camX) * 0.13) * 2;
-        c.lineTo(p.x, p.y + gt + wob);
+    // ---- GRASS ribbon: the seamless AutoSprite strip drawn ALONG the smooth
+    // undulating surface — narrow slices, each rotated to the local slope, with a
+    // world-anchored texture coordinate so it never pops as the camera moves ----
+    const topImg = propImgs['terrain_top'];
+    if (topImg && propReady['terrain_top']) {
+        const dstH = 34, scale = dstH / topImg.height, step = 8, TW = topImg.width;
+        const surfAt = (sx) => {
+            if (sx <= pts[0].x)
+                return pts[0].y;
+            for (let i = 1; i < pts.length; i++)
+                if (sx <= pts[i].x) {
+                    const p0 = pts[i - 1], p1 = pts[i];
+                    const t = (sx - p0.x) / Math.max(1e-6, p1.x - p0.x);
+                    return p0.y + (p1.y - p0.y) * t;
+                }
+            return pts[pts.length - 1].y;
+        };
+        c.save();
+        for (let sx = leftX; sx < rightX; sx += step) {
+            const w2 = Math.min(step, rightX - sx);
+            const y0 = surfAt(sx), y1 = surfAt(sx + w2);
+            const ang = Math.atan2(y1 - y0, w2);
+            let su = ((sx + camX) / scale) % TW;
+            if (su < 0)
+                su += TW;
+            const srcW = (w2 + 1.5) / scale; // slight overlap hides slice joins
+            c.save();
+            c.translate(sx, y0);
+            c.rotate(ang);
+            if (su + srcW <= TW)
+                c.drawImage(topImg, su, 0, srcW, topImg.height, 0, -7, w2 + 1.5, dstH);
+            else { // texture wrap: split the slice
+                const w1s = (TW - su) * scale;
+                c.drawImage(topImg, su, 0, TW - su, topImg.height, 0, -7, w1s, dstH);
+                c.drawImage(topImg, 0, 0, srcW - (TW - su), topImg.height, w1s, -7, w2 + 1.5 - w1s, dstH);
+            }
+            c.restore();
+        }
+        // theme wash so the green strip follows each act's palette
+        c.save();
+        c.beginPath();
+        traceTop();
+        for (let i = pts.length - 1; i >= 0; i--)
+            c.lineTo(pts[i].x, pts[i].y + dstH - 7);
+        c.closePath();
+        c.clip();
+        c.globalAlpha = 0.44;
+        c.fillStyle = th.grass;
+        c.fillRect(leftX, minY - 10, rightX - leftX, 200);
+        c.restore();
+        c.globalAlpha = 1;
     }
-    c.closePath();
-    const gg = c.createLinearGradient(0, minY - 2, 0, minY + gt + 6);
-    gg.addColorStop(0, mixHex(th.grass, '#e8ffb0', 0.35));
-    gg.addColorStop(0.5, th.grass);
-    gg.addColorStop(1, th.grassLo);
-    c.fillStyle = gg;
-    c.fill();
-    c.restore();
+    else {
+        const gt = 12;
+        c.save();
+        c.beginPath();
+        traceTop();
+        for (let i = pts.length - 1; i >= 0; i--)
+            c.lineTo(pts[i].x, pts[i].y + gt);
+        c.closePath();
+        const gg = c.createLinearGradient(0, minY - 2, 0, minY + gt + 6);
+        gg.addColorStop(0, mixHex(th.grass, '#e8ffb0', 0.35));
+        gg.addColorStop(1, th.grassLo);
+        c.fillStyle = gg;
+        c.fill();
+        c.restore();
+    }
     // bright top highlight + blades
     c.save();
     c.lineJoin = 'round';
