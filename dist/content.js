@@ -522,11 +522,16 @@ export async function loadCustomLevels() {
             try {
                 const d = await (await fetch('assets/levels/' + f)).json();
                 if (d && Array.isArray(d.tiles) && d.spawn && d.exit) {
-                    d.custom = true;
                     d.id = d.id || 'custom-' + f.replace(/\W+/g, '-');
                     d.title = d.title || f;
                     d.subtitle = d.subtitle || 'A custom shrine path';
-                    levels.push(d);
+                    if (typeof d.replaces === 'number' && d.replaces >= 0 && d.replaces < 24) {
+                        levels[d.replaces] = d; // designer edit of a campaign level — swap in place, keep unlock flow
+                    }
+                    else {
+                        d.custom = true; // extra level — always-playable Custom Trail
+                        levels.push(d);
+                    }
                     n++;
                 }
             }

@@ -4,7 +4,7 @@
 import { TILE } from './types.js';
 import type { EntityKind } from './types.js';
 
-const H = 17;                                   // canonical level height (matches the generator)
+let H = 17;                                     // level height (17, or 18 for cavern acts) — tracks st.h
 const DRAFT_KEY = 'wtdb-draft';                 // playtest handoff
 const STATE_KEY = 'wtdb-editor-state';          // editor autosave
 
@@ -13,6 +13,9 @@ type Bridge = { x: number; y: number; w: number };            // tile coords
 
 interface EdState {
   name: string; theme: string; w: number;
+  h?: number;                                   // level height (default 17)
+  replaces?: number;                            // campaign index this level replaces on publish
+  carry?: Record<string, unknown>;              // fields the editor doesn't edit (platforms, lore…) kept on publish
   tiles: string[];                              // H strings of length w
   spawn: { x: number; y: number };              // tile coords
   exit: { x: number; y: number };
@@ -51,7 +54,7 @@ function freshState(w: number): EdState {
     else if (y === H - 3) rows.push('g'.repeat(w));
     else rows.push('#'.repeat(w));
   }
-  return { name: 'My Shrine Path', theme: 'mountain', w, tiles: rows, spawn: { x: 3, y: H - 5 }, exit: { x: w - 4, y: H - 6 }, checkpoints: [], gems: [], enemies: [], bridges: [] };
+  return { name: 'My Shrine Path', theme: 'mountain', w, h: H, tiles: rows, spawn: { x: 3, y: H - 5 }, exit: { x: w - 4, y: H - 6 }, checkpoints: [], gems: [], enemies: [], bridges: [] };
 }
 
 function setTile(x: number, y: number, ch: string) {
@@ -118,7 +121,25 @@ function buildTools() {
 
 (document.getElementById('new') as HTMLButtonElement).onclick = () => {
   if (!confirm('Start a new level? (current draft is kept in autosave until you paint)')) return;
+  H = 17;
   st = freshState(parseInt((document.getElementById('wtiles') as HTMLInputElement).value) || 120);
+  syncBar(); save();
+};
+
+// Load any campaign level straight from the game's generator (same origin) —
+// edit it and Publish to REPLACE it in the live game.
+const campSel = document.getElementById('campaign') as HTMLSelectElement;
+import('./content.js').then((m: any) => {
+  m.levels.slice(0, 24).forEach((lv: any, i: number) => {
+    const o = document.createElement('option'); o.value = String(i); o.textContent = lv.title; campSel.appendChild(o);
+  });
+}).catch(() => { campSel.disabled = true; });
+campSel.onchange = async () => {
+  const i = parseInt(campSel.value); campSel.selectedIndex = 0;
+  if (isNaN(i)) return;
+  if (!confirm(`Load "${'L' + (i + 1)}" for editing? Publishing will REPLACE it in the game.`)) return;
+  const m: any = await import('./content.js');
+  fromLevelData(JSON.parse(JSON.stringify(m.levels[i])), i);
   syncBar(); save();
 };
 (document.getElementById('export') as HTMLButtonElement).onclick = () => {
@@ -136,6 +157,8 @@ function buildTools() {
 (document.getElementById('publish') as HTMLButtonElement).onclick = () => {
   const t = document.getElementById('gh-token') as HTMLInputElement;
   t.value = localStorage.getItem('wtdb-gh-token') || '';
+  document.getElementById('gh-status')!.textContent =
+    st.replaces !== undefined ? `⚠ This will REPLACE campaign level L${st.replaces + 1} in the live game.` : 'This will publish as a new Custom Trail.';
   (document.getElementById('modal') as HTMLElement).style.display = 'grid';
 };
 
@@ -254,27 +277,35 @@ function apply(p: { x: number; y: number }) {
 
 // ---- convert to/from the game's LevelData shape ------------------------------
 function toLevelData(): Record<string, unknown> {
+  const acts: Record<string, number> = { mountain: 1, bridge: 2, cavern: 3, sunless: 4 };
   return {
-    id: 'custom-' + st.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-    title: st.name, subtitle: 'A custom shrine path', custom: true,
+    // fields the editor doesn't edit ride through unchanged (platforms, wind, lore…)
+    relics: [], shrines: [], platforms: [], introLore: '', outroLore: '', unlockCodexOnComplete: [],
+    act: acts[st.theme] || 1, difficulty: 1,
+    ...(st.carry || {}),
+    id: (st.carry as any)?.id ?? ('custom-' + st.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')),
+    title: st.name, subtitle: (st.carry as any)?.subtitle ?? 'A custom shrine path',
+    ...(st.replaces !== undefined ? { replaces: st.replaces } : { custom: true }),
     width: st.w, height: H, tiles: st.tiles.slice(),
     spawn: { x: st.spawn.x * TILE, y: st.spawn.y * TILE },
     exit: { x: st.exit.x * TILE, y: st.exit.y * TILE - 40, w: 30, h: 96 },
     checkpoints: st.checkpoints.map(o => ({ x: o.x * TILE, y: o.y * TILE - 24, w: 28, h: 56 })),
-    relics: [], shrines: [],
     entities: st.enemies.map(o => ({ kind: o.kind, x: o.x * TILE, y: o.y * TILE, elite: o.elite })),
     gems: st.gems.map(o => ({ x: o.x * TILE, y: o.y * TILE })),
     bridges: st.bridges.map(b => ({ x: b.x * TILE - 12, y: b.y * TILE, w: b.w * TILE + 24 })),
-    platforms: [], windZones: undefined,
-    introLore: '', outroLore: '', unlockCodexOnComplete: [],
-    theme: st.theme, act: ({ mountain: 1, bridge: 2, cavern: 3, sunless: 4 } as Record<string, number>)[st.theme] || 1,
-    difficulty: 1,
+    theme: st.theme,
   };
 }
-function fromLevelData(d: any) {
+function fromLevelData(d: any, replaces?: number) {
+  const h = Math.max(12, Math.min(24, d.height || d.tiles.length || 17));
+  const carry: Record<string, unknown> = {};
+  for (const k of ['id', 'subtitle', 'platforms', 'windZones', 'relics', 'shrines', 'secretExit', 'secretExitTo', 'introLore', 'outroLore', 'unlockCodexOnComplete', 'act', 'difficulty', 'isBoss', 'hidden']) {
+    if (d[k] !== undefined) carry[k] = d[k];
+  }
   st = {
     name: d.title || 'Imported', theme: d.theme || 'mountain', w: d.width || (d.tiles?.[0]?.length ?? 120),
-    tiles: d.tiles.slice(0, H),
+    h, replaces: replaces ?? d.replaces, carry,
+    tiles: d.tiles.slice(0, h),
     spawn: { x: Math.round((d.spawn?.x ?? 96) / TILE), y: Math.round((d.spawn?.y ?? 300) / TILE) },
     exit: { x: Math.round((d.exit?.x ?? 300) / TILE), y: Math.round(((d.exit?.y ?? 300) + 40) / TILE) },
     checkpoints: (d.checkpoints || []).map((o: any) => ({ x: Math.round(o.x / TILE), y: Math.round((o.y + 24) / TILE) })),
@@ -282,12 +313,13 @@ function fromLevelData(d: any) {
     enemies: (d.entities || []).map((o: any) => ({ kind: o.kind, x: Math.round(o.x / TILE), y: Math.round(o.y / TILE), elite: o.elite })),
     bridges: (d.bridges || []).map((b: any) => ({ x: Math.round((b.x + 12) / TILE), y: Math.round(b.y / TILE), w: Math.round((b.w - 24) / TILE) })),
   };
+  H = h;
   while (st.tiles.length < H) st.tiles.push('.'.repeat(st.w));
 }
 
 // ---- persistence --------------------------------------------------------------
-function save() { localStorage.setItem(STATE_KEY, JSON.stringify(st)); }
-function load() { try { const s = localStorage.getItem(STATE_KEY); if (s) { st = JSON.parse(s); } } catch { /* fresh */ } }
+function save() { st.h = H; localStorage.setItem(STATE_KEY, JSON.stringify(st)); }
+function load() { try { const s = localStorage.getItem(STATE_KEY); if (s) { st = JSON.parse(s); H = st.h || st.tiles.length || 17; } } catch { /* fresh */ } }
 
 // ---- render loop ----------------------------------------------------------------
 const TILE_COL: Record<string, string> = { '#': '#5a4a66', g: '#7ca23f', o: '#8a6b45', D: '#f0b45a', N: '#7fa8d6', '^': '#8a7c7c', F: '#ff7840', S: '#8ed7ff' };
