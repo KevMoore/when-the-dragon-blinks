@@ -343,9 +343,13 @@ export function drawParallax(game: Game, c: CanvasRenderingContext2D) {
   // Each band tints toward its depth's ridge/haze so it blends into the plane.
   ensureProps();
   const hillCol = mixHex(nearDark, haze, 0.24);            // matches the hills plane
+  // trees thin out or cluster depending on the level (stable per level)
+  const treeSkip = 0.28 + hash(Math.floor(game.level.width * 0.17) + 5) * 0.34;
   const propBands = [
-    { par: 0.24, baseY: 346, h: 96, alpha: 0.92, step: 470, seed: 7, tintMix: 0.5, tintAmt: 0.44, sizeVar: 0.4, skip: 0.6, mound: true, set: ['pagoda', 'palace', 'shishi', 'stele'] },
-    { par: 0.52, baseY: 424, h: 176, alpha: 0.98, step: 340, seed: 23, tintMix: 0.24, tintAmt: 0.24, sizeVar: 0.55, skip: 0.5, mound: false, set: ['pine'] },
+    // layer 2 — distant buildings: heavily washed toward the haze so they read as far away
+    { par: 0.24, baseY: 346, h: 88, alpha: 0.82, step: 500, seed: 7, tintMix: 0.72, tintAmt: 0.68, sizeVar: 0.36, skip: 0.55, mound: true, set: ['pagoda', 'palace', 'shishi', 'stele'] },
+    // layer 1 — nearer trees: more of their own detail, a touch bigger, sparser
+    { par: 0.52, baseY: 426, h: 196, alpha: 0.98, step: 360, seed: 23, tintMix: 0.22, tintAmt: 0.13, sizeVar: 0.6, skip: treeSkip, mound: false, set: ['pine'] },
   ];
   for (const b of propBands) {
     const sc = game.camera.x * b.par, voff = game.camera.y * b.par;
@@ -372,8 +376,7 @@ export function drawParallax(game: Game, c: CanvasRenderingContext2D) {
     }
   }
 
-  // paifang landmark + lantern string
-  drawPaifang(c, 300 - ((game.camera.x * 0.5) % (LOGICAL_W + 400)) + 200, 436 - game.camera.y * 0.5, mixHex('#160812', th.ridge, 0.3), mixHex(th.accent, '#2a0a0c', 0.35));
+  // hanging lantern string (the SVG paifang building is retired — sprites now)
   drawLanternString(game, c, day);
 
   // foreground floor fog
