@@ -20,8 +20,27 @@ function hash(n) {
     n = (n << 13) ^ n;
     return ((n * (n * n * 15731 + 789221) + 1376312589) & 0x7fffffff) / 0x7fffffff;
 }
-export function drawSky(game, c) {
-    const th = theme(game), day = game.dayAmount;
+// PERF (Chrome): the sky was ~5 full-screen fill passes per frame (base, two
+// gradient blends, sun halo, storm gloom) — canvas fill rate is Chrome's
+// bottleneck, so all the slow-changing layers render ONCE into this cache and
+// each frame pays a single opaque blit. Keyed by theme + quantized day/night
+// mix + quantized sun position (the sun drifts at 0.04× camera speed, so a
+// 4px key step re-renders only a few times per second at full sprint).
+let _sky = null;
+let _skyKey = '';
+function skyCanvas(game, th, qday, qcx, cy, storm) {
+    const key = game.level.theme + '|' + qday + '|' + qcx + (storm ? '|s' : '');
+    if (_sky && key === _skyKey)
+        return _sky;
+    _skyKey = key;
+    if (!_sky) {
+        _sky = document.createElement('canvas');
+        _sky.width = LOGICAL_W;
+        _sky.height = LOGICAL_H;
+    }
+    const c = _sky.getContext('2d');
+    const day = qday;
+    c.clearRect(0, 0, LOGICAL_W, LOGICAL_H);
     c.fillStyle = '#08060d';
     c.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
     const grad = (stops) => {
@@ -40,10 +59,17 @@ export function drawSky(game, c) {
     c.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
     c.globalAlpha = 1;
     // celestial body: golden sun (day) crossfading to a blood-moon (night)
-    const cx = 772 - game.camera.x * 0.04, cy = 96;
+    const cx = qcx;
     // atmospheric bloom (cached glow sprites; alpha carries the day/night fade)
     drawGlow(c, cx, cy, 260, 'rgba(255,190,120,1)', 0.22 * day + 0.05);
     drawGlow(c, cx, cy, 150, 'rgba(255,90,60,1)', 0.10 * (1 - day));
+    // the broad warm ambient halo (formerly a per-frame 880×880 additive blit in
+    // the lighting pass — sun-anchored, so it lives in the sky cache for free)
+    c.save();
+    c.globalCompositeOperation = 'lighter';
+    c.globalAlpha = day;
+    c.drawImage(glowSprite('rgba(255,200,120,.18)'), cx - 440, cy - 4 - 440, 880, 880);
+    c.restore();
     // sun (tinted per act — golden dawn, pale twilight, violet, cold sunless)
     c.globalAlpha = day;
     c.fillStyle = th.sun;
@@ -73,7 +99,21 @@ export function drawSky(game, c) {
     c.fill();
     c.globalAlpha = 1;
     c.shadowBlur = 0;
+    // boss-arena gloom wash (flat, slow-changing — cached; lightning stays live)
+    if (storm) {
+        c.fillStyle = 'rgba(8,12,26,0.4)';
+        c.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
+    }
+    return _sky;
+}
+export function drawSky(game, c) {
+    const th = theme(game), day = game.dayAmount;
+    const cx = 772 - game.camera.x * 0.04, cy = 96;
     const storm = !!game.level.isBoss;
+    const qday = Math.round(day * 32) / 32;
+    const qcx = Math.round(cx / 4) * 4;
+    c.drawImage(skyCanvas(game, th, qday, qcx, cy, storm), 0, 0);
+    // the animated layers stay live on top of the cached sky
     drawClouds(game, c, day, storm);
     drawDragonEye(game, c, day);
     drawGodRays(game, c, day, cx, cy);
@@ -83,10 +123,7 @@ export function drawSky(game, c) {
 // Boss-arena storm: a gloom wash over the sky and periodic lightning bolts
 // (timed by Game.lightningT / lightningX, synced with the screen flash + thunder).
 function drawStorm(game, c) {
-    c.save();
-    c.fillStyle = 'rgba(8,12,26,0.4)';
-    c.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
-    c.restore();
+    // (the flat gloom wash is baked into the sky cache — only lightning is live)
     const lt = game.lightningT;
     if (lt > 0) {
         const a = Math.min(1, lt / 0.3), lx = game.lightningX;
@@ -443,6 +480,26 @@ export function drawGlow(c, x, y, r, color, alpha) {
     c.globalAlpha = alpha;
     c.drawImage(glowSprite(color), x - r, y - r, r * 2, r * 2);
     c.restore();
+}
+// PERF: cached terrain-fill pattern, theme wash pre-baked into the tile so the
+// rock body needs one pattern fill instead of pattern + wash every frame.
+const _terrainPat = new Map();
+function terrainPattern(c, themeName, th, img) {
+    let pat = _terrainPat.get(themeName);
+    if (pat)
+        return pat;
+    const tile = document.createElement('canvas');
+    tile.width = img.width;
+    tile.height = img.height;
+    const tc = tile.getContext('2d');
+    tc.drawImage(img, 0, 0);
+    tc.globalCompositeOperation = 'source-atop';
+    tc.globalAlpha = 0.42;
+    tc.fillStyle = mixHex(th.soilTop, th.soilBot, 0.45);
+    tc.fillRect(0, 0, tile.width, tile.height);
+    pat = c.createPattern(tile, 'repeat');
+    _terrainPat.set(themeName, pat);
+    return pat;
 }
 // smooth multi-octave ridgeline height at world-x
 function ridgeH(wx, layer) {
@@ -875,18 +932,16 @@ function drawSpan(game, c, th, a, b, camX, camY, bottom, topY) {
     const fillImg = propImgs['terrain_fill'];
     if (fillImg && propReady['terrain_fill']) {
         c.clip();
-        const pat = c.createPattern(fillImg, 'repeat');
+        // PERF (Chrome): the theme wash is baked into a cached pre-tinted tile and
+        // the CanvasPattern itself is cached — this pass was pattern + wash (two
+        // large clipped fills per span per frame); now it's one.
+        const pat = terrainPattern(c, game.level.theme, th, fillImg);
         const ox = -(((camX % 256) + 256) % 256), oy = -(((camY % 256) + 256) % 256);
         c.save();
         c.translate(ox, oy);
         c.fillStyle = pat;
         c.fillRect(leftX - ox - 8, minY - 24 - oy, rightX - leftX + 16, bottom - minY + 60);
         c.restore();
-        // theme wash so each act keeps its palette over the neutral rock
-        c.globalAlpha = 0.42;
-        c.fillStyle = mixHex(th.soilTop, th.soilBot, 0.45);
-        c.fillRect(leftX - 8, minY - 24, rightX - leftX + 16, bottom - minY + 60);
-        c.globalAlpha = 1;
         // darken with depth
         const dg = c.createLinearGradient(0, minY, 0, minY + 320);
         dg.addColorStop(0, 'rgba(0,0,0,0)');
@@ -941,8 +996,12 @@ function drawSpan(game, c, th, a, b, camX, camY, bottom, topY) {
     // ---- GRASS ribbon: the seamless AutoSprite strip drawn ALONG the smooth
     // undulating surface — narrow slices, each rotated to the local slope, with a
     // world-anchored texture coordinate so it never pops as the camera moves ----
-    const topImg = propImgs['terrain_top'];
-    if (topImg && propReady['terrain_top']) {
+    const topImgRaw = propImgs['terrain_top'];
+    if (topImgRaw && propReady['terrain_top']) {
+        // PERF (Chrome): the act's grass wash is baked into a cached tinted sprite
+        // (source-atop, like the old clipped fill) — kills a complex-path clip +
+        // large fill per span per frame.
+        const topImg = tintedSprite(topImgRaw, 'terrain_top', th.grass, 0.44);
         // PERF: 12px slices, rotation only on real slopes, no save/restore per slice
         const dstH = 34, scale = dstH / topImg.height, step = 12, TW = topImg.width, TH = topImg.height;
         const surfAt = (sx) => {
@@ -991,19 +1050,7 @@ function drawSpan(game, c, th, a, b, camX, camY, bottom, topY) {
             if (!flat)
                 c.restore();
         }
-        // theme wash so the green strip follows each act's palette
-        c.save();
-        c.beginPath();
-        traceTop();
-        for (let i = pts.length - 1; i >= 0; i--)
-            c.lineTo(pts[i].x, pts[i].y + dstH - 7);
-        c.closePath();
-        c.clip();
-        c.globalAlpha = 0.44;
-        c.fillStyle = th.grass;
-        c.fillRect(leftX, minY - 10, rightX - leftX, 200);
-        c.restore();
-        c.globalAlpha = 1;
+        // (theme wash baked into the tinted ribbon sprite above)
     }
     else {
         const gt = 12;
@@ -1275,16 +1322,8 @@ export function drawLighting(game, c) {
         c.globalAlpha = 1;
         c.globalCompositeOperation = 'source-over';
     }
-    else {
-        c.save();
-        c.globalCompositeOperation = 'lighter';
-        const sx = 772 - game.camera.x * 0.04;
-        c.globalAlpha = game.dayAmount;
-        c.drawImage(glowSprite('rgba(255,200,120,.18)'), sx - 440, 92 - 440, 880, 880);
-        c.restore();
-        c.globalAlpha = 1;
-        c.globalCompositeOperation = 'source-over';
-    }
+    // (the daytime ambient sun halo moved into the cached sky — it was a
+    // per-frame 880×880 additive blit, ~1.5 screens of fill for a static glow)
 }
 let _vignette = null;
 export function drawVignette(c) {

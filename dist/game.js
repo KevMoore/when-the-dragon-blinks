@@ -1570,8 +1570,13 @@ export class Game {
         const t0 = this.showFps ? performance.now() : 0;
         const c = this.ctx;
         c.save();
-        c.fillStyle = '#08050d';
-        c.fillRect(0, 0, LOGICAL_W, LOGICAL_H); // opaque clear (alpha:false ctx)
+        // PERF (Chrome): every state paints an opaque sky over the whole frame, so
+        // a full clear is pure wasted fill rate — only needed while camera shake
+        // shifts the scene and would otherwise leave stale edge pixels behind.
+        if (Math.abs(this.camera.shakeX) + Math.abs(this.camera.shakeY) > 0.01) {
+            c.fillStyle = '#08050d';
+            c.fillRect(0, 0, LOGICAL_W, LOGICAL_H); // opaque clear (alpha:false ctx)
+        }
         c.translate(this.camera.shakeX, this.camera.shakeY);
         switch (this.state) {
             case 'howto':

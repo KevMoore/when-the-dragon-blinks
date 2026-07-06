@@ -16,8 +16,13 @@ try { Object.defineProperty(ctx, 'shadowBlur', { get: () => 0, set: () => { /* d
 
 // The logical resolution is fixed; we scale the backing buffer for crisp text
 // on high-DPI screens and let CSS `object-fit: contain` handle letterboxing.
+// PERF: `dprScale` is the adaptive-quality knob — canvas fill rate is the
+// bottleneck on Chrome (Safari's canvas has ~3× the effective fill rate), so
+// when frame times can't hold 60fps we shrink the backing buffer instead of
+// dropping frames. CSS scaling keeps the on-screen size identical.
+let dprScale = 1;
 function resize() {
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const dpr = Math.min(2, window.devicePixelRatio || 1) * dprScale;
   canvas.width = Math.round(LOGICAL_W * dpr);
   canvas.height = Math.round(LOGICAL_H * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -109,15 +114,38 @@ const STEP = 1 / 60;
 let last = performance.now();
 let accumulator = 0;
 
+// Adaptive quality: watch real frame spacing and shrink the backing buffer
+// while the browser can't hold ~60fps (recovering back up when it clearly can).
+let frameCount = 0, slowFrames = 0, fastFrames = 0, lastQualityChange = 0;
+function tuneQuality(dt: number, now: number) {
+  frameCount++;
+  if (dt > 0.021) slowFrames++;             // missed the 60fps budget
+  if (dt < 0.0175) fastFrames++;
+  if (frameCount < 90) return;              // judge over ~1.5s windows
+  const slow = slowFrames / frameCount, fast = fastFrames / frameCount;
+  frameCount = slowFrames = fastFrames = 0;
+  if (slow > 0.2 && dprScale > 0.5) {       // struggling → drop resolution a notch
+    dprScale = Math.max(0.5, dprScale - 0.25);
+    lastQualityChange = now; resize();
+  } else if (fast > 0.95 && dprScale < 1 && now - lastQualityChange > 10000) {
+    dprScale = Math.min(1, dprScale + 0.25);   // comfortably fast → try stepping back up
+    lastQualityChange = now; resize();
+  }
+}
+
 function loop(now: number) {
   let dt = (now - last) / 1000;
   last = now;
   // avoid spiral-of-death after a tab is backgrounded
   if (dt > 0.25) dt = STEP;
+  tuneQuality(dt, now);
   accumulator += dt;
-  let guard = 0;
-  while (accumulator >= STEP && guard++ < 5) { game.update(STEP); accumulator -= STEP; }
-  game.render();
+  let guard = 0, stepped = false;
+  while (accumulator >= STEP && guard++ < 5) { game.update(STEP); accumulator -= STEP; stepped = true; }
+  // Only paint when the simulation advanced: on 120Hz displays (where Chrome
+  // runs rAF at full rate but Safari caps at 60) re-rendering an unchanged
+  // world would double the fill cost for nothing.
+  if (stepped) game.render();
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
