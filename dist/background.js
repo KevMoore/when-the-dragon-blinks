@@ -442,8 +442,8 @@ export function drawParallax(game, c) {
     const ridge = mixHex(th.ridgeNight, th.ridge, day);
     // a distant pale moon hanging behind the ranges — soft & luminous (feathered
     // edges so it reads as celestial, not a flat grey disc)
-    const moonX = LOGICAL_W * 0.24 - ((game.camera.x * 0.02) % (LOGICAL_W * 3)); // parallax past the ranges
-    const moonY = 128 - game.camera.y * 0.03, R = 52; // low enough that peaks cross it
+    const moonX = LOGICAL_W * 0.4 - ((game.camera.x * 0.02) % (LOGICAL_W * 3)); // nudged right of its old spot, clear of the sun (x772)
+    const moonY = 138 - game.camera.y * 0.03, R = 50; // low into the range so peaks cross it
     c.save();
     c.globalCompositeOperation = 'lighter';
     const halo = c.createRadialGradient(moonX, moonY, R * 0.5, moonX, moonY, R * 2.1);
@@ -471,7 +471,7 @@ export function drawParallax(game, c) {
         const H = 210, W = img.width * (H / img.height), y0 = 300 - H - voff;
         const start = -(((sc % W) + W) % W);
         for (let x = start; x < LOGICAL_W + W; x += W) {
-            drawTintedStill(c, img, x, y0, W, H, mixHex(ridge, haze, 0.72), 0.55, 0.93); // firmer so it occludes the moon
+            drawTintedStill(c, img, x, y0, W, H, mixHex(ridge, haze, 0.72), 0.55, 0.97); // near-opaque so it fully occludes the moon
         }
     }
     // Layer 3: nearer HILLS — a single darker procedural ridge in front of the range.
