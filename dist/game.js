@@ -1642,12 +1642,11 @@ export class Game {
             c.save();
             const sprite = stills.platform;
             if (sprite?.ready) {
-                const sw = pl.w + 14, sh = Math.min(sprite.img.height * (sw / sprite.img.width), pl.h + 60), sx = x - 7, sy = y - 6;
                 if (active) {
                     c.shadowColor = pl.crumble ? '#c98a3a' : (this.world === 'day' ? '#ffcf7a' : '#a9d6ff');
                     c.shadowBlur = 12;
                 }
-                c.drawImage(sprite.img, sx, sy, sw, sh);
+                bg.drawThreeSlice(c, sprite.img, x - 6, y - 2, pl.w + 12, 44, 0.15, [0.3, 0.7]); // caps + tiled middle, no stretch
                 if (pl.crumble) {
                     c.strokeStyle = 'rgba(30,10,4,.5)';
                     c.lineWidth = 2;
@@ -2138,12 +2137,11 @@ export class Game {
             const x0 = b.x - this.camera.x, deckY = b.y - this.camera.y + b.sag, w = b.w;
             c.save();
             if (spr) {
-                // stretch across the span with generous overlap; ends tuck BEHIND the
-                // banks/islands (bridges draw under the terrain layer)
-                const dw = w + 58, dh = dw * (spr.height / spr.width);
+                // three-slice the flat bridge strip: fixed height, end caps at native
+                // shape, tiled plank middle; ends tuck BEHIND the banks/islands
                 c.shadowColor = 'rgba(0,0,0,.35)';
                 c.shadowBlur = 8;
-                c.drawImage(spr, x0 - 29, deckY - dh * 0.26, dw, dh);
+                bg.drawThreeSlice(c, spr, x0 - 22, deckY - 3, w + 44, 40, 0.14, [0.32, 0.68]);
             }
             else {
                 c.fillStyle = '#6f5230';

@@ -405,6 +405,22 @@ function drawPropImg(c, name, cx, baseY, targetH, alpha, tint, tintAmt = 0) {
     c.drawImage(img, cx - w / 2, baseY - targetH, w, targetH);
     c.globalAlpha = 1;
 }
+// Three-slice: end caps render at native aspect, the middle TILES a clean strip
+// — any width renders without stretching (a mini sprite-kit from one image).
+export function drawThreeSlice(c, img, x, y, w, h, capFrac = 0.26, mid = [0.4, 0.6]) {
+    const iw = img.width, ih = img.height, s = h / ih;
+    const srcCap = iw * capFrac;
+    let capW = srcCap * s;
+    if (capW * 2 > w)
+        capW = w / 2;
+    c.drawImage(img, 0, 0, srcCap, ih, x, y, capW, h); // left cap
+    c.drawImage(img, iw - srcCap, 0, srcCap, ih, x + w - capW, y, capW, h); // right cap
+    const m0 = iw * mid[0], mw = iw * (mid[1] - mid[0]), dstMw = Math.max(4, mw * s);
+    for (let dx2 = x + capW; dx2 < x + w - capW - 0.5; dx2 += dstMw) { // tiled middle
+        const dw2 = Math.min(dstMw, x + w - capW - dx2);
+        c.drawImage(img, m0, 0, mw * (dw2 / dstMw), ih, dx2, y, dw2, h);
+    }
+}
 // draw an arbitrary image tinted toward a colour (atmospheric), at dw×dh
 function drawTintedStill(c, img, dx, dy, dw, dh, tint, tintAmt, alpha) {
     if (!_tintCv) {
@@ -785,11 +801,11 @@ export function drawTiles(game, c) {
                     run++;
                 const runW = run * TILE, spr = stills.platform;
                 if (spr?.ready) {
-                    const dh = Math.min(spr.img.height * ((runW + 14) / spr.img.width), TILE + 34);
+                    // three-slice strip: caps keep shape, middle tiles — no stretching at any width
                     c.save();
                     c.shadowColor = 'rgba(0,0,0,.35)';
                     c.shadowBlur = 8;
-                    c.drawImage(spr.img, sx - 7, sy - 6, runW + 14, dh);
+                    drawThreeSlice(c, spr.img, sx - 6, sy - 2, runW + 12, 44, 0.15, [0.3, 0.7]);
                     c.restore();
                 }
                 else {
