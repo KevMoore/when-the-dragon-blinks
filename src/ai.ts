@@ -96,7 +96,8 @@ function groundStep(c: Ctx, desiredVx: number, dt: number) {
       let landing = false;
       for (let k = 2; k <= 4; k++) if (game.overlapsSolid({ x: frontX + dir * k * TILE, y: foot - 6, w: TILE * 0.8, h: 60 })) { landing = true; break; }
       if (landing) e.vy = Math.min(e.vy, -400);
-      else desiredVx = 0;                                                        // bottomless — hold the edge
+      else if (c.dy > 40) { /* prey is below — drop off the ledge after it */ }
+      else desiredVx = 0;                                                        // bottomless & nothing below — hold the edge
     }
   }
   e.vx = desiredVx; e.vy += GRAVITY * dt;

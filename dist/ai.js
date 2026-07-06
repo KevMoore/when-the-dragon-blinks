@@ -104,8 +104,9 @@ function groundStep(c, desiredVx, dt) {
                 }
             if (landing)
                 e.vy = Math.min(e.vy, -400);
+            else if (c.dy > 40) { /* prey is below — drop off the ledge after it */ }
             else
-                desiredVx = 0; // bottomless — hold the edge
+                desiredVx = 0; // bottomless & nothing below — hold the edge
         }
     }
     e.vx = desiredVx;

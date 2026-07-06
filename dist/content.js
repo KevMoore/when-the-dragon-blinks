@@ -221,13 +221,13 @@ function buildLevel(spec, index) {
         let px = Math.floor(w * 0.20);
         row(m, px - 5, gTop - 2, 3, 'o'); // ramp up
         for (let seg = 0; seg < 3; seg++) {
-            const platW = 4 + Math.floor(r() * 2);
+            const platW = 6 + Math.floor(r() * 2); // wide enough that arches read separately
             row(m, px, H, platW, 'o'); // floating platform
             gems.push(gem(px + Math.floor(platW / 2), H - 2));
             if (r() < 0.5)
                 entities.push({ kind: spec.pal[Math.floor(r() * spec.pal.length)], x: (px + 1) * TILE, y: (H - 2) * TILE });
             if (seg < 2) {
-                const gap = 3 + Math.floor(r() * 2);
+                const gap = 4 + Math.floor(r() * 2);
                 bridges.push({ x: (px + platW) * TILE - 12, y: H * TILE, w: gap * TILE + 24 });
                 px += platW + gap;
             }
@@ -242,6 +242,20 @@ function buildLevel(spec, index) {
         secretExit = { x: (sx + 2) * TILE, y: (st - 11) * TILE, w: 44, h: 3 * TILE };
         secretExitTo = spec.secretTo;
     }
+    // prune bridges whose span ended up overlapping other geometry (platform runs,
+    // climb towers, terrain) — a bridge must SPAN a real gap, not sit on things
+    const spanClear = (b) => {
+        const ty = Math.round(b.y / TILE);
+        const x0 = Math.ceil((b.x + 14) / TILE), x1 = Math.floor((b.x + b.w - 14) / TILE);
+        for (let cx = x0; cx < x1; cx++)
+            for (let cy = ty - 2; cy <= ty; cy++) {
+                const t = m[cy] && m[cy][cx];
+                if (t && t !== '.' && t !== '^')
+                    return false;
+            }
+        return true;
+    };
+    const keptBridges = bridges.filter(spanClear);
     // lift any gem that ended up inside/under a solid or platform tile so all are grabbable
     for (const g of gems) {
         let tx = Math.round(g.x / TILE), ty = Math.round(g.y / TILE), guard = 0;
@@ -261,7 +275,7 @@ function buildLevel(spec, index) {
         theme: renderTheme(spec.theme), width: w, height: h, tiles: toStrings(m),
         spawn: { x: 3 * TILE, y: (gr - 3) * TILE }, exit: { x: (w - 4) * TILE, y: (endTop - 6) * TILE, w: 44, h: 6 * TILE },
         checkpoints, relics: [], shrines: spec.shrine ? [{ x: 8 * TILE, y: (gr - 2) * TILE, textId: spec.shrine }] : [],
-        entities, gems, bridges, platforms, windZones, secretExit, secretExitTo,
+        entities, gems, bridges: keptBridges, platforms, windZones, secretExit, secretExitTo,
         introLore: spec.intro || '', outroLore: spec.outro || '', unlockCodexOnComplete: spec.unlock || [],
     };
 }
