@@ -162,20 +162,8 @@ export class Enemy {
       c.fillStyle = eg; c.beginPath(); c.arc(cx, cy, gr, 0, Math.PI * 2); c.fill(); c.restore(); c.globalAlpha = 1;
     }
 
-    // readability: a dark contrast halo behind, then the day/night-coded glow —
-    // so even dark sprites pop against busy terrain
-    {
-      const cx = sx + this.w / 2, cy = sy + this.h / 2, gr = this.w * 1.4;
-      c.save();
-      const dark = c.createRadialGradient(cx, cy, 0, cx, cy, gr * 0.9);
-      dark.addColorStop(0, 'rgba(0,0,0,0.5)'); dark.addColorStop(0.7, 'rgba(0,0,0,0.28)'); dark.addColorStop(1, 'rgba(0,0,0,0)');
-      c.fillStyle = dark; c.beginPath(); c.arc(cx, cy, gr * 0.9, 0, Math.PI * 2); c.fill();
-      c.globalCompositeOperation = 'lighter'; c.globalAlpha = this.dim(game) ? 0.35 : 0.72;
-      const gg = c.createRadialGradient(cx, cy, 0, cx, cy, gr);
-      gg.addColorStop(0, this.glowColor(game)); gg.addColorStop(1, 'rgba(0,0,0,0)');
-      c.fillStyle = gg; c.beginPath(); c.arc(cx, cy, gr, 0, Math.PI * 2); c.fill();
-      c.restore(); c.globalAlpha = 1;
-    }
+    // (the old circular readability halo is gone — the sprites read fine on
+    // their own, and the glow looked like a mysterious bubble around enemies)
 
     // ---- Sprite path ----
     let animName = 'idle';

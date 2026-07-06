@@ -108,6 +108,10 @@ export class Game {
         this.howtoReturn = 'title';
         this.hiddenReturn = 0; // level index to resume after a hidden level
         this.minigamePlayed = new Set();
+        // bridge sprite tinted to the level's palette + time of day so it belongs to
+        // the landscape instead of reading as bright foreground timber (cached)
+        this._bridgeCv = null;
+        this._bridgeKey = '';
         this.save = loadSave();
         this.audio = new AudioManager(this.save.settings);
         this.state = this.save.seenIntro ? 'title' : 'howto';
@@ -1590,9 +1594,9 @@ export class Game {
         bg.drawSky(this, c);
         bg.drawParallax(this, c);
         bg.drawWind(this, c);
+        this.drawBridges(c); // under the terrain so banks/islands overlap the ends
         bg.drawTiles(this, c);
         this.drawPlatforms(c);
-        this.drawBridges(c);
         this.drawObjects(c);
         this.drawGems(c);
         this.drawHearts(c);
@@ -2100,18 +2104,46 @@ export class Game {
             }
         }
     }
-    drawBridges(c) {
+    tintedBridge() {
         const spr = stills.bridge;
+        if (!spr?.ready)
+            return null;
+        const key = this.level.theme + '|' + this.world;
+        if (this._bridgeCv && this._bridgeKey === key)
+            return this._bridgeCv;
+        if (!this._bridgeCv)
+            this._bridgeCv = document.createElement('canvas');
+        const cv = this._bridgeCv, g = cv.getContext('2d');
+        cv.width = spr.img.width;
+        cv.height = spr.img.height;
+        g.clearRect(0, 0, cv.width, cv.height);
+        g.globalCompositeOperation = 'source-over';
+        g.globalAlpha = 1;
+        g.drawImage(spr.img, 0, 0);
+        const tints = { mountain: 'rgba(150,80,50,.16)', bridge: 'rgba(50,110,110,.3)', cavern: 'rgba(110,60,150,.34)', sunless: 'rgba(55,75,115,.4)', arena: 'rgba(140,45,35,.3)' };
+        g.globalCompositeOperation = 'source-atop';
+        g.fillStyle = tints[this.level.theme] ?? tints.mountain;
+        g.fillRect(0, 0, cv.width, cv.height);
+        if (this.world === 'night') {
+            g.fillStyle = 'rgba(30,45,85,.38)';
+            g.fillRect(0, 0, cv.width, cv.height);
+        }
+        g.globalCompositeOperation = 'source-over';
+        this._bridgeKey = key;
+        return cv;
+    }
+    drawBridges(c) {
+        const spr = this.tintedBridge();
         for (const b of this.bridges) {
             const x0 = b.x - this.camera.x, deckY = b.y - this.camera.y + b.sag, w = b.w;
             c.save();
-            if (spr?.ready) {
-                // stretch the wooden bridge across the span with generous overlap so the
-                // end posts plant firmly ON the platforms (walk surface ~26% down)
-                const dw = w + 58, dh = dw * (spr.img.height / spr.img.width);
+            if (spr) {
+                // stretch across the span with generous overlap; ends tuck BEHIND the
+                // banks/islands (bridges draw under the terrain layer)
+                const dw = w + 58, dh = dw * (spr.height / spr.width);
                 c.shadowColor = 'rgba(0,0,0,.35)';
                 c.shadowBlur = 8;
-                c.drawImage(spr.img, x0 - 29, deckY - dh * 0.26, dw, dh);
+                c.drawImage(spr, x0 - 29, deckY - dh * 0.26, dw, dh);
             }
             else {
                 c.fillStyle = '#6f5230';
