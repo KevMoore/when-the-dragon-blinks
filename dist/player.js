@@ -571,6 +571,8 @@ export class Player {
             return;
         this.hp -= amount;
         this.invuln = 1.1;
+        game.combo = 0;
+        game.comboT = 0; // taking a hit breaks the score combo
         game.eyeReact = 1; // the dragon flinches when you are struck
         game.camera.addTrauma(0.5);
         game.addHitstop(0.06);

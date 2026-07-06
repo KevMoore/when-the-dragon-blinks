@@ -74,7 +74,11 @@ function buildLevel(spec, index) {
     const w = spec.len;
     const gr = h - 3; // base ground row — shallow terrain below (more sky)
     const m = emptyMap(w, h);
-    // rolling ground with small (always jumpable) pits
+    // rolling ground with small (always jumpable) pits — shaped by the archetype
+    const arch = spec.arch ?? 'plains';
+    const pitChance = arch === 'chasms' ? 0.42 : arch === 'ascent' ? 0.06 : arch === 'ruins' ? 0.1 : 0.2 + spec.hazard * 0.2;
+    const upBias = arch === 'ascent' ? 0.68 : 0.5; // ascent trends uphill across the level
+    const hiTop = arch === 'ascent' ? h - 9 : h - 7;
     const segs = [{ x: 0, top: gr }];
     const pits = [];
     let top = gr, x = 7; // flat spawn area first
@@ -82,17 +86,17 @@ function buildLevel(spec, index) {
         x += 6 + Math.floor(r() * 7);
         if (x >= w - 10)
             break;
-        if (x > 12 && r() < 0.2 + spec.hazard * 0.2) {
+        if (x > 12 && r() < pitChance) {
             const pw = 3 + Math.floor(r() * 2); // 3-4 wide, jumpable
             segs.push({ x, top: null });
             pits.push({ x0: x, x1: x + pw });
             x += pw;
-            top = clamp(top + (r() < 0.5 ? -1 : 1), h - 7, h - 3);
+            top = clamp(top + (r() < 0.5 ? -1 : 1), hiTop, h - 3);
             segs.push({ x, top });
         }
         else {
             // mostly 1-tile steps (walkable via step-up); occasional 2-tile for a hop
-            top = clamp(top + (r() < 0.5 ? -1 : 1) * (r() < 0.78 ? 1 : 2), h - 7, h - 3);
+            top = clamp(top + (r() < upBias ? -1 : 1) * (r() < 0.78 ? 1 : 2), hiTop, h - 3);
             segs.push({ x, top });
         }
     }
@@ -105,11 +109,13 @@ function buildLevel(spec, index) {
         row(m, p.x0, t0 - 2, 2, r() < 0.5 ? 'D' : 'N');
         row(m, p.x1 - 2, t0 - 3, 2, r() < 0.5 ? 'N' : 'D');
     }
-    // one-way vantage platforms (above the LOCAL ground)
-    for (let i = 0, n = 2 + Math.floor(w / 40); i < n; i++) {
-        const px = 12 + Math.floor(r() * (w - 26)), py = topAt(segs, px) - 3 - Math.floor(r() * 3);
+    // one-way vantage platforms (above the LOCAL ground) — ruins become a maze
+    const vantN = arch === 'ruins' ? 3 + Math.floor(w / 15) : 2 + Math.floor(w / 40);
+    for (let i = 0; i < vantN; i++) {
+        const px = 12 + Math.floor(r() * (w - 26));
+        const py = topAt(segs, px) - 3 - Math.floor(r() * (arch === 'ruins' ? 6 : 3));
         if (py > 3)
-            row(m, px, py, 3 + Math.floor(r() * 2), 'o');
+            row(m, px, py, 3 + Math.floor(r() * 2), arch === 'ruins' && r() < 0.3 ? (r() < 0.5 ? 'D' : 'N') : 'o');
     }
     // stateful (day/night) ground hazards (just above the LOCAL surface)
     for (let i = 0, n = Math.floor(spec.hazard * w / 30); i < n; i++) {
@@ -144,16 +150,33 @@ function buildLevel(spec, index) {
     // enemies — day/night hosts drawn from the act palette
     const entities = [];
     const eN = Math.round(spec.density * w / 20);
-    for (let i = 0; i < eN; i++) {
-        const kind = spec.pal[Math.floor(r() * spec.pal.length)];
-        const ex = 12 + Math.floor((i + 0.5) / eN * (w - 26)) + Math.floor(r() * 6);
-        entities.push({ kind, x: ex * TILE, y: (isFlyer(kind) ? gr - 6 - Math.floor(r() * 3) : gr - 2) * TILE });
+    if (arch === 'wilds') {
+        // combat gauntlet: packs of 3-4 at strongpoints, with calm stretches between
+        const packs = Math.max(3, Math.round(eN / 3.2));
+        for (let pk = 0; pk < packs; pk++) {
+            const px = 18 + Math.floor((pk + 0.5) / packs * (w - 40));
+            const size = 3 + (r() < 0.4 ? 1 : 0);
+            for (let n = 0; n < size; n++) {
+                const kind = spec.pal[Math.floor(r() * spec.pal.length)];
+                const ex = px + n * 3 + Math.floor(r() * 2);
+                entities.push({ kind, x: ex * TILE, y: (isFlyer(kind) ? topAt(segs, ex) - 5 - Math.floor(r() * 3) : topAt(segs, ex) - 2) * TILE });
+            }
+        }
+    }
+    else {
+        for (let i = 0; i < eN; i++) {
+            const kind = spec.pal[Math.floor(r() * spec.pal.length)];
+            const ex = 12 + Math.floor((i + 0.5) / eN * (w - 26)) + Math.floor(r() * 6);
+            entities.push({ kind, x: ex * TILE, y: (isFlyer(kind) ? gr - 6 - Math.floor(r() * 3) : gr - 2) * TILE });
+        }
     }
     if (spec.miniBoss)
         entities.push({ kind: 'sentinel', x: Math.floor(w * 0.84) * TILE, y: (gr - 3) * TILE, elite: true });
+    else if (arch === 'wilds')
+        entities.push({ kind: spec.act >= 3 ? 'ghoul' : 'guardian', x: Math.floor(w * 0.55) * TILE, y: (topAt(segs, Math.floor(w * 0.55)) - 3) * TILE, elite: true });
     // vertical climb towers: zig-zag stacks of one-way + day/night platforms to
     // ascend, with a gem reward up top and enemies perched along the way
-    const climbs = 1 + Math.floor(w / 68);
+    const climbs = arch === 'ascent' ? 3 + Math.floor(w / 60) : arch === 'chasms' ? 1 : 1 + Math.floor(w / 68);
     for (let ci = 0; ci < climbs; ci++) {
         const ccx = 22 + Math.floor((ci + 0.4) / climbs * (w - 44));
         const base = topAt(segs, ccx), tall = 4 + Math.floor(r() * 3);
@@ -170,25 +193,27 @@ function buildLevel(spec, index) {
         }
     }
     const bridges = [];
-    // (1) a railed plank bridge over a real carved chasm on the ground (Act II onward)
-    if (spec.act >= 2 && w > 112 && !spec.boss) {
-        const gx = Math.floor(w * 0.5), gw = 6 + Math.floor(r() * 3), gt = topAt(segs, gx - 1);
-        for (let cx = gx - 2; cx < gx; cx++) {
-            setTile(m, cx, gt, 'g');
-            for (let cy = gt + 1; cy < h; cy++)
-                setTile(m, cx, cy, '#');
+    // (1) railed plank bridges over real carved chasms (Act II onward; chasm levels get two)
+    const chasmSpots = arch === 'chasms' ? [0.32, 0.62] : [0.5];
+    if (spec.act >= 2 && w > 112 && !spec.boss)
+        for (const spot of chasmSpots) {
+            const gx = Math.floor(w * spot), gw = 6 + Math.floor(r() * 3), gt = topAt(segs, gx - 1);
+            for (let cx = gx - 2; cx < gx; cx++) {
+                setTile(m, cx, gt, 'g');
+                for (let cy = gt + 1; cy < h; cy++)
+                    setTile(m, cx, cy, '#');
+            }
+            for (let cx = gx + gw; cx < gx + gw + 2; cx++) {
+                setTile(m, cx, gt, 'g');
+                for (let cy = gt + 1; cy < h; cy++)
+                    setTile(m, cx, cy, '#');
+            }
+            for (let cx = gx; cx < gx + gw; cx++)
+                for (let cy = gt; cy < h; cy++)
+                    setTile(m, cx, cy, '.');
+            row(m, gx, h - 2, gw, '^');
+            bridges.push({ x: gx * TILE - 12, y: gt * TILE, w: gw * TILE + 24 }); // overlap the banks so no edge-gap
         }
-        for (let cx = gx + gw; cx < gx + gw + 2; cx++) {
-            setTile(m, cx, gt, 'g');
-            for (let cy = gt + 1; cy < h; cy++)
-                setTile(m, cx, cy, '#');
-        }
-        for (let cx = gx; cx < gx + gw; cx++)
-            for (let cy = gt; cy < h; cy++)
-                setTile(m, cx, cy, '.');
-        row(m, gx, h - 2, gw, '^');
-        bridges.push({ x: gx * TILE - 12, y: gt * TILE, w: gw * TILE + 24 }); // overlap the banks so no edge-gap
-    }
     // (2) an aerial run of floating platforms linked by plank bridges (ground stays
     // below, so a fall is survivable). A stepped ramp leads up to it. (Act II onward)
     if (spec.act >= 2 && w > 120 && !spec.boss) {
@@ -292,6 +317,7 @@ function makeSpecs() {
             len: 150 + act * 8 + j * 6,
             diff: 0.95 + (act - 1) * 0.2 + j * 0.05,
             pal: PAL[act], density: 0.85 + (act - 1) * 0.12 + j * 0.06, hazard: 0.18 + (act - 1) * 0.1 + j * 0.05,
+            arch: ['plains', 'ascent', 'chasms', 'ruins', 'wilds', 'wilds'][j],
             windy: act === 3, moving: j >= 2, crumble: act >= 3 && j >= 3,
             miniBoss: finale && !isFinalBoss, boss: isFinalBoss,
             intro: j === 0 ? `act${act}-intro` : (isFinalBoss ? 'intro-boss' : ''),

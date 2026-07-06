@@ -127,6 +127,8 @@ export class Enemy {
       game.audio.sfx('collect');
       game.addScore(this.points, cx, cy);
       game.spawnEmbers(cx, cy, this.points >= 200 ? 2 : 1);
+      // elites always leave a lantern-heart; common foes sometimes do
+      if (this.elite || Math.random() < 0.1) game.hearts.push({ x: cx - 9, y: cy - 9, taken: false });
     }
   }
 

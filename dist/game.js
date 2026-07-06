@@ -79,6 +79,9 @@ export class Game {
         this.lanternNext = 0;
         // slain enemies dissolve as rising spirit ghosts (kind + pose kept for a beat)
         this.remnants = [];
+        this.hearts = []; // lantern-hearts dropped by slain foes
+        this.deathsThisLevel = 0;
+        this.lastGrade = ''; // level-clear rank
         // characters render ~10% larger (a touch more again on mobile for readability)
         this.spriteScale = (typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 1.18 : 1.1;
         this.gems = [];
@@ -148,6 +151,9 @@ export class Game {
         this.nova = 0.35;
         this.novaT = 0;
         this.deathT = 0;
+        this.hearts = [];
+        this.remnants = [];
+        this.deathsThisLevel = 0;
         this.gems = (this.level.gems || []).map(g => ({ x: g.x, y: g.y, taken: false, rt: 0 }));
         this.bridges = (this.level.bridges || []).map(b => ({ x: b.x, y: b.y, w: b.w, sag: 0, sagVel: 0, loadU: 0.5 }));
         this.clearT = 0;
@@ -387,6 +393,15 @@ export class Game {
         if (this.lastWasBest)
             this.save.bestTimes[id] = this.elapsed;
         this.lastLevelBonus = Math.max(500, Math.round(4000 - this.elapsed * 30));
+        // rank the run: pace vs the level's par, weighed against deaths
+        const par = this.level.width * TILE / 150;
+        this.lastGrade = this.deathsThisLevel === 0 && this.elapsed <= par ? 'S'
+            : this.deathsThisLevel <= 1 && this.elapsed <= par * 1.5 ? 'A'
+                : this.deathsThisLevel <= 3 || this.elapsed <= par * 2.2 ? 'B' : 'C';
+        if (this.lastGrade === 'S')
+            this.score += 1500;
+        else if (this.lastGrade === 'A')
+            this.score += 600;
         this.score += this.lastLevelBonus;
         if (this.score > this.save.highScore)
             this.save.highScore = this.score;
@@ -944,6 +959,33 @@ export class Game {
             r.y -= 34 * dt;
         }
         this.remnants = this.remnants.filter(r => r.t < 0.55);
+        // lantern-hearts: magnetic pickup that rekindles 1 HP (or +100 if full)
+        {
+            const p = this.player, pcx = p.x + p.w / 2, pcy = p.y + p.h / 2;
+            for (const ht of this.hearts) {
+                if (ht.taken)
+                    continue;
+                const dx = pcx - (ht.x + 9), dy = pcy - (ht.y + 9), d = Math.hypot(dx, dy);
+                if (d < 120 && d > 1) {
+                    const pull = (1 - d / 120) * 380 * dt;
+                    ht.x += dx / d * pull;
+                    ht.y += dy / d * pull;
+                }
+                if (overlap(p.rect(), { x: ht.x, y: ht.y, w: 18, h: 18 })) {
+                    ht.taken = true;
+                    if (p.hp < p.maxHp) {
+                        p.hp++;
+                        this.flashText('A lantern-heart rekindles you.');
+                    }
+                    else
+                        this.addScore(100, ht.x, ht.y);
+                    this.audio.sfx('checkpoint');
+                    this.particles.sparks(ht.x + 9, ht.y + 9, 14, '#ff9d6a');
+                    this.particles.ring(ht.x + 9, ht.y + 9, 8, 150, '#ffb24a');
+                }
+            }
+            this.hearts = this.hearts.filter(h => !h.taken);
+        }
         for (const pl of this.platforms)
             pl.update(dt, this.time);
         this.carryRider();
@@ -1553,6 +1595,7 @@ export class Game {
         this.drawBridges(c);
         this.drawObjects(c);
         this.drawGems(c);
+        this.drawHearts(c);
         for (const e of this.enemies)
             e.draw(this, c);
         this.drawRemnants(c);
@@ -1972,6 +2015,42 @@ export class Game {
         }
         c.globalAlpha = 1;
     }
+    // Lantern-hearts: little glowing paper-lantern pickups (restore 1 HP)
+    drawHearts(c) {
+        for (const ht of this.hearts) {
+            if (ht.taken)
+                continue;
+            const x = ht.x + 9 - this.camera.x, y = ht.y + 9 - this.camera.y + Math.sin(this.time * 3 + ht.x) * 4;
+            c.save();
+            c.globalCompositeOperation = 'lighter';
+            c.globalAlpha = 0.5 + 0.25 * Math.sin(this.time * 5 + ht.x);
+            const g = c.createRadialGradient(x, y, 0, x, y, 22);
+            g.addColorStop(0, 'rgba(255,140,90,.9)');
+            g.addColorStop(1, 'rgba(0,0,0,0)');
+            c.fillStyle = g;
+            c.beginPath();
+            c.arc(x, y, 22, 0, Math.PI * 2);
+            c.fill();
+            c.restore();
+            c.save();
+            c.translate(x, y);
+            c.fillStyle = '#d94a3a';
+            c.shadowColor = '#ff8b5a';
+            c.shadowBlur = 10;
+            c.beginPath();
+            c.ellipse(0, 0, 7.5, 9, 0, 0, Math.PI * 2);
+            c.fill();
+            c.shadowBlur = 0;
+            c.fillStyle = '#3a1410';
+            c.fillRect(-4, -11, 8, 3);
+            c.fillRect(-4, 8, 8, 3);
+            c.fillStyle = '#ffe6a0';
+            c.beginPath();
+            c.arc(0, 0, 3, 0, Math.PI * 2);
+            c.fill();
+            c.restore();
+        }
+    }
     // Slain-spirit ghosts: the enemy sprite lingers, rising, brightening to light,
     // stretching upward and dissolving — a soul leaving rather than a blink-out.
     drawRemnants(c) {
@@ -2127,6 +2206,7 @@ export class Game {
         this.deathX = p.x + p.w / 2;
         this.deathY = p.y + p.h / 2;
         this.deathPit = pit;
+        this.deathsThisLevel++;
         p.vx = 0;
         p.vy = 0;
         p.invuln = 999;

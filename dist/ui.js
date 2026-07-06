@@ -3,6 +3,7 @@
 import { clamp, easeOutCubic } from './math.js';
 import { LOGICAL_W, LOGICAL_H } from './types.js';
 import { levels, codexEntries } from './content.js';
+import { sprites } from './sprites.js';
 const GOLD = '#ffd777', MOON = '#a9d6ff', PAPER = '#fff1ca';
 export function wrapText(c, text, x, y, maxW, lh) {
     const words = text.split(' ');
@@ -203,6 +204,20 @@ export function drawFloatingText(c, msg) {
 export function drawTitle(game, c) {
     c.save();
     c.textAlign = 'center';
+    // Zhulong himself coils behind the title, breathing fire
+    const dragon = sprites.get('dragon/attack');
+    if (dragon?.ready) {
+        const bobD = Math.sin(game.time * 0.9) * 8;
+        c.save();
+        c.globalAlpha = 0.9;
+        c.translate(LOGICAL_W - 190, 150 + bobD);
+        c.scale(-1, 1);
+        c.shadowColor = '#ff8b3a';
+        c.shadowBlur = 34;
+        dragon.blit(c, dragon.frameAt(game.time * 0.8), 250, false);
+        c.restore();
+        c.globalAlpha = 1;
+    }
     c.shadowColor = '#d94a3a';
     c.shadowBlur = 30;
     c.fillStyle = '#ffe3a0';
@@ -541,6 +556,26 @@ export function drawLevelComplete(game, c) {
     c.fillStyle = '#ffe3a0';
     c.font = '46px Georgia';
     c.fillText('Shrine Path Restored', LOGICAL_W / 2, 190);
+    // rank seal
+    if (game.lastGrade) {
+        const gx = LOGICAL_W / 2 + 268, gy = 178;
+        const col = game.lastGrade === 'S' ? '#ffd777' : game.lastGrade === 'A' ? '#8fd9a8' : game.lastGrade === 'B' ? '#8fb8e8' : '#b8a6a6';
+        c.save();
+        c.translate(gx, gy);
+        c.rotate(0.12);
+        c.strokeStyle = col;
+        c.lineWidth = 3;
+        c.shadowColor = col;
+        c.shadowBlur = 16;
+        c.beginPath();
+        c.arc(0, 0, 40, 0, Math.PI * 2);
+        c.stroke();
+        c.fillStyle = col;
+        c.font = 'bold 52px Georgia';
+        c.textAlign = 'center';
+        c.fillText(game.lastGrade, 0, 18);
+        c.restore();
+    }
     c.fillStyle = PAPER;
     c.font = '20px Georgia';
     c.fillText('A new Myth & History entry has been unlocked.', LOGICAL_W / 2, 238);
