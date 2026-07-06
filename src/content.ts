@@ -142,6 +142,21 @@ function buildLevel(spec: Spec, index: number): LevelData {
   }
   if (spec.miniBoss) entities.push({ kind: 'sentinel', x: Math.floor(w * 0.84) * TILE, y: (gr - 2) * TILE });
 
+  // vertical climb towers: zig-zag stacks of one-way + day/night platforms to
+  // ascend, with a gem reward up top and enemies perched along the way
+  const climbs = 1 + Math.floor(w / 68);
+  for (let ci = 0; ci < climbs; ci++) {
+    const ccx = 22 + Math.floor((ci + 0.4) / climbs * (w - 44));
+    const base = topAt(segs, ccx), tall = 4 + Math.floor(r() * 3);
+    for (let k = 0; k < tall; k++) {
+      const py = base - 3 - k * 2; if (py < 2) break;
+      const px = ccx + (k % 2 === 0 ? 0 : 4);
+      row(m, px, py, 3, k % 3 === 0 ? 'o' : (r() < 0.5 ? 'D' : 'N'));   // blink to climb some rungs
+      if (k === tall - 1) gems.push(gem(px + 1, py - 2));
+      else if (r() < 0.42) entities.push({ kind: spec.pal[Math.floor(r() * spec.pal.length)], x: (px + 1) * TILE, y: (py - 2) * TILE });
+    }
+  }
+
   // secret exit → a hidden level (a high night-ledge to find)
   let secretExit: Rect | undefined, secretExitTo: number | undefined;
   if (spec.secretTo !== undefined) {
