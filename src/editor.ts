@@ -194,12 +194,21 @@ function blinkSaved() { const d = $('savedot'); d.classList.add('on'); clearTime
 // ---- rail + inspector -------------------------------------------------------------
 function buildRail() {
   const rail = $('rail'); rail.innerHTML = '';
+  const tip = $('railtip');
   for (const t of TOOLS) {
     if (!t) { const s = document.createElement('div'); s.className = 'rsep'; rail.appendChild(s); continue; }
     const b = document.createElement('button');
     b.className = 'rbtn' + (tool === t.id ? ' on' : '');
-    b.innerHTML = `${t.icon}<span class="tip">${t.label}</span>`;
+    b.textContent = t.icon;
     b.onclick = () => { tool = t.id; bridgeStart = null; buildRail(); syncInspector(); updateHint(); };
+    // rich tooltip: NAME + what it does (position:fixed so the rail can't clip it)
+    b.onpointerenter = () => {
+      tip.innerHTML = `<b>${t.icon} ${t.label}</b><small>${t.hint}</small>`;
+      const r = b.getBoundingClientRect();
+      tip.style.top = Math.min(r.top, window.innerHeight - 90) + 'px';
+      tip.classList.add('show');
+    };
+    b.onpointerleave = () => tip.classList.remove('show');
     rail.appendChild(b);
   }
   cv.classList.toggle('tooling', tool !== 'Pan');

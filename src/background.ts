@@ -673,8 +673,10 @@ function drawSpan(game: Game, c: CanvasRenderingContext2D, th: Theme, a: number,
       const w2 = Math.min(sx0 + step, rightX) - sx;
       if (w2 <= 0) continue;
       const y0 = surfAt(sx), y1 = surfAt(sx + w2);
-      const ang = Math.atan2(y1 - y0, w2);
-      if (Math.abs(ang) > 0.9) continue;                  // cliff face — bare rock, no draped grass
+      // only TRUE cliffs go bare (the old angle test also fired on ordinary
+      // 1-tile steps, stripping their turf and leaving dark "crack" seams)
+      if (Math.abs(y1 - y0) > TILE * 1.2) continue;
+      const ang = Math.max(-0.85, Math.min(0.85, Math.atan2(y1 - y0, w2)));
       let su = ((sx + camX) / scale) % TW; if (su < 0) su += TW;
       const srcW = (w2 + 1.5) / scale;                    // slight overlap hides slice joins
       const flat = Math.abs(ang) < 0.03;                  // flats draw direct — no transform churn
@@ -703,22 +705,8 @@ function drawSpan(game: Game, c: CanvasRenderingContext2D, th: Theme, a: number,
     gg.addColorStop(0, mixHex(th.grass, '#e8ffb0', 0.35)); gg.addColorStop(1, th.grassLo);
     c.fillStyle = gg; c.fill(); c.restore();
   }
-  // bright top highlight + blades
-  c.save(); c.lineJoin = 'round'; c.lineCap = 'round';
-  c.strokeStyle = mixHex(th.grass, '#f0ffc0', 0.5); c.lineWidth = 1.4; c.beginPath(); traceTop(); c.stroke();
-  // lush wind-blown blades: varied height/tint, plus a gust wave rippling across
-  for (let x = a; x <= b; x++) {
-    const wx = x * TILE, sy = surfY(x);
-    for (let k = 0; k < 5; k++) {
-      const bx = wx + 3 + k * 6 - camX;
-      const gust = Math.sin(game.time * 1.7 + (wx + k * 6) * 0.028) * 1.0 + Math.sin(game.time * 0.7 + wx * 0.012) * 1.6;
-      const hgt = 7 + hash(x * 7 + k * 3) * 7, sway = gust * (hgt / 9);
-      c.lineWidth = 1.1 + hash(x * 3 + k) * 0.6;
-      c.strokeStyle = mixHex(th.grassLo, mixHex(th.grass, '#eaffb4', 0.3), hash(x * 11 + k));
-      c.beginPath(); c.moveTo(bx, sy + 2); c.quadraticCurveTo(bx + sway * 0.6, sy - hgt * 0.5, bx + sway * 1.5, sy - hgt); c.stroke();
-    }
-  }
-  c.restore();
+  // (the procedural wind-blown blade strokes are retired — the textured turf
+  // strip carries the grass look on its own)
 
   // cliff shading at the two edges (pit walls)
   for (const ex of [leftX, rightX]) {

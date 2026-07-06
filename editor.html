@@ -33,8 +33,10 @@
     .rbtn { width: 40px; height: 40px; display: grid; place-items: center; font-size: 19px; background: transparent; border: 1px solid transparent; border-radius: 10px; cursor: pointer; color: var(--ink); position: relative; }
     .rbtn:hover { background: var(--panel2); border-color: var(--line); }
     .rbtn.on { background: linear-gradient(150deg, #d94a3a, #a83227); border-color: var(--gold); box-shadow: 0 2px 10px rgba(217,74,58,.4); }
-    .rbtn .tip { position: absolute; left: 50px; top: 50%; transform: translateY(-50%); background: #0d0912; border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; white-space: nowrap; font-size: 12px; opacity: 0; pointer-events: none; transition: opacity .12s; z-index: 40; }
-    .rbtn:hover .tip { opacity: 1; }
+    #railtip { position: fixed; left: 60px; background: #0d0912; border: 1px solid var(--line); border-left: 3px solid var(--gold); border-radius: 10px; padding: 8px 12px; font-size: 12.5px; max-width: 260px; opacity: 0; pointer-events: none; transition: opacity .1s; z-index: 60; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
+    #railtip.show { opacity: 1; }
+    #railtip b { color: var(--gold); display: block; margin-bottom: 2px; font-size: 13px; }
+    #railtip small { color: var(--dim); line-height: 1.35; display: block; }
     .rsep { width: 26px; height: 1px; background: var(--line); margin: 5px 0; flex: none; }
 
     /* ---- stage ---- */
@@ -104,6 +106,7 @@
   </div>
 
   <input id="file" type="file" accept=".json" style="display:none" />
+  <div id="railtip"></div>
   <div id="toasts"></div>
 
   <div class="overlay" id="confirm-overlay"><div class="card">
