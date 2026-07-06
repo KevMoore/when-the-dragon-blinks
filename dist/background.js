@@ -683,15 +683,18 @@ function drawSpan(game, c, th, a, b, camX, camY, bottom, topY) {
     c.beginPath();
     traceTop();
     c.stroke();
-    c.strokeStyle = th.grassLo;
+    // lush wind-blown blades: varied height/tint, plus a gust wave rippling across
     for (let x = a; x <= b; x++) {
         const wx = x * TILE, sy = surfY(x);
-        for (let k = 0; k < 3; k++) {
-            const bx = wx + 6 + k * 9 - camX, sway = Math.sin(game.time * 1.4 + x + k) * 1.2;
-            c.lineWidth = 1.3;
+        for (let k = 0; k < 5; k++) {
+            const bx = wx + 3 + k * 6 - camX;
+            const gust = Math.sin(game.time * 1.7 + (wx + k * 6) * 0.028) * 1.0 + Math.sin(game.time * 0.7 + wx * 0.012) * 1.6;
+            const hgt = 7 + hash(x * 7 + k * 3) * 7, sway = gust * (hgt / 9);
+            c.lineWidth = 1.1 + hash(x * 3 + k) * 0.6;
+            c.strokeStyle = mixHex(th.grassLo, mixHex(th.grass, '#eaffb4', 0.3), hash(x * 11 + k));
             c.beginPath();
             c.moveTo(bx, sy + 2);
-            c.quadraticCurveTo(bx + sway, sy - 4, bx + sway * 1.6, sy - 8);
+            c.quadraticCurveTo(bx + sway * 0.6, sy - hgt * 0.5, bx + sway * 1.5, sy - hgt);
             c.stroke();
         }
     }

@@ -27,21 +27,22 @@ export function loadSprites() {
   add('player/summon', 'player/summon.png', 128, 12, false);
   add('player/crouch', 'player/crouch.png', 128, 14, false);
 
-  // enemies
-  add('enemy/moth/idle', 'moth/idle.png', 96, 12, true);
-  add('enemy/wisp/idle', 'wisp/idle.png', 96, 8, true);
+  // enemies — silky 12-frame / 4-column flight for the airborne ones
+  const addF = (key: string, path: string, fw: number, fps: number) => sprites.add(key, { src: S + path, fw, fh: fw, frames: 12, cols: 4, fps, loop: true });
+  addF('enemy/moth/idle', 'moth/idle.png', 96, 14);
+  addF('enemy/wisp/idle', 'wisp/idle.png', 96, 12);
   add('enemy/guardian/idle', 'guardian/idle.png', 128, 8, true);
   add('enemy/guardian/walk', 'guardian/walk.png', 128, 10, true);
   add('enemy/sentry/idle', 'sentry/idle.png', 96, 8, true);
 
   add('enemy/ghoul/walk', 'ghoul/walk.png', 128, 8, true);
-  add('enemy/skull/idle', 'skull/idle.png', 96, 8, true);
+  addF('enemy/skull/idle', 'skull/idle.png', 96, 12);
   add('enemy/crawler/walk', 'crawler/walk.png', 128, 12, true);
-  // new fable bad dudes
-  add('enemy/crow/idle', 'crow/idle.png', 96, 12, true);
+  // new fable bad dudes (crow + wraith fly silky 12-frame; sentinel walks)
+  addF('enemy/crow/idle', 'crow/idle.png', 96, 14);
   add('enemy/sentinel/idle', 'sentinel/idle.png', 128, 8, true);
   add('enemy/sentinel/walk', 'sentinel/walk.png', 128, 10, true);
-  add('enemy/wraith/idle', 'wraith/idle.png', 96, 8, true);
+  addF('enemy/wraith/idle', 'wraith/idle.png', 96, 12);
 
   // boss
   add('boss/idle', 'boss/idle.png', 160, 8, true);
