@@ -967,20 +967,19 @@ function drawSpan(game, c, th, a, b, camX, camY, bottom, topY) {
             if (w2 <= 0)
                 continue;
             const y0 = surfAt(sx), y1 = surfAt(sx + w2);
-            // only TRUE cliffs go bare (the old angle test also fired on ordinary
-            // 1-tile steps, stripping their turf and leaving dark "crack" seams)
             if (Math.abs(y1 - y0) > TILE * 1.2)
-                continue;
-            const ang = Math.max(-0.85, Math.min(0.85, Math.atan2(y1 - y0, w2)));
+                continue; // only TRUE cliffs go bare
+            // SHEAR, don't rotate: sheared slices keep vertical edges, so neighbours
+            // meet EXACTLY on any slope (rotated slices fanned apart -> crack seams)
+            const k = (y1 - y0) / Math.max(1e-6, w2);
             let su = ((sx + camX) / scale) % TW;
             if (su < 0)
                 su += TW;
-            const srcW = (w2 + 1.5) / scale; // slight overlap hides slice joins
-            const flat = Math.abs(ang) < 0.03; // flats draw direct — no transform churn
+            const srcW = (w2 + 1.5) / scale;
+            const flat = Math.abs(k) < 0.02; // flats draw direct — no transform churn
             if (!flat) {
                 c.save();
-                c.translate(sx, y0);
-                c.rotate(ang);
+                c.transform(1, k, 0, 1, sx, y0);
             }
             const dx0 = flat ? sx : 0, dy0 = flat ? y0 - 7 : -7;
             if (su + srcW <= TW)
