@@ -1452,7 +1452,8 @@ export class Game {
         if (!this.level.isBoss) {
             const e = this.level.exit, cx = e.x + e.w / 2 - this.camera.x, by = e.y + e.h - this.camera.y;
             const act = this.level.act || 1;
-            const st = stills[['gate', 'gate2', 'gate3', 'gate4'][act - 1]]?.ready ? stills[['gate', 'gate2', 'gate3', 'gate4'][act - 1]] : (stills.gate?.ready ? stills.gate : undefined);
+            const gk = ['gate1', 'gate2', 'gate3', 'gate4'][act - 1] || 'gate1';
+            const st = stills[gk]?.ready ? stills[gk] : (stills.gate?.ready ? stills.gate : undefined);
             const glow = ['255,90,50', '90,210,200', '190,100,255', '110,150,230'][act - 1] || '255,90,50';
             if (st) {
                 const h = e.h + 30, midY = by - h * 0.55, pulse = 0.5 + 0.3 * Math.sin(this.time * 3);
