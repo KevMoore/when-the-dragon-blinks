@@ -402,8 +402,7 @@ export function drawParallax(game: Game, c: CanvasRenderingContext2D) {
     }
   }
 
-  // hanging lantern string (the SVG paifang building is retired — sprites now)
-  drawLanternString(game, c, day);
+  // (the dangling lantern string is retired — visual clutter + wasted draw time)
 
   // foreground floor fog
   c.save(); c.globalCompositeOperation = 'screen'; c.globalAlpha = 0.5;
