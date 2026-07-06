@@ -70,6 +70,10 @@ export class Game {
         this.gems = [];
         this.embers = [];
         this.transformT = 0; // >0 while the transformation cinematic plays
+        this.deathT = 0;
+        this.deathX = 0;
+        this.deathY = 0;
+        this.deathPit = false; // death sequence
         this.difficulty = 1; // per-level aggression scalar (lower = easier)
         this.clearT = 0;
         this.clearing = false;
@@ -127,6 +131,7 @@ export class Game {
         this.transformT = 0;
         this.nova = 0.35;
         this.novaT = 0;
+        this.deathT = 0;
         this.gems = (this.level.gems || []).map(g => ({ x: g.x, y: g.y, taken: false, rt: 0 }));
         this.clearT = 0;
         this.clearing = false;
@@ -831,6 +836,11 @@ export class Game {
         this.audio.playMusic(key);
     }
     updatePlaying(dt) {
+        if (this.deathT > 0) {
+            this.updateDeath(dt);
+            this.particles.update(dt);
+            return;
+        }
         if (this.bossDeathT > 0) {
             this.updateBossDeath(dt);
             return;
@@ -1358,6 +1368,8 @@ export class Game {
         }
         if (this.novaT > 0)
             this.drawNova(c);
+        if (this.deathT > 0)
+            this.drawDeath(c);
         if (this.bossDeathT > 0)
             this.drawBossDeathCinematic(c);
         if (this.transformT > 0)
@@ -1847,6 +1859,69 @@ export class Game {
             c.beginPath();
             c.moveTo(x + Math.cos(a) * 44, y + Math.sin(a) * 44);
             c.lineTo(x + Math.cos(a) * rad * 1.5, y + Math.sin(a) * rad * 1.5);
+            c.stroke();
+        }
+        c.restore();
+        c.globalAlpha = 1;
+    }
+    // Death: a short beat where the fragment scatters into light before the
+    // checkpoint respawn (called from Player.hurt).
+    beginDeath(p, pit) {
+        if (this.deathT > 0)
+            return;
+        this.deathT = 1.4;
+        this.deathX = p.x + p.w / 2;
+        this.deathY = p.y + p.h / 2;
+        this.deathPit = pit;
+        p.vx = 0;
+        p.vy = 0;
+        p.invuln = 999;
+        this.camera.addTrauma(0.7);
+        this.addHitstop(0.08);
+        this.audio.sfx('hurt');
+        this.audio.sfx('bosshit');
+        this.particles.hit(this.deathX, this.deathY, 44, '#ffd777');
+        this.particles.sparks(this.deathX, this.deathY, 44, '#ff9d4d');
+        this.particles.embers(this.deathX, this.deathY, 34);
+    }
+    updateDeath(dt) {
+        this.deathT -= dt;
+        if (Math.random() < 0.6)
+            this.particles.embers(this.deathX + (Math.random() * 30 - 15), this.deathY + (Math.random() * 30 - 15), 1);
+        if (this.deathT <= 0) {
+            this.deathT = 0;
+            this.player.respawnAtCheckpoint();
+            this.player.invuln = 1.4;
+            this.flashText(this.deathPit ? 'The shrine wind returns you.' : 'The fragment rekindles.');
+            this.camera.snap(this.player.x - 400, this.player.y - 300);
+            this.flash = Math.max(this.flash, 0.55);
+            this.flashColor = '#ffd777';
+        }
+    }
+    drawDeath(c) {
+        const t = clamp(1 - this.deathT / 1.4, 0, 1);
+        const x = this.deathX - this.camera.x, y = this.deathY - this.camera.y;
+        c.save();
+        const v = c.createRadialGradient(x, y, 18, x, y, 470 * (1 - t * 0.7));
+        v.addColorStop(0, 'rgba(0,0,0,0)');
+        v.addColorStop(1, `rgba(2,1,4,${0.5 + t * 0.42})`);
+        c.fillStyle = v;
+        c.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
+        c.globalCompositeOperation = 'lighter';
+        const coreA = Math.max(0, 1 - t * 1.5), cr = 42 * (1 - t) + 6;
+        const cg = c.createRadialGradient(x, y, 0, x, y, cr);
+        cg.addColorStop(0, `rgba(255,240,200,${coreA})`);
+        cg.addColorStop(1, 'rgba(0,0,0,0)');
+        c.fillStyle = cg;
+        c.beginPath();
+        c.arc(x, y, cr, 0, Math.PI * 2);
+        c.fill();
+        if (t < 1) {
+            c.globalAlpha = (1 - t) * 0.6;
+            c.strokeStyle = '#ffd777';
+            c.lineWidth = 4 * (1 - t) + 1;
+            c.beginPath();
+            c.arc(x, y, t * 130, 0, Math.PI * 2);
             c.stroke();
         }
         c.restore();

@@ -415,9 +415,7 @@ export class Player {
     game.audio.sfx('hurt');
     game.particles.hit(this.x + this.w / 2, this.y + this.h / 2, 18);
     if (this.hp <= 0 || pit) {
-      this.respawnAtCheckpoint();
-      game.flashText(pit ? 'The shrine wind returns you.' : 'The fragment rekindles.');
-      game.camera.snap(this.x - 400, this.y - 300);
+      game.beginDeath(this, pit);        // short death sequence, then respawn at checkpoint
     } else {
       this.vx = -this.facing * 260;
       this.vy = -340;
@@ -436,6 +434,7 @@ export class Player {
   }
 
   draw(game: Game, c: CanvasRenderingContext2D) {
+    if (game.deathT > 0) return;                 // the fragment has scattered — death fx draws instead
     if (game.transformT > 0) { this.drawSummon(game, c); return; }
     if (this.dragonTime > 0) { this.drawDragon(game, c); return; }
     this.drawGroundShadow(game, c);

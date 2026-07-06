@@ -94,6 +94,10 @@ if (_q.has('nova')) {
     const h = () => { game.novaT = 0.42; const p = game.player; game.novaX = p.x + p.w / 2; game.novaY = p.y + p.h / 2; requestAnimationFrame(h); };
     h();
 }
+if (_q.has('death')) {
+    const h = () => { game.deathT = 0.65; const p = game.player; game.deathX = p.x + p.w / 2; game.deathY = p.y + p.h / 2; requestAnimationFrame(h); };
+    h();
+}
 // dev aid: hold an aim pose for screenshots — ?pose=up|updiag|down|downdiag
 if (_q.has('pose')) {
     const m = { up: [0, -1], updiag: [0.7, -0.7], down: [0, 1], downdiag: [0.7, 0.7] };
