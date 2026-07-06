@@ -173,7 +173,7 @@ const propReady: Record<string, boolean> = {};
 let propsInit = false;
 function ensureProps() {
   if (propsInit) return; propsInit = true;
-  for (const n of ['pagoda', 'shishi', 'pine', 'stele', 'palace']) {
+  for (const n of ['pagoda', 'shishi', 'pine', 'stele', 'palace', 'crystal']) {
     const im = new Image(); im.onload = () => (propReady[n] = true); im.src = 'assets/sprites/props/' + n + '.png'; propImgs[n] = im;
   }
 }
@@ -421,6 +421,32 @@ function drawSpan(game: Game, c: CanvasRenderingContext2D, th: Theme, a: number,
   // roots hanging from the grass into the dirt
   c.strokeStyle = mixHex(th.grassLo, th.soilBot, 0.5); c.lineWidth = 1.4; c.lineCap = 'round';
   for (let x = a; x <= b; x++) { if (hash(x * 23 + 9) > 0.28) continue; const rx = x * TILE + 16 - camX, ry = surfY(x) + 12; c.beginPath(); c.moveTo(rx, ry); c.quadraticCurveTo(rx + 3, ry + 8, rx - 2, ry + 16); c.stroke(); }
+  // sediment strata (world-anchored horizontal bands) — depth below the surface
+  c.strokeStyle = 'rgba(0,0,0,.14)'; c.lineWidth = 5;
+  for (let wy = Math.floor(camY / 66) * 66; wy < camY + LOGICAL_H + 66; wy += 66) {
+    const sy = wy - camY; c.beginPath(); c.moveTo(leftX - 6, sy + Math.sin(wy * 0.02) * 5); c.lineTo(rightX + 6, sy + Math.sin(wy * 0.02 + 2) * 5); c.stroke();
+  }
+  // glowing mineral veins in the act's accent colour, faintly shimmering
+  c.save(); c.globalCompositeOperation = 'lighter'; c.strokeStyle = th.accent; c.lineWidth = 1.6; c.lineCap = 'round';
+  for (let x = a; x <= b; x++) {
+    if (hash(x * 29 + 3) > 0.16) continue;
+    c.globalAlpha = 0.22 + 0.18 * Math.sin(game.time * 1.6 + x);
+    let vx = x * TILE + 10 - camX, vy = surfY(x) + 34;
+    c.beginPath(); c.moveTo(vx, vy);
+    for (let seg = 0; seg < 4; seg++) { vx += (hash(x * 7 + seg) - 0.5) * 22; vy += 24; c.lineTo(vx, vy); }
+    c.stroke();
+    c.fillStyle = th.accent; c.globalAlpha *= 1.3; c.beginPath(); c.arc(vx, vy, 1.8, 0, Math.PI * 2); c.fill();   // crystal node
+  }
+  c.restore(); c.globalAlpha = 1;
+  // buried glowing crystal clusters (AutoSprite) with a soft aura
+  for (let x = a; x <= b; x++) {
+    if (hash(x * 41 + 17) > 0.055) continue;
+    const cxp = x * TILE + 16 - camX, cyp = surfY(x) + 54 + hash(x * 13) * 80;
+    c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.28 + 0.16 * Math.sin(game.time * 2 + x);
+    const gl = c.createRadialGradient(cxp, cyp - 14, 0, cxp, cyp - 14, 42); gl.addColorStop(0, mixHex(th.accent, '#ffd88a', 0.4)); gl.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = gl; c.beginPath(); c.arc(cxp, cyp - 14, 42, 0, Math.PI * 2); c.fill(); c.restore(); c.globalAlpha = 1;
+    drawPropImg(c, 'crystal', cxp, cyp, 32 + hash(x * 3) * 16, 0.92);
+  }
   c.restore();
 
   // ---- GRASS turf band with a scalloped underside + blades ----
