@@ -47,7 +47,7 @@ export function loadSprites() {
   add('boss/idle', 'boss/idle.png', 160, 8, true);
   add('boss/attack', 'boss/attack.png', 160, 12, true);
 
-  // Zhulong transformation
-  add('dragon/idle', 'dragon/idle.png', 160, 8, true);
-  add('dragon/attack', 'dragon/attack.png', 160, 12, false);
+  // Zhulong transformation (smoother 12-frame / 4-column flight + breath)
+  sprites.add('dragon/idle', { src: S + 'dragon/idle.png', fw: 160, fh: 160, frames: 12, cols: 4, fps: 12, loop: true });
+  sprites.add('dragon/attack', { src: S + 'dragon/attack.png', fw: 160, fh: 160, frames: 12, cols: 4, fps: 16, loop: false });
 }
