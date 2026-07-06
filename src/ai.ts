@@ -85,12 +85,19 @@ function groundStep(c: Ctx, desiredVx: number, dt: number) {
     const frontX = dir > 0 ? e.x + e.w - 2 : e.x - 4;
     // ground within ~1.3 tiles ahead (so small step-downs are fine, only real pits stop us)
     const groundAhead = game.overlapsSolid({ x: frontX, y: foot + 2, w: 6, h: 44 });
-    // a low wall/step blocking the body just ahead
+    // a low wall/step blocking the body just ahead — and is it a TALL one?
     const stepBlocked = game.overlapsSolid({ x: frontX, y: foot - 18, w: 6, h: 16 });
-    // is there headroom to hop up onto it?
+    const tallBlocked = game.overlapsSolid({ x: frontX, y: foot - 52, w: 6, h: 30 });
     const headClear = !game.overlapsSolid({ x: e.x - 2, y: foot - 50, w: e.w + 4, h: 26 });
-    if (stepBlocked && headClear) e.vy = Math.min(e.vy, -280);        // auto-step over a low ledge
-    else if (!groundAhead && !stepBlocked) desiredVx = 0;             // pit with no wall to climb — stop
+    if (stepBlocked && !tallBlocked && headClear) e.vy = Math.min(e.vy, -300);   // hop a low ledge
+    else if (stepBlocked && tallBlocked) e.vy = Math.min(e.vy, -470);            // full jump over a tall obstacle
+    else if (!groundAhead && !stepBlocked) {
+      // a gap: look for a landing within ~4 tiles and LEAP it instead of stopping
+      let landing = false;
+      for (let k = 2; k <= 4; k++) if (game.overlapsSolid({ x: frontX + dir * k * TILE, y: foot - 6, w: TILE * 0.8, h: 60 })) { landing = true; break; }
+      if (landing) e.vy = Math.min(e.vy, -400);
+      else desiredVx = 0;                                                        // bottomless — hold the edge
+    }
   }
   e.vx = desiredVx; e.vy += GRAVITY * dt;
   const x0 = e.x;
@@ -150,16 +157,20 @@ export function flyerBrain(): Brain {
         const p = c.game.player; if (c.bb.side === undefined) c.bb.side = Math.random() < 0.5 ? -1 : 1;
         const tx = p.x + p.w / 2 + c.bb.side * 135, ty = p.y + p.h / 2 - 74;
         c.e.x = lerp(c.e.x, tx - c.e.w / 2, 0.05); c.e.y = lerp(c.e.y, ty - c.e.h / 2, 0.05);
+        // rest between dives — circle the perch instead of instantly striking again
+        if (c.bb.cool > 0) { c.bb.cool -= dt; return false; }
         if (Math.hypot(tx - centerX(c.e.rect()), ty - centerY(c.e.rect())) < 44) { c.bb.positioned = true; return true; } return false;
       } },
     { name: 'dive', cost: 1, pre: { positioned: true, threatened: false }, post: { attacked: true, positioned: false },
       run(c, dt) {
         const p = c.game.player; const tx = p.x + p.w / 2, ty = p.y + p.h / 2;
-        const d = Math.hypot(tx - centerX(c.e.rect()), ty - centerY(c.e.rect())) || 1;
-        const ds = 300 * c.game.difficulty;
-        c.e.x += (tx - centerX(c.e.rect())) / d * ds * dt; c.e.y += (ty - centerY(c.e.rect())) / d * ds * dt;
         c.bb.dt = (c.bb.dt || 0) + dt;
-        if (c.bb.dt > 0.6 || d < NEAR) { c.bb.dt = 0; c.bb.side = undefined; c.bb.positioned = false; return true; } return false;
+        // brief hover-telegraph before the lunge (readable, dodgeable)
+        if (c.bb.dt < 0.28) { c.e.y += Math.sin(c.bb.dt * 40) * 14 * dt; return false; }
+        const d = Math.hypot(tx - centerX(c.e.rect()), ty - centerY(c.e.rect())) || 1;
+        const ds = 265 * c.game.difficulty;
+        c.e.x += (tx - centerX(c.e.rect())) / d * ds * dt; c.e.y += (ty - centerY(c.e.rect())) / d * ds * dt;
+        if (c.bb.dt > 0.85 || d < NEAR) { c.bb.dt = 0; c.bb.side = undefined; c.bb.positioned = false; c.bb.cool = 0.9 + Math.random() * 0.7; return true; } return false;
       } },
   ];
   return new Brain(actions, { attacked: true }, c => ({ positioned: !!c.bb.positioned, threatened: threatened(c) }));

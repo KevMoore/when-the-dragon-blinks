@@ -1243,11 +1243,11 @@ export class Game {
       const x0 = b.x - this.camera.x, deckY = b.y - this.camera.y + b.sag, w = b.w;
       c.save();
       if (spr?.ready) {
-        // stretch the wooden bridge across the span; its walk surface sits at
-        // ~26% down the sprite (posts above, arched underside hanging below)
-        const dw = w + 26, dh = dw * (spr.img.height / spr.img.width);
+        // stretch the wooden bridge across the span with generous overlap so the
+        // end posts plant firmly ON the platforms (walk surface ~26% down)
+        const dw = w + 58, dh = dw * (spr.img.height / spr.img.width);
         c.shadowColor = 'rgba(0,0,0,.35)'; c.shadowBlur = 8;
-        c.drawImage(spr.img, x0 - 13, deckY - dh * 0.26, dw, dh);
+        c.drawImage(spr.img, x0 - 29, deckY - dh * 0.26, dw, dh);
       } else {
         c.fillStyle = '#6f5230'; c.fillRect(x0, deckY, w, 11);
         c.fillStyle = '#8a6b45'; c.fillRect(x0, deckY, w, 4);

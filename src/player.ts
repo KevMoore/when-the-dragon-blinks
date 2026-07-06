@@ -344,9 +344,9 @@ export class Player {
 
   private drawDragon(game: Game, c: CanvasRenderingContext2D) {
     const trail = this.dragonTrail, cam = game.camera;
-    // Prefer the AutoSprite dragon: a short glowing trail + the dragon at the head.
-    const anim = this.dragonFireCd > 0.06 ? 'attack' : 'idle';
-    const sheet = sprites.get('dragon/' + anim)?.ready ? sprites.get('dragon/' + anim) : sprites.get('dragon/idle');
+    // Zhulong breathes fire continuously in dragon mode, so play the attack loop
+    // steadily (flipping sheets with the fire-rate timer caused ugly flicker).
+    const sheet = sprites.get('dragon/attack')?.ready ? sprites.get('dragon/attack') : sprites.get('dragon/idle');
     if (sheet && sheet.ready) {
       const hx = this.x + this.w / 2 - cam.x, hy = this.y + this.h / 2 - cam.y;
       const SZ = 156 * game.spriteScale;
