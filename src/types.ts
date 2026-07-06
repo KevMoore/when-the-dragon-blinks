@@ -10,7 +10,7 @@ export const SAVE_KEY = 'when-the-dragon-blinks-save-v2';
 export type WorldState = 'day' | 'night';
 export type GameMode =
   | 'howto' | 'title' | 'levelSelect' | 'codex' | 'settings' | 'lore'
-  | 'playing' | 'paused' | 'levelComplete' | 'gameComplete';
+  | 'playing' | 'paused' | 'levelComplete' | 'gameComplete' | 'guqin';
 export type EntityKind = 'moth' | 'guardian' | 'wisp' | 'sentry' | 'ghoul' | 'skull' | 'crawler'
   | 'crow' | 'sentinel' | 'wraith';   // new fable-true bad dudes (day crow, day automaton, night wraith)
 

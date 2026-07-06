@@ -154,6 +154,26 @@ export class AudioManager {
     }
   }
 
+  // A plucked-string tone for the guqin mini-game (soft attack, long decay).
+  pluck(freq: number, gain = 0.5) {
+    this.ensure();
+    const ac = this.ctx; if (!ac || !this.sfxGain) return;
+    const now = ac.currentTime;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(gain, now + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 1.2);
+    g.connect(this.sfxGain);
+    const parts: [OscillatorType, number, number][] = [['triangle', 1, 0.6], ['sine', 2, 0.22], ['sine', 3, 0.12]];
+    for (const [type, mul, gg] of parts) {
+      const o = ac.createOscillator(); o.type = type;
+      o.frequency.setValueAtTime(freq * mul, now);
+      o.frequency.exponentialRampToValueAtTime(freq * mul * 0.992, now + 0.5);
+      const og = ac.createGain(); og.gain.value = gg;
+      o.connect(og); og.connect(g); o.start(now); o.stop(now + 1.25);
+    }
+  }
+
   private env(node: AudioNode, now: number, len: number, peak: number) {
     const g = this.ctx!.createGain();
     g.gain.setValueAtTime(0.0001, now);

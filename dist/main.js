@@ -104,6 +104,9 @@ if (_q.has('bridge')) {
         game.player.y = b.y - game.player.h;
     } }, 150);
 }
+if (_q.has('guqin')) {
+    game.startGuqin(1);
+}
 // dev aid: hold an aim pose for screenshots — ?pose=up|updiag|down|downdiag
 if (_q.has('pose')) {
     const m = { up: [0, -1], updiag: [0.7, -0.7], down: [0, 1], downdiag: [0.7, 0.7] };

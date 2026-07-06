@@ -8,6 +8,7 @@ import { AudioManager } from './audio.js';
 import { Camera } from './camera.js';
 import { Particles } from './particles.js';
 import { Player } from './player.js';
+import { GuqinGame } from './guqin.js';
 import { Enemy } from './enemy.js';
 import { LanternEater } from './boss.js';
 import { Platform } from './platform.js';
@@ -60,6 +61,7 @@ export class Game {
   nova = 0.35;               // 0..1 inner energy — full → hold fire to unleash a Nova burst
   novaT = 0; novaX = 0; novaY = 0;   // burst animation
   dragonSpawnT = 1.2;        // reinforcement timer while the dragon is loose
+  guqin: GuqinGame | null = null; guqinNext = 0;   // secret end-of-level mini-game
   gems: { x: number; y: number; taken: boolean; rt: number }[] = [];
   bridges: { x: number; y: number; w: number; sag: number; sagVel: number; loadU: number }[] = [];
   embers: Ember[] = [];
@@ -533,6 +535,7 @@ export class Game {
       case 'playing': this.updatePlaying(dt); break;
       case 'paused': this.updatePause(); break;
       case 'levelComplete': this.updateLevelComplete(); break;
+      case 'guqin': this.guqin?.update(dt); break;
       case 'gameComplete': this.updateGameComplete(); break;
     }
 
@@ -830,9 +833,23 @@ export class Game {
   private updateLevelComplete() {
     if (this.input.just('confirm') || this.input.pointer?.clicked) {
       const next = this.level.hidden ? this.hiddenReturn : this.currentLevelIndex + 1;
+      // a hidden guqin rests at a few shrines — play it for bonus embers before moving on
+      if (!this.level.hidden && this.guqinDueFor(this.currentLevelIndex)) { this.startGuqin(next); return; }
       if (next >= 0 && next < levels.length && !levels[next].hidden) this.startLevel(next, true); else this.state = 'gameComplete';
     }
     if (this.input.just('back')) this.state = 'title';
+  }
+
+  private guqinPlayed = new Set<number>();
+  private guqinDueFor(idx: number) { return [2, 7, 13, 19].includes(idx) && !this.guqinPlayed.has(idx); }
+  startGuqin(next: number) {
+    this.guqinPlayed.add(this.currentLevelIndex);
+    this.guqin = new GuqinGame(this); this.guqinNext = next; this.state = 'guqin';
+    this.audio.sfx('shrine');
+  }
+  finishGuqin() {
+    const next = this.guqinNext; this.guqin = null; this.persistSave();
+    if (next >= 0 && next < levels.length && !levels[next].hidden) this.startLevel(next, true); else this.state = 'gameComplete';
   }
   // Reaching a level's secret exit warps to a hidden level, resuming the normal
   // route afterwards. The find is remembered so it shows on the map.
@@ -870,6 +887,7 @@ export class Game {
       case 'howto': bg.drawSky(this, c); bg.drawParallax(this, c); this.particles.draw(c, 0, 0, this.world); ui.drawHowTo(this, c); break;
       case 'title': bg.drawSky(this, c); bg.drawParallax(this, c); this.particles.draw(c, 0, 0, this.world); ui.drawTitle(this, c); break;
       case 'levelSelect': bg.drawSky(this, c); bg.drawParallax(this, c); ui.drawLevelSelect(this, c); break;
+      case 'guqin': bg.drawSky(this, c); bg.drawParallax(this, c); this.particles.draw(c, 0, 0, this.world); this.guqin?.draw(c); break;
       case 'codex': bg.drawSky(this, c); bg.drawParallax(this, c); ui.drawCodex(this, c); break;
       case 'settings':
         if (this.settingsReturn === 'paused') this.drawWorld(c); else { bg.drawSky(this, c); bg.drawParallax(this, c); }
