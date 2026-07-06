@@ -69,6 +69,7 @@ export class Game {
   // slain enemies dissolve as rising spirit ghosts (kind + pose kept for a beat)
   remnants: { kind: string; x: number; y: number; h: number; face: number; t: number; night: boolean }[] = [];
   hearts: { x: number; y: number; taken: boolean }[] = [];   // lantern-hearts dropped by slain foes
+  spawners: { kind: EntityKind; x: number; y: number; every: number; max: number; t: number }[] = [];   // designer wave points
   deathsThisLevel = 0; lastGrade = '';                       // level-clear rank
   // characters render ~10% larger (a touch more again on mobile for readability)
   readonly spriteScale = (typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 1.18 : 1.1;
@@ -124,6 +125,7 @@ export class Game {
     this.hearts = []; this.remnants = []; this.deathsThisLevel = 0;
     this.gems = (this.level.gems || []).map(g => ({ x: g.x, y: g.y, taken: false, rt: 0 }));
     this.bridges = (this.level.bridges || []).map(b => ({ x: b.x, y: b.y, w: b.w, sag: 0, sagVel: 0, loadU: 0.5 }));
+    this.spawners = (this.level.spawners || []).map(s => ({ ...s, t: 1.5 }));
     this.clearT = 0; this.clearing = false;
     this.bossDeathT = 0; this.bossClimax = false;
     this.elapsed = 0; this.message = null;
@@ -654,6 +656,19 @@ export class Game {
 
     // per-act ambient weather (snow in the sunless north, petals in the foothills…)
     this.particles.ambient(this.ambientType(), this.camera.x, this.camera.y);
+    // designer wave-spawn points: each keeps up to `max` of its kind alive nearby
+    this.spawners.forEach((sp, si) => {
+      sp.t -= dt;
+      if (sp.t > 0) return;
+      sp.t = sp.every;
+      const alive = this.enemies.reduce((n, e) => n + ((e as any)._sp === si && e.alive ? 1 : 0), 0);
+      const onScreen = sp.x > this.camera.x - 200 && sp.x < this.camera.x + LOGICAL_W + 200;
+      if (alive < sp.max && onScreen) {
+        const e = new Enemy(sp.kind, sp.x, sp.y); (e as any)._sp = si;
+        this.enemies.push(e); this.snapEnemySpawn(e);
+        this.particles.sparks(sp.x + 14, sp.y + 14, 10, '#c2a6ff');
+      }
+    });
     // slain spirits rise and dissolve
     for (const r of this.remnants) { r.t += dt; r.y -= 34 * dt; }
     this.remnants = this.remnants.filter(r => r.t < 0.55);

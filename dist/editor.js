@@ -1,29 +1,44 @@
-// ⛩ Shrine Forge — the visual level editor. Paint tiles, drop objects, playtest
-// instantly in the real game (localStorage handoff), export JSON, publish via
-// assets/levels/. Deliberately self-contained: no dependency on Game.
+// ⛩ Shrine Forge — the visual level editor. High-level authoring tools (terrain
+// brush, island builder, tower/prefab stamps, spawners, move, undo) so levels
+// are swept out, not clicked block by block. Playtest via localStorage handoff;
+// publish commits straight to the game repo. Self-contained: no Game dependency.
 import { TILE } from './types.js';
 let H = 17; // level height (17, or 18 for cavern acts) — tracks st.h
-const DRAFT_KEY = 'wtdb-draft'; // playtest handoff
-const STATE_KEY = 'wtdb-editor-state'; // editor autosave
+const DRAFT_KEY = 'wtdb-draft';
+const STATE_KEY = 'wtdb-editor-state';
 const cv = document.getElementById('ed');
 const c = cv.getContext('2d');
 const toolsEl = document.getElementById('tools');
 const TILE_TOOLS = [
     ['terrain', '✏️ Terrain', '#7ca23f'], ['pit', '⛏ Pit', '#241a30'],
-    ['#', 'Stone', '#5a4a66'], ['o', 'Platform', '#8a6b45'],
-    ['D', 'Day block', '#f0b45a'], ['N', 'Night block', '#7fa8d6'],
+    ['island', '🏝 Island', '#8a6b45'], ['tower', '🧗 Tower', '#b08a5a'],
+    ['#', 'Stone', '#5a4a66'], ['o', 'Plat-tile', '#8a6b45'],
+    ['D', 'Day', '#f0b45a'], ['N', 'Night', '#7fa8d6'],
     ['^', 'Crags', '#8a7c7c'], ['F', 'Fire', '#ff7840'], ['S', 'Frost', '#8ed7ff'], ['.', 'Erase', '#241a30'],
 ];
-const OBJ_TOOLS = ['Spawn', 'Exit', 'Checkpoint', 'Gem', 'Enemy', 'Bridge', 'Delete', 'Pan'];
+const OBJ_TOOLS = ['Spawn', 'Exit', 'Checkpoint', 'Gem', 'Enemy', 'Spawner', 'Bridge', 'Move', 'Delete', 'Pan'];
+const STAMPS = [['pack', '👥 Enemy pack'], ['gemarc', '💎 Gem arc'], ['hazrun', '⚠️ Hazard strip'], ['aerial', '🌉 Aerial run']];
 const ENEMY_KINDS = ['moth', 'guardian', 'wisp', 'sentry', 'ghoul', 'skull', 'crawler', 'crow', 'sentinel', 'wraith'];
 let st = freshState(120);
 let tool = 'terrain';
-let lastCell = null;
 let enemyKind = 'guardian';
 let elite = false;
 let camX = 0, camY = 0, zoom = 1;
-let painting = false, panning = false, panStart = { x: 0, y: 0, cx: 0, cy: 0 };
+let painting = false, panning = false, rightErase = false;
+let panStart = { x: 0, y: 0, cx: 0, cy: 0 };
+let lastCell = null;
 let bridgeStart = null;
+let islandRow = null;
+let dragObj = null;
+// ---- undo / redo -------------------------------------------------------------
+const undoStack = [];
+const redoStack = [];
+function pushUndo() { undoStack.push(JSON.stringify(st)); if (undoStack.length > 60)
+    undoStack.shift(); redoStack.length = 0; }
+function undo() { const s = undoStack.pop(); if (!s)
+    return; redoStack.push(JSON.stringify(st)); st = JSON.parse(s); H = st.h || 17; syncBar(); save(false); }
+function redo() { const s = redoStack.pop(); if (!s)
+    return; undoStack.push(JSON.stringify(st)); st = JSON.parse(s); H = st.h || 17; syncBar(); save(false); }
 function freshState(w) {
     const rows = [];
     for (let y = 0; y < H; y++) {
@@ -34,7 +49,7 @@ function freshState(w) {
         else
             rows.push('#'.repeat(w));
     }
-    return { name: 'My Shrine Path', theme: 'mountain', w, h: H, tiles: rows, spawn: { x: 3, y: H - 5 }, exit: { x: w - 4, y: H - 6 }, checkpoints: [], gems: [], enemies: [], bridges: [] };
+    return { name: 'My Shrine Path', theme: 'mountain', w, h: H, tiles: rows, spawn: { x: 3, y: H - 5 }, exit: { x: w - 4, y: H - 6 }, checkpoints: [], gems: [], enemies: [], spawners: [], bridges: [] };
 }
 function setTile(x, y, ch) {
     if (x < 0 || x >= st.w || y < 0 || y >= H)
@@ -44,8 +59,7 @@ function setTile(x, y, ch) {
 }
 function tileAt(x, y) { return (x < 0 || x >= st.w || y < 0 || y >= H) ? '.' : st.tiles[y][x]; }
 const isTerrainCh = (ch) => ch === '#' || ch === 'g';
-/** Terrain brush: drag a heightline and the column fills itself (grass cap on
- *  top, stone below) — auto-tiling, no pixel-by-pixel clicking. */
+/** Terrain brush: drag a heightline; each column fills itself (grass over stone). */
 function setSurface(x, y) {
     if (x < 0 || x >= st.w)
         return;
@@ -55,19 +69,15 @@ function setSurface(x, y) {
         if (cy < sy) {
             if (isTerrainCh(cur))
                 setTile(x, cy, '.');
-        } // keep placed objects above ground
+        }
         else
-            setTile(x, cy, cy === sy ? 'g' : '#'); // solid earth below the line
+            setTile(x, cy, cy === sy ? 'g' : '#');
     }
 }
-function clearColumn(x) {
-    for (let cy = 0; cy < H; cy++)
-        if (isTerrainCh(tileAt(x, cy)))
-            setTile(x, cy, '.');
-}
-/** Auto-join pass: any terrain tile with open air above it becomes a grass cap,
- *  everything else stone — paint blobs freely, the joins sort themselves (and
- *  the game's renderer draws the ribbon/caps/fill from this data). */
+function clearColumn(x) { for (let cy = 0; cy < H; cy++)
+    if (isTerrainCh(tileAt(x, cy)))
+        setTile(x, cy, '.'); }
+/** Auto-join: terrain with air above → grass cap; the rest stone. */
 function normalize() {
     for (let x = 0; x < st.w; x++)
         for (let y = 0; y < H; y++) {
@@ -76,24 +86,86 @@ function normalize() {
             setTile(x, y, isTerrainCh(tileAt(x, y - 1)) ? '#' : 'g');
         }
 }
-// ---- UI wiring --------------------------------------------------------------
+/** Ground surface row at column x (for stamps that sit on the ground). */
+function surfaceAt(x) {
+    for (let y = 0; y < H; y++)
+        if (isTerrainCh(tileAt(x, y)) || tileAt(x, y) === 'o')
+            return y;
+    return H - 3;
+}
+// ---- stamps: whole structures in one click -----------------------------------
+function stamp(name, p) {
+    if (name === 'pack') { // 3-4 enemies clustered on the ground
+        const n = 3 + (Math.random() < 0.4 ? 1 : 0);
+        for (let i = 0; i < n; i++) {
+            const ex = p.x + i * 3;
+            st.enemies.push({ kind: enemyKind, x: ex, y: surfaceAt(ex) - 2 });
+        }
+    }
+    else if (name === 'gemarc') { // an arc of 3 gems over the click point
+        st.gems.push({ x: p.x, y: p.y }, { x: p.x + 2, y: p.y - 1 }, { x: p.x + 4, y: p.y });
+    }
+    else if (name === 'hazrun') { // 4-wide crag strip on the surface
+        for (let i = 0; i < 4; i++) {
+            const hx = p.x + i;
+            setTile(hx, surfaceAt(hx) - 1, '^');
+        }
+    }
+    else if (name === 'aerial') { // islands + bridges + gems, one click
+        let px = p.x;
+        for (let seg = 0; seg < 3; seg++) {
+            for (let i = 0; i < 6; i++)
+                setTile(px + i, p.y, 'o');
+            st.gems.push({ x: px + 3, y: p.y - 2 });
+            if (seg < 2) {
+                st.bridges.push({ x: px + 6, y: p.y, w: 4 });
+                px += 10;
+            }
+        }
+    }
+}
+/** 🧗 Tower: one click plants a zig-zag climb from the ground up to the click. */
+function stampTower(p) {
+    const base = surfaceAt(p.x);
+    let k = 0;
+    for (let py = base - 3; py > Math.max(2, p.y); py -= 2, k++) {
+        const px = p.x + (k % 2 === 0 ? 0 : 4);
+        const ch = k % 3 === 2 ? (Math.random() < 0.5 ? 'D' : 'N') : 'o';
+        for (let i = 0; i < 3; i++)
+            setTile(px + i, py, ch);
+    }
+    st.gems.push({ x: p.x + 1, y: Math.max(2, p.y) - 1 });
+}
+// ---- UI ----------------------------------------------------------------------
 function buildTools() {
     toolsEl.innerHTML = '';
-    for (const [ch, label, col] of TILE_TOOLS) {
+    const mk = (id, label, col, group) => {
         const b = document.createElement('button');
         b.textContent = label;
-        b.style.borderLeft = `10px solid ${col}`;
-        b.className = tool === ch ? 'on' : '';
-        b.onclick = () => { tool = ch; buildTools(); };
+        if (col)
+            b.style.borderLeft = `10px solid ${col}`;
+        if (group)
+            b.title = group;
+        b.className = tool === id ? 'on' : '';
+        b.onclick = () => { tool = id; bridgeStart = null; buildTools(); };
         toolsEl.appendChild(b);
-    }
-    for (const t of OBJ_TOOLS) {
-        const b = document.createElement('button');
-        b.textContent = t;
-        b.className = tool === t ? 'on' : '';
-        b.onclick = () => { tool = t; bridgeStart = null; buildTools(); };
-        toolsEl.appendChild(b);
-    }
+    };
+    const ub = document.createElement('button');
+    ub.textContent = '↩︎';
+    ub.title = 'Undo (Ctrl+Z)';
+    ub.onclick = undo;
+    toolsEl.appendChild(ub);
+    const rb = document.createElement('button');
+    rb.textContent = '↪︎';
+    rb.title = 'Redo (Ctrl+Y)';
+    rb.onclick = redo;
+    toolsEl.appendChild(rb);
+    for (const [ch, label, col] of TILE_TOOLS)
+        mk(ch, label, col);
+    for (const t of OBJ_TOOLS)
+        mk(t, t);
+    for (const [id, label] of STAMPS)
+        mk(id, label);
     const sel = document.createElement('select');
     for (const k of ENEMY_KINDS) {
         const o = document.createElement('option');
@@ -103,7 +175,8 @@ function buildTools() {
             o.selected = true;
         sel.appendChild(o);
     }
-    sel.onchange = () => { enemyKind = sel.value; tool = 'Enemy'; buildTools(); };
+    sel.onchange = () => { enemyKind = sel.value; if (tool !== 'Spawner' && tool !== 'pack')
+        tool = 'Enemy'; buildTools(); };
     toolsEl.appendChild(sel);
     const el = document.createElement('button');
     el.textContent = elite ? '★ elite' : '☆ elite';
@@ -118,13 +191,13 @@ function buildTools() {
 document.getElementById('new').onclick = () => {
     if (!confirm('Start a new level? (current draft is kept in autosave until you paint)'))
         return;
+    pushUndo();
     H = 17;
     st = freshState(parseInt(document.getElementById('wtiles').value) || 120);
     syncBar();
     save();
 };
-// Load any campaign level straight from the game's generator (same origin) —
-// edit it and Publish to REPLACE it in the live game.
+// Load any campaign level straight from the game's generator — edit + Publish REPLACES it.
 const campSel = document.getElementById('campaign');
 import('./content.js').then((m) => {
     m.levels.slice(0, 24).forEach((lv, i) => {
@@ -139,16 +212,16 @@ campSel.onchange = async () => {
     campSel.selectedIndex = 0;
     if (isNaN(i))
         return;
-    if (!confirm(`Load "${'L' + (i + 1)}" for editing? Publishing will REPLACE it in the game.`))
+    if (!confirm(`Load "L${i + 1}" for editing? Publishing will REPLACE it in the game.`))
         return;
     const m = await import('./content.js');
+    pushUndo();
     fromLevelData(JSON.parse(JSON.stringify(m.levels[i])), i);
     syncBar();
     save();
 };
 document.getElementById('export').onclick = () => {
-    const data = toLevelData();
-    const blob = new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(toLevelData(), null, 1)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = st.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '.json';
@@ -165,8 +238,7 @@ document.getElementById('publish').onclick = () => {
         st.replaces !== undefined ? `⚠ This will REPLACE campaign level L${st.replaces + 1} in the live game.` : 'This will publish as a new Custom Trail.';
     document.getElementById('modal').style.display = 'grid';
 };
-// One-click publish: commit the level + manifest to the game repo via the
-// GitHub contents API — Render auto-deploys, the level goes live in Level Select.
+// One-click publish via the GitHub contents API — Render redeploys, level goes live.
 document.getElementById('gh-publish').onclick = async () => {
     const status = document.getElementById('gh-status');
     const token = document.getElementById('gh-token').value.trim();
@@ -184,13 +256,11 @@ document.getElementById('gh-publish').onclick = async () => {
     const put = (path, content, sha) => fetch(api(path), { method: 'PUT', headers: hdr, body: JSON.stringify({ message: '⛩ Publish level: ' + st.name, content: b64(content), branch, ...(sha ? { sha } : {}) }) });
     try {
         status.textContent = 'Publishing…';
-        // level file (update in place if it exists)
         const ex = await fetch(api('assets/levels/' + fname) + '?ref=' + branch, { headers: hdr });
         const sha1 = ex.ok ? (await ex.json()).sha : undefined;
         const r1 = await put('assets/levels/' + fname, JSON.stringify(toLevelData(), null, 1), sha1);
         if (!r1.ok)
             throw new Error('level upload: ' + r1.status);
-        // manifest
         const ir = await fetch(api('assets/levels/index.json') + '?ref=' + branch, { headers: hdr });
         if (!ir.ok)
             throw new Error('manifest read: ' + ir.status);
@@ -214,6 +284,7 @@ document.getElementById('file').onchange = e => {
     if (!f)
         return;
     f.text().then(t => { try {
+        pushUndo();
         fromLevelData(JSON.parse(t));
         syncBar();
         save();
@@ -222,10 +293,11 @@ document.getElementById('file').onchange = e => {
         alert('Not a valid level JSON');
     } });
 };
-document.getElementById('name').oninput = e => { st.name = e.target.value; save(); };
-document.getElementById('theme').onchange = e => { st.theme = e.target.value; save(); };
+document.getElementById('name').oninput = e => { st.name = e.target.value; save(false); };
+document.getElementById('theme').onchange = e => { st.theme = e.target.value; save(false); };
 document.getElementById('wtiles').onchange = e => {
     const w = Math.max(40, Math.min(300, parseInt(e.target.value) || 120));
+    pushUndo();
     st.tiles = st.tiles.map(r => (r + '.'.repeat(Math.max(0, w - r.length))).slice(0, w));
     st.w = w;
     save();
@@ -235,14 +307,15 @@ function syncBar() {
     document.getElementById('theme').value = st.theme;
     document.getElementById('wtiles').value = String(st.w);
 }
-// ---- pointer / keys ----------------------------------------------------------
+// ---- pointer / keys -----------------------------------------------------------
 function cellAt(e) {
     const r = cv.getBoundingClientRect();
     const px = (e.clientX - r.left) * (cv.width / r.width) / zoom + camX;
     const py = (e.clientY - r.top) * (cv.height / r.height) / zoom + camY;
-    return { x: Math.floor(px / TILE), y: Math.floor(py / TILE), px, py };
+    return { x: Math.floor(px / TILE), y: Math.floor(py / TILE) };
 }
-const isBrush = () => tool.length === 1 || tool === 'terrain' || tool === 'pit';
+const isBrush = () => tool.length === 1 || tool === 'terrain' || tool === 'pit' || tool === 'island';
+cv.addEventListener('contextmenu', e => e.preventDefault());
 cv.addEventListener('pointerdown', e => {
     const p = cellAt(e);
     if (tool === 'Pan' || e.button === 1) {
@@ -250,8 +323,35 @@ cv.addEventListener('pointerdown', e => {
         panStart = { x: e.clientX, y: e.clientY, cx: camX, cy: camY };
         return;
     }
+    pushUndo();
+    if (e.button === 2) {
+        rightErase = true;
+        painting = true;
+        lastCell = p;
+        setTile(p.x, p.y, '.');
+        return;
+    } // right-click always erases tiles
     painting = true;
     lastCell = p;
+    if (tool === 'island') {
+        islandRow = p.y;
+        setTile(p.x, p.y, 'o');
+        return;
+    }
+    if (tool === 'tower') {
+        stampTower(p);
+        painting = false;
+        return;
+    }
+    if (STAMPS.some(s => s[0] === tool)) {
+        stamp(tool, p);
+        painting = false;
+        return;
+    }
+    if (tool === 'Move') {
+        dragObj = findObj(p);
+        return;
+    }
     apply(p);
 });
 cv.addEventListener('pointermove', e => {
@@ -261,18 +361,50 @@ cv.addEventListener('pointermove', e => {
         clampCam();
         return;
     }
-    if (painting && isBrush()) {
-        // interpolate between move events so fast drags leave no gaps
-        const p = cellAt(e), prev = lastCell ?? p;
+    if (!painting)
+        return;
+    const p = cellAt(e), prev = lastCell ?? p;
+    if (tool === 'Move' && dragObj) {
+        moveObj(dragObj, p);
+        lastCell = p;
+        return;
+    }
+    if (rightErase || isBrush()) {
         const steps = Math.max(1, Math.abs(p.x - prev.x));
-        for (let i = 1; i <= steps; i++)
-            apply({ x: Math.round(prev.x + (p.x - prev.x) * i / steps), y: Math.round(prev.y + (p.y - prev.y) * i / steps) });
+        for (let i = 1; i <= steps; i++) {
+            const q = { x: Math.round(prev.x + (p.x - prev.x) * i / steps), y: Math.round(prev.y + (p.y - prev.y) * i / steps) };
+            if (rightErase)
+                setTile(q.x, q.y, '.');
+            else if (tool === 'island')
+                setTile(q.x, islandRow ?? q.y, 'o');
+            else
+                apply(q);
+        }
         lastCell = p;
     }
 });
-window.addEventListener('pointerup', () => { if (painting)
-    normalize(); painting = false; panning = false; lastCell = null; save(); });
+window.addEventListener('pointerup', () => {
+    if (painting && !rightErase && tool !== 'island')
+        normalize();
+    painting = false;
+    panning = false;
+    rightErase = false;
+    lastCell = null;
+    islandRow = null;
+    dragObj = null;
+    save(false);
+});
 window.addEventListener('keydown', e => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        e.shiftKey ? redo() : undo();
+        return;
+    }
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        redo();
+        return;
+    }
     const k = e.key.toLowerCase();
     const sp = 26;
     if (k === 'arrowleft' || k === 'a')
@@ -288,6 +420,27 @@ window.addEventListener('keydown', e => {
 function clampCam() {
     camX = Math.max(0, Math.min(st.w * TILE - cv.width / zoom, camX));
     camY = Math.max(-40, Math.min(H * TILE - cv.height / zoom + 60, camY));
+}
+// ---- Move tool ------------------------------------------------------------------
+function findObj(p) {
+    const near = (o) => Math.hypot(o.x - p.x, o.y - p.y) < 1.8;
+    if (near(st.spawn))
+        return { list: 'spawn', i: 0 };
+    if (near(st.exit))
+        return { list: 'exit', i: 0 };
+    for (const [list, arr] of [['enemies', st.enemies], ['spawners', st.spawners], ['gems', st.gems], ['checkpoints', st.checkpoints]]) {
+        const i = arr.findIndex(near);
+        if (i >= 0)
+            return { list: list, i };
+    }
+    return null;
+}
+function moveObj(d, p) {
+    const t = d.list === 'spawn' ? st.spawn : d.list === 'exit' ? st.exit : st[d.list][d.i];
+    if (t) {
+        t.x = p.x;
+        t.y = p.y;
+    }
 }
 function apply(p) {
     if (p.x < 0 || p.x >= st.w || p.y < 0 || p.y >= H)
@@ -305,18 +458,20 @@ function apply(p) {
         return;
     }
     if (tool === 'Spawn')
-        st.spawn = { x: p.x, y: p.y };
+        st.spawn = { ...p };
     else if (tool === 'Exit')
-        st.exit = { x: p.x, y: p.y };
+        st.exit = { ...p };
     else if (tool === 'Checkpoint')
-        st.checkpoints.push({ x: p.x, y: p.y });
+        st.checkpoints.push({ ...p });
     else if (tool === 'Gem')
-        st.gems.push({ x: p.x, y: p.y });
+        st.gems.push({ ...p });
     else if (tool === 'Enemy')
-        st.enemies.push({ kind: enemyKind, x: p.x, y: p.y, elite: elite || undefined });
+        st.enemies.push({ kind: enemyKind, ...p, elite: elite || undefined });
+    else if (tool === 'Spawner')
+        st.spawners.push({ kind: enemyKind, ...p, every: 4, max: 3 });
     else if (tool === 'Bridge') {
         if (!bridgeStart)
-            bridgeStart = { x: p.x, y: p.y };
+            bridgeStart = { ...p };
         else {
             const x0 = Math.min(bridgeStart.x, p.x), x1 = Math.max(bridgeStart.x, p.x);
             st.bridges.push({ x: x0, y: bridgeStart.y, w: Math.max(2, x1 - x0) });
@@ -328,15 +483,15 @@ function apply(p) {
         st.checkpoints = st.checkpoints.filter(o => !near(o));
         st.gems = st.gems.filter(o => !near(o));
         st.enemies = st.enemies.filter(o => !near(o));
+        st.spawners = st.spawners.filter(o => !near(o));
         st.bridges = st.bridges.filter(b => !(p.y >= b.y - 1 && p.y <= b.y + 1 && p.x >= b.x - 1 && p.x <= b.x + b.w + 1));
     }
-    save();
+    save(false);
 }
-// ---- convert to/from the game's LevelData shape ------------------------------
+// ---- convert to/from LevelData ----------------------------------------------------
 function toLevelData() {
     const acts = { mountain: 1, bridge: 2, cavern: 3, sunless: 4 };
     return {
-        // fields the editor doesn't edit ride through unchanged (platforms, wind, lore…)
         relics: [], shrines: [], platforms: [], introLore: '', outroLore: '', unlockCodexOnComplete: [],
         act: acts[st.theme] || 1, difficulty: 1,
         ...(st.carry || {}),
@@ -349,6 +504,7 @@ function toLevelData() {
         checkpoints: st.checkpoints.map(o => ({ x: o.x * TILE, y: o.y * TILE - 24, w: 28, h: 56 })),
         entities: st.enemies.map(o => ({ kind: o.kind, x: o.x * TILE, y: o.y * TILE, elite: o.elite })),
         gems: st.gems.map(o => ({ x: o.x * TILE, y: o.y * TILE })),
+        spawners: st.spawners.map(s => ({ kind: s.kind, x: s.x * TILE, y: s.y * TILE, every: s.every, max: s.max })),
         bridges: st.bridges.map(b => ({ x: b.x * TILE - 12, y: b.y * TILE, w: b.w * TILE + 24 })),
         theme: st.theme,
     };
@@ -369,33 +525,33 @@ function fromLevelData(d, replaces) {
         checkpoints: (d.checkpoints || []).map((o) => ({ x: Math.round(o.x / TILE), y: Math.round((o.y + 24) / TILE) })),
         gems: (d.gems || []).map((o) => ({ x: Math.round(o.x / TILE), y: Math.round(o.y / TILE) })),
         enemies: (d.entities || []).map((o) => ({ kind: o.kind, x: Math.round(o.x / TILE), y: Math.round(o.y / TILE), elite: o.elite })),
+        spawners: (d.spawners || []).map((s) => ({ kind: s.kind, x: Math.round(s.x / TILE), y: Math.round(s.y / TILE), every: s.every || 4, max: s.max || 3 })),
         bridges: (d.bridges || []).map((b) => ({ x: Math.round((b.x + 12) / TILE), y: Math.round(b.y / TILE), w: Math.round((b.w - 24) / TILE) })),
     };
     H = h;
     while (st.tiles.length < H)
         st.tiles.push('.'.repeat(st.w));
 }
-// ---- persistence --------------------------------------------------------------
-function save() { st.h = H; localStorage.setItem(STATE_KEY, JSON.stringify(st)); }
+// ---- persistence ------------------------------------------------------------------
+function save(_snapshot = true) { st.h = H; localStorage.setItem(STATE_KEY, JSON.stringify(st)); }
 function load() { try {
     const s = localStorage.getItem(STATE_KEY);
     if (s) {
         st = JSON.parse(s);
+        st.spawners = st.spawners || [];
         H = st.h || st.tiles.length || 17;
     }
 }
 catch { /* fresh */ } }
-// ---- render loop ----------------------------------------------------------------
+// ---- render -------------------------------------------------------------------------
 const TILE_COL = { '#': '#5a4a66', g: '#7ca23f', o: '#8a6b45', D: '#f0b45a', N: '#7fa8d6', '^': '#8a7c7c', F: '#ff7840', S: '#8ed7ff' };
 function draw() {
     c.setTransform(1, 0, 0, 1, 0, 0);
     c.fillStyle = '#160f1e';
     c.fillRect(0, 0, cv.width, cv.height);
     c.setTransform(zoom, 0, 0, zoom, -camX * zoom, -camY * zoom);
-    // sky band + ground guide
     c.fillStyle = '#241a30';
     c.fillRect(0, 0, st.w * TILE, H * TILE);
-    // tiles
     for (let y = 0; y < H; y++)
         for (let x = Math.floor(camX / TILE); x <= Math.floor((camX + cv.width / zoom) / TILE) && x < st.w; x++) {
             const ch = tileAt(x, y);
@@ -422,7 +578,6 @@ function draw() {
                 c.fill();
             }
         }
-    // grid
     c.strokeStyle = 'rgba(255,255,255,.05)';
     c.lineWidth = 1;
     c.beginPath();
@@ -435,7 +590,6 @@ function draw() {
         c.lineTo(st.w * TILE, y * TILE);
     }
     c.stroke();
-    // bridges
     for (const b of st.bridges) {
         c.fillStyle = '#8a6b45';
         c.fillRect(b.x * TILE, b.y * TILE, b.w * TILE, 8);
@@ -447,7 +601,6 @@ function draw() {
         c.fillStyle = '#ffd777';
         c.fillRect(bridgeStart.x * TILE, bridgeStart.y * TILE, TILE, 8);
     }
-    // objects
     const glyph = (x, y, txt, col) => {
         c.fillStyle = col;
         c.font = 'bold 20px Georgia';
@@ -463,6 +616,12 @@ function draw() {
         c.font = '9px Georgia';
         c.fillStyle = '#ffb0a0';
         c.fillText(o.kind, o.x * TILE + TILE / 2, o.y * TILE + TILE + 10);
+    }
+    for (const s of st.spawners) {
+        glyph(s.x, s.y, '⟳', '#c2a6ff');
+        c.font = '9px Georgia';
+        c.fillStyle = '#d0baff';
+        c.fillText(`${s.kind} ×${s.max}/${s.every}s`, s.x * TILE + TILE / 2, s.y * TILE + TILE + 10);
     }
     glyph(st.spawn.x, st.spawn.y, '▲', '#8fd9a8');
     glyph(st.exit.x, st.exit.y, '⛩', '#ffd777');
