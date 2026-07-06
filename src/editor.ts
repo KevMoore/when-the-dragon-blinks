@@ -405,6 +405,7 @@ cv.addEventListener('wheel', e => {
 }, { passive: false });
 
 cv.addEventListener('pointerdown', e => {
+  (document.activeElement as HTMLElement)?.blur?.();   // inspector inputs must not swallow Del/Esc/keys
   const p = cellAt(e);
   if (tool === 'Pan' || spaceHeld || e.button === 1) {
     panning = true; panStart = { x: e.clientX, y: e.clientY, cx: camX, cy: camY };
@@ -520,12 +521,16 @@ function apply(p: Obj) {
     if (!bridgeStart) { bridgeStart = { ...p }; updateHint('Now click the bridge END'); }
     else { const x0 = Math.min(bridgeStart.x, p.x), x1 = Math.max(bridgeStart.x, p.x); st.bridges.push({ x: x0, y: bridgeStart.y, w: Math.max(2, x1 - x0) }); bridgeStart = null; updateHint(); }
   } else if (tool === 'Delete') {
+    if (sel && inSel(p)) { deleteSel(); return; }            // delete the whole selection
     const near = (o: Obj) => Math.hypot(o.x - p.x, o.y - p.y) < 1.6;
+    const n0 = st.checkpoints.length + st.gems.length + st.enemies.length + st.spawners.length + st.bridges.length;
     st.checkpoints = st.checkpoints.filter(o => !near(o));
     st.gems = st.gems.filter(o => !near(o));
     st.enemies = st.enemies.filter(o => !near(o));
     st.spawners = st.spawners.filter(o => !near(o));
     st.bridges = st.bridges.filter(b => !(p.y >= b.y - 1 && p.y <= b.y + 1 && p.x >= b.x - 1 && p.x <= b.x + b.w + 1));
+    const n1 = st.checkpoints.length + st.gems.length + st.enemies.length + st.spawners.length + st.bridges.length;
+    if (n0 === n1) setTile(p.x, p.y, '.');                   // nothing nearby → erase the tile itself
   }
   save();
 }
@@ -636,3 +641,11 @@ function draw() {
 }
 
 load(); buildRail(); syncInspector(); updateHint(); fitZoom(); draw();
+
+// dev/test hook: lets automated checks (and the console) drive the editor
+(window as any).__forge = {
+  get st() { return st; },
+  setTool(t: string) { tool = t; buildRail(); syncInspector(); },
+  apply, deleteSel, normalize,
+  setSel(s: { x0: number; y0: number; x1: number; y1: number } | null) { sel = s; },
+};

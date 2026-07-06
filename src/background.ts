@@ -421,26 +421,20 @@ export function drawParallax(game: Game, c: CanvasRenderingContext2D) {
 // rush past IN FRONT of the action — swaying reed clumps rising from the bottom
 // and leafy vines hanging from the top. Drawn over the world, under the HUD.
 export function drawForeground(game: Game, c: CanvasRenderingContext2D) {
-  const grass = stills.fgrass, hang = stills.fhang;
-  if (!grass?.ready || !hang?.ready) return;
-  const t = game.time, par = 1.5, sc = game.camera.x * par;   // >1 → rushes past faster than the play plane
+  // The top-hanging vine curtains are RETIRED: silhouetted against the sky they
+  // repeatedly read as detached broken terrain. Only rare, low bottom-edge grass
+  // tufts remain — framing without obscuring or confusing.
+  const grass = stills.fgrass;
+  if (!grass?.ready) return;
+  const t = game.time, par = 1.5, sc = game.camera.x * par;
   c.save();
-  c.filter = 'brightness(0.32) saturate(0.8)';               // dark silhouette
-  // sparse framing only — mostly top vine curtains; a rare low grass tuft at the
-  // very bottom edge. Never fills the play area.
-  const step = 560, first = Math.floor((sc - 360) / step), last = Math.ceil((sc + LOGICAL_W + 360) / step);
+  c.filter = 'brightness(0.32) saturate(0.8)';
+  const step = 620, first = Math.floor((sc - 360) / step), last = Math.ceil((sc + LOGICAL_W + 360) / step);
   for (let i = first; i <= last; i++) {
-    if (hash(i * 17) > 0.7) continue;                         // big gaps between clumps
-    const x = i * step - sc + hash(i * 7) * 260, pick = hash(i * 3), sway = Math.sin(t + i) * 0.04;
-    if (pick < 0.7) {
-      // vine curtain hanging from the very top — only the top ~90px shows
-      const w = 150 + hash(i * 5) * 110, h = hang.img.height * (w / hang.img.width);
-      c.globalAlpha = 0.85; c.save(); c.translate(x, -h * 0.6); c.rotate(sway * 0.5); c.drawImage(hang.img, -w / 2, 0, w, h); c.restore();
-    } else {
-      // low grass tuft peeking up from the bottom edge (mostly off-screen)
-      const w = 130 + hash(i * 5) * 90, h = grass.img.height * (w / grass.img.width);
-      c.globalAlpha = 0.6; c.save(); c.translate(x, LOGICAL_H + h * 0.74); c.rotate(sway); c.drawImage(grass.img, -w / 2, -h, w, h); c.restore();
-    }
+    if (hash(i * 17) > 0.5) continue;                         // big gaps between clumps
+    const x = i * step - sc + hash(i * 7) * 260, sway = Math.sin(t + i) * 0.04;
+    const w = 130 + hash(i * 5) * 90, h = grass.img.height * (w / grass.img.width);
+    c.globalAlpha = 0.55; c.save(); c.translate(x, LOGICAL_H + h * 0.76); c.rotate(sway); c.drawImage(grass.img, -w / 2, -h, w, h); c.restore();
   }
   c.filter = 'none'; c.globalAlpha = 1;
   c.restore();
@@ -654,8 +648,13 @@ function drawSpan(game: Game, c: CanvasRenderingContext2D, th: Theme, a: number,
       return pts[pts.length - 1].y;
     };
     c.save();
-    for (let sx = leftX; sx < rightX; sx += step) {
-      const w2 = Math.min(step, rightX - sx);
+    // slices anchored to a WORLD-space grid so the ribbon is rock-stable while
+    // the camera moves (screen-anchored slices shimmered/"re-rendered")
+    const wx0 = Math.floor((leftX + camX) / step) * step - camX;
+    for (let sx0 = wx0; sx0 < rightX; sx0 += step) {
+      const sx = Math.max(sx0, leftX);
+      const w2 = Math.min(sx0 + step, rightX) - sx;
+      if (w2 <= 0) continue;
       const y0 = surfAt(sx), y1 = surfAt(sx + w2);
       const ang = Math.atan2(y1 - y0, w2);
       let su = ((sx + camX) / scale) % TW; if (su < 0) su += TW;
