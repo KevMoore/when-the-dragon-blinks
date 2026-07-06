@@ -441,7 +441,8 @@ export class Player {
         const anim = this.dragonFireCd > 0.06 ? 'attack' : 'idle';
         const sheet = sprites.get('dragon/' + anim)?.ready ? sprites.get('dragon/' + anim) : sprites.get('dragon/idle');
         if (sheet && sheet.ready) {
-            // flowing serpentine body: a tapering fire-ribbon along the flight trail
+            const hx = this.x + this.w / 2 - cam.x, hy = this.y + this.h / 2 - cam.y;
+            // clean soft motion streak (a warm smear behind the flight path) — no janky ribbon
             const pts = [];
             for (let i = 0; i < trail.length; i += 2) {
                 const p = trail[i];
@@ -451,52 +452,43 @@ export class Player {
             c.save();
             c.lineCap = 'round';
             c.lineJoin = 'round';
-            c.globalCompositeOperation = 'lighter'; // outer fire glow
+            c.globalCompositeOperation = 'lighter';
             for (let k = 1; k < pts.length; k++) {
                 const t = 1 - k / pts.length;
-                c.strokeStyle = `rgba(255,${(120 + 120 * t) | 0},${(50 * t) | 0},${0.36 * t + 0.07})`;
-                c.lineWidth = 24 * t + 4;
+                c.strokeStyle = `rgba(255,${(150 + 90 * t) | 0},${(70 * t) | 0},${0.2 * t})`;
+                c.lineWidth = 16 * t + 3;
                 c.beginPath();
                 c.moveTo(pts[k - 1].x, pts[k - 1].y);
                 c.lineTo(pts[k].x, pts[k].y);
                 c.stroke();
-            }
-            c.globalCompositeOperation = 'source-over'; // solid tapering body
-            for (let k = 1; k < pts.length; k++) {
-                const t = 1 - k / pts.length;
-                c.strokeStyle = mixHex('#6e1207', '#ffb347', t);
-                c.lineWidth = 13 * t + 2.5;
-                c.beginPath();
-                c.moveTo(pts[k - 1].x, pts[k - 1].y);
-                c.lineTo(pts[k].x, pts[k].y);
-                c.stroke();
-            }
-            for (let k = 3; k < pts.length - 1; k += 3) { // dorsal fin-spikes
-                const t = 1 - k / pts.length;
-                if (t < 0.2)
-                    continue;
-                const a = pts[k - 1], b = pts[k], ddx = b.x - a.x, ddy = b.y - a.y, L = Math.hypot(ddx, ddy) || 1, s = 8 * t;
-                c.fillStyle = '#ffd877';
-                c.beginPath();
-                c.moveTo(b.x - ddx / L * 4, b.y - ddy / L * 4);
-                c.lineTo(b.x - ddy / L * s, b.y + ddx / L * s);
-                c.lineTo(b.x + ddx / L * 4, b.y + ddy / L * 4);
-                c.closePath();
-                c.fill();
             }
             c.restore();
-            c.globalAlpha = 1;
-            c.shadowBlur = 0;
-            // head sprite, banked to the flight angle
-            const hx = this.x + this.w / 2 - cam.x, hy = this.y + this.h / 2 - cam.y;
+            // a couple of faint afterimages of the dragon for a sense of speed
+            const SZ = 156;
+            for (let g = 1; g <= 2; g++) {
+                const p = trail[g * 5];
+                if (!p)
+                    continue;
+                c.save();
+                c.globalAlpha = 0.14 / g;
+                c.globalCompositeOperation = 'lighter';
+                c.translate(p.x - cam.x, p.y - cam.y);
+                c.rotate(this.dragonBank * this.facing);
+                c.scale(this.facing, 1);
+                sheet.blit(c, sheet.frameAt(this.animTime), SZ, false);
+                c.restore();
+            }
+            // the dragon itself — the full coiled Zhulong sprite, banked to the flight angle
             c.save();
             c.translate(hx, hy);
             c.rotate(this.dragonBank * this.facing);
             c.scale(this.facing, 1);
             c.shadowColor = '#ff8b3a';
-            c.shadowBlur = 20;
-            sheet.blit(c, sheet.frameAt(this.animTime), 112, false);
+            c.shadowBlur = 26;
+            sheet.blit(c, sheet.frameAt(this.animTime), SZ, false);
             c.restore();
+            c.globalAlpha = 1;
+            c.shadowBlur = 0;
             return;
         }
         c.save();
