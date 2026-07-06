@@ -157,6 +157,15 @@ function buildLevel(spec: Spec, index: number): LevelData {
     }
   }
 
+  // a wobbling rope bridge over a carved chasm (Act II onward)
+  const bridges: { x: number; y: number; w: number }[] = [];
+  if (spec.act >= 2 && w > 112 && !spec.boss) {
+    const gt = topAt(segs, Math.floor(w * 0.57) - 1), gx = Math.floor(w * 0.57), gw = 6 + Math.floor(r() * 2);
+    for (let cx = gx - 1; cx <= gx + gw; cx++) { setTile(m, cx, gt, 'g'); for (let cy = gt + 1; cy < h; cy++) setTile(m, cx, cy, cx < gx || cx >= gx + gw ? '#' : '.'); }
+    row(m, gx, h - 2, gw, '^');
+    bridges.push({ x: gx * TILE, y: gt * TILE + 2, w: gw * TILE });
+  }
+
   // secret exit → a hidden level (a high night-ledge to find)
   let secretExit: Rect | undefined, secretExitTo: number | undefined;
   if (spec.secretTo !== undefined) {
@@ -172,7 +181,7 @@ function buildLevel(spec: Spec, index: number): LevelData {
     theme: renderTheme(spec.theme), width: w, height: h, tiles: toStrings(m),
     spawn: { x: 3 * TILE, y: (gr - 3) * TILE }, exit: { x: (w - 4) * TILE, y: (endTop - 6) * TILE, w: 44, h: 6 * TILE },
     checkpoints, relics: [], shrines: spec.shrine ? [{ x: 8 * TILE, y: (gr - 2) * TILE, textId: spec.shrine }] : [],
-    entities, gems, platforms, windZones, secretExit, secretExitTo,
+    entities, gems, bridges, platforms, windZones, secretExit, secretExitTo,
     introLore: spec.intro || '', outroLore: spec.outro || '', unlockCodexOnComplete: spec.unlock || [],
   };
 }

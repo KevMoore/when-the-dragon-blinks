@@ -68,6 +68,7 @@ export class Game {
         this.novaX = 0;
         this.novaY = 0; // burst animation
         this.gems = [];
+        this.bridges = [];
         this.embers = [];
         this.transformT = 0; // >0 while the transformation cinematic plays
         this.deathT = 0;
@@ -133,6 +134,7 @@ export class Game {
         this.novaT = 0;
         this.deathT = 0;
         this.gems = (this.level.gems || []).map(g => ({ x: g.x, y: g.y, taken: false, rt: 0 }));
+        this.bridges = (this.level.bridges || []).map(b => ({ x: b.x, y: b.y, w: b.w, sag: 0, sagVel: 0, loadU: 0.5 }));
         this.clearT = 0;
         this.clearing = false;
         this.bossDeathT = 0;
@@ -872,6 +874,7 @@ export class Game {
             pl.update(dt, this.time);
         this.carryRider();
         this.player.update(this, dt);
+        this.updateBridges(dt);
         for (const e of this.enemies)
             e.update(this, dt);
         this.enemies = this.enemies.filter(e => e.alive);
@@ -1391,6 +1394,7 @@ export class Game {
         bg.drawWind(this, c);
         bg.drawTiles(this, c);
         this.drawPlatforms(c);
+        this.drawBridges(c);
         this.drawObjects(c);
         this.drawGems(c);
         for (const e of this.enemies)
@@ -1809,6 +1813,73 @@ export class Game {
             c.restore();
         }
         c.globalAlpha = 1;
+    }
+    // Wobbling rope bridges: the plank under the player sags and springs (wobble);
+    // the player stands on the sagging surface.
+    updateBridges(dt) {
+        const p = this.player, pcx = p.x + p.w / 2, feet = p.y + p.h;
+        for (const b of this.bridges) {
+            const onX = pcx > b.x - 2 && pcx < b.x + b.w + 2;
+            const u = clamp((pcx - b.x) / b.w, 0, 1);
+            const base = Math.sin(u * Math.PI) * 5;
+            const surf = b.y + base + b.sag; // surface right under the player
+            const grab = onX && feet >= surf - 9 && feet <= surf + 28 && p.vy >= -40;
+            const target = grab ? 26 : 0;
+            b.sagVel += (target - b.sag) * 140 * dt;
+            b.sagVel *= Math.pow(0.02, dt); // damping → wobble decays
+            b.sag = clamp(b.sag + b.sagVel * dt, -7, 46);
+            if (grab) {
+                p.y = surf - p.h;
+                p.vy = 0;
+                p.grounded = true;
+                b.loadU = u;
+            }
+            else
+                b.loadU += (0.5 - b.loadU) * 0.06;
+        }
+    }
+    drawBridges(c) {
+        for (const b of this.bridges) {
+            const N = Math.max(7, Math.floor(b.w / 15));
+            const x0 = b.x - this.camera.x, y0 = b.y - this.camera.y;
+            const pts = [];
+            for (let i = 0; i <= N; i++) {
+                const u = i / N, base = Math.sin(u * Math.PI) * 5, load = b.sag * Math.max(0, 1 - Math.abs(u - b.loadU) * 2.2);
+                pts.push({ x: x0 + u * b.w, y: y0 + base + load });
+            }
+            c.save();
+            c.fillStyle = '#4a3018';
+            c.fillRect(x0 - 5, y0 - 18, 6, 26);
+            c.fillRect(x0 + b.w - 1, y0 - 18, 6, 26); // posts
+            c.strokeStyle = '#5a3c22';
+            c.lineWidth = 2.5;
+            c.beginPath();
+            c.moveTo(x0 - 2, y0 - 16);
+            c.lineTo(pts[0].x, pts[0].y);
+            c.moveTo(x0 + b.w + 2, y0 - 16);
+            c.lineTo(pts[N].x, pts[N].y);
+            c.stroke();
+            c.strokeStyle = '#6b4a2a';
+            c.lineWidth = 2;
+            c.beginPath();
+            pts.forEach((pt, i) => i ? c.lineTo(pt.x, pt.y) : c.moveTo(pt.x, pt.y));
+            c.stroke(); // top rope
+            for (let i = 0; i < N; i++) {
+                const a = pts[i], d = pts[i + 1], mx = (a.x + d.x) / 2, my = (a.y + d.y) / 2;
+                c.save();
+                c.translate(mx, my);
+                c.rotate(Math.atan2(d.y - a.y, d.x - a.x));
+                c.fillStyle = '#8a6b45';
+                c.fillRect(-8, -2, 16, 5);
+                c.fillStyle = 'rgba(0,0,0,.28)';
+                c.fillRect(-8, 3, 16, 2);
+                c.strokeStyle = 'rgba(0,0,0,.3)';
+                c.lineWidth = 1;
+                c.strokeRect(-8, -2, 16, 5);
+                c.restore();
+            }
+            c.restore();
+        }
     }
     // Nova: spend all inner energy on a screen-wide burst — vaporises EVERY enemy
     // on screen, heavily damages (but never finishes) a boss.

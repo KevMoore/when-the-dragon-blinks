@@ -62,6 +62,7 @@ export type LevelData = {
   shrines: { x: number; y: number; textId: string }[];
   entities: { kind: EntityKind; x: number; y: number }[];
   gems?: { x: number; y: number }[];       // torch-gems on the route (fill the dragon meter)
+  bridges?: { x: number; y: number; w: number }[];   // wobbling rope bridges over chasms
   platforms?: MovingPlatform[];
   windZones?: Rect[];
   introLore: string;

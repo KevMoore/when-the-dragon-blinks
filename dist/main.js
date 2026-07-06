@@ -98,6 +98,12 @@ if (_q.has('death')) {
     const h = () => { game.deathT = 0.65; const p = game.player; game.deathX = p.x + p.w / 2; game.deathY = p.y + p.h / 2; requestAnimationFrame(h); };
     h();
 }
+if (_q.has('bridge')) {
+    setTimeout(() => { const b = game.bridges[0]; if (b) {
+        game.player.x = b.x + b.w / 2;
+        game.player.y = b.y - game.player.h;
+    } }, 150);
+}
 // dev aid: hold an aim pose for screenshots — ?pose=up|updiag|down|downdiag
 if (_q.has('pose')) {
     const m = { up: [0, -1], updiag: [0.7, -0.7], down: [0, 1], downdiag: [0.7, 0.7] };
