@@ -61,7 +61,6 @@ export function drawSky(game: Game, c: CanvasRenderingContext2D) {
 
   const storm = !!game.level.isBoss;
   drawClouds(game, c, day, storm);
-  drawCoilingDragon(game, c, day);
   drawDragonEye(game, c, day);
   drawGodRays(game, c, day, cx, cy);
   if (storm) drawStorm(game, c);
