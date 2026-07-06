@@ -39,7 +39,7 @@ export class Game {
   dayAmount = 1;
   eyeBlink = 1;
   eyeReact = 0;              // 0..1 pulse — the watching eye flares on impacts
-  stormT = 2; lightningT = 0; lightningX = 0;   // boss-arena storm + lightning
+  stormT = 2; lightningT = 0; lightningX = 0; lightningY = 300;   // boss-arena storm + lightning
   flash = 0; flashColor = '#ffd777';
   time = 0;
   hitstop = 0;
@@ -538,15 +538,19 @@ export class Game {
     }
     this.flash = Math.max(0, this.flash - dt * 2.5);
     this.eyeReact = Math.max(0, this.eyeReact - dt * 2.4);
-    // boss-arena storm: periodic lightning strikes (flash + bolt + thunder)
+    // boss-arena storm: periodic lightning strikes — near-constant flicker once
+    // the Lantern Eater is in its final phase (flash + bolt + thunder + shake)
     if (this.level.isBoss) {
+      const rage = this.boss && this.boss.alive && this.boss.phase >= 3;
       this.lightningT = Math.max(0, this.lightningT - dt);
       this.stormT -= dt;
       if (this.stormT <= 0) {
-        this.stormT = 2.3 + Math.random() * 3.4;
-        this.lightningT = 0.3; this.lightningX = 70 + Math.random() * (LOGICAL_W - 140);
-        this.flash = Math.max(this.flash, 0.5); this.flashColor = '#dbe8ff';
-        this.camera.addTrauma(0.35); this.audio.sfx('boss');
+        this.stormT = rage ? 0.35 + Math.random() * 0.8 : 2.3 + Math.random() * 3.4;
+        this.lightningT = rage ? 0.16 : 0.3;
+        this.lightningX = 70 + Math.random() * (LOGICAL_W - 140); this.lightningY = 300;
+        this.flash = Math.max(this.flash, rage ? 0.34 : 0.5); this.flashColor = '#dbe8ff';
+        this.camera.addTrauma(rage ? 0.2 : 0.35);
+        if (!rage || Math.random() < 0.55) this.audio.sfx('boss');
       }
     }
     this.particles.update(dt);
@@ -877,6 +881,7 @@ export class Game {
     this.player.draw(this, c);
     this.particles.draw(c, this.camera.x, this.camera.y, this.world);
     bg.drawLighting(this, c);
+    if (this.level.isBoss) bg.drawRain(this, c);
     bg.drawVignette(c);
     if (this.player.dragonTime > 0) { c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.06 + 0.03 * Math.sin(this.time * 6); c.fillStyle = '#ffb84a'; c.fillRect(0, 0, LOGICAL_W, LOGICAL_H); c.restore(); c.globalAlpha = 1; }
     this.drawScorePops(c);

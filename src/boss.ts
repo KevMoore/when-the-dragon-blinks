@@ -110,6 +110,9 @@ export class LanternEater {
     this.hp -= dmg;
     this.hurtFlash = 0.16;
     this.stateT = Math.min(this.stateT, 0.25); // knocked back out of recovery
+    // the storm answers — a bolt cracks down onto the wounded Eater
+    game.lightningT = 0.26; game.lightningX = this.x + this.w / 2 - game.camera.x; game.lightningY = this.y + this.h * 0.4 - game.camera.y;
+    game.flash = Math.max(game.flash, 0.45); game.flashColor = '#e6eeff';
     game.camera.addTrauma(0.5); game.addHitstop(0.07);
     game.particles.hit(centerX(this.eyeRect()), centerY(this.eyeRect()), 26, '#a9d6ff');
     game.audio.sfx('bosshit');

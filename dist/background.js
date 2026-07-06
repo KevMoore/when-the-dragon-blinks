@@ -113,13 +113,14 @@ function drawStorm(game, c) {
         c.lineWidth = 2.4;
         c.lineCap = 'round';
         c.lineJoin = 'round';
+        const endY = game.lightningY || 300;
         let x = lx, y = -8;
         c.beginPath();
         c.moveTo(x, y);
         for (let s = 1; s <= 9; s++) {
             const hn = hash(Math.floor(lx) * 7 + s);
             x = lx + (hn - 0.5) * 90 * (s / 9);
-            y = (s / 9) * 300;
+            y = (s / 9) * endY;
             c.lineTo(x, y);
             if (hn > 0.72) {
                 c.moveTo(x, y);
@@ -132,6 +133,27 @@ function drawStorm(game, c) {
         c.globalAlpha = 1;
         c.shadowBlur = 0;
     }
+}
+// Wind-driven rain, drawn over the whole scene during boss storms (cheap lines).
+export function drawRain(game, c) {
+    const rage = game.boss && game.boss.alive && game.boss.phase >= 3;
+    const n = rage ? 150 : 100, fall = game.time * (rage ? 1050 : 850);
+    c.save();
+    c.strokeStyle = 'rgba(184,200,232,0.5)';
+    c.globalAlpha = rage ? 0.6 : 0.42;
+    c.lineWidth = 1.1;
+    c.lineCap = 'round';
+    for (let i = 0; i < n; i++) {
+        const bx = hash(i * 2.7) * (LOGICAL_W + 80) - 40;
+        const spd = 0.7 + hash(i) * 0.7, len = 12 + hash(i * 7) * 12;
+        const y = ((hash(i * 5) * (LOGICAL_H + 60)) + fall * spd) % (LOGICAL_H + 60) - 30;
+        c.beginPath();
+        c.moveTo(bx, y);
+        c.lineTo(bx - 6, y + len);
+        c.stroke();
+    }
+    c.restore();
+    c.globalAlpha = 1;
 }
 // Stylised Chinese auspicious cloud (祥云): rounded billows with a ruyi curl.
 // `t` gently billows the puffs (cheap animation — a few sines per cloud).

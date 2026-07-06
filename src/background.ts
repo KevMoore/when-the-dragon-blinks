@@ -77,14 +77,29 @@ function drawStorm(game: Game, c: CanvasRenderingContext2D) {
     c.globalCompositeOperation = 'lighter'; c.globalAlpha = a * 0.4; c.fillStyle = '#bcd2ff'; c.fillRect(0, 0, LOGICAL_W, 310); c.globalAlpha = 1;
     c.globalCompositeOperation = 'source-over'; c.globalAlpha = a;
     c.strokeStyle = '#eef4ff'; c.shadowColor = '#9fc0ff'; c.shadowBlur = 18; c.lineWidth = 2.4; c.lineCap = 'round'; c.lineJoin = 'round';
+    const endY = game.lightningY || 300;
     let x = lx, y = -8; c.beginPath(); c.moveTo(x, y);
     for (let s = 1; s <= 9; s++) {
       const hn = hash(Math.floor(lx) * 7 + s);
-      x = lx + (hn - 0.5) * 90 * (s / 9); y = (s / 9) * 300; c.lineTo(x, y);
+      x = lx + (hn - 0.5) * 90 * (s / 9); y = (s / 9) * endY; c.lineTo(x, y);
       if (hn > 0.72) { c.moveTo(x, y); c.lineTo(x + (hn - 0.5) * 60, y + 34); c.moveTo(x, y); }   // fork
     }
     c.stroke(); c.restore(); c.globalAlpha = 1; c.shadowBlur = 0;
   }
+}
+
+// Wind-driven rain, drawn over the whole scene during boss storms (cheap lines).
+export function drawRain(game: Game, c: CanvasRenderingContext2D) {
+  const rage = game.boss && game.boss.alive && game.boss.phase >= 3;
+  const n = rage ? 150 : 100, fall = game.time * (rage ? 1050 : 850);
+  c.save(); c.strokeStyle = 'rgba(184,200,232,0.5)'; c.globalAlpha = rage ? 0.6 : 0.42; c.lineWidth = 1.1; c.lineCap = 'round';
+  for (let i = 0; i < n; i++) {
+    const bx = hash(i * 2.7) * (LOGICAL_W + 80) - 40;
+    const spd = 0.7 + hash(i) * 0.7, len = 12 + hash(i * 7) * 12;
+    const y = ((hash(i * 5) * (LOGICAL_H + 60)) + fall * spd) % (LOGICAL_H + 60) - 30;
+    c.beginPath(); c.moveTo(bx, y); c.lineTo(bx - 6, y + len); c.stroke();
+  }
+  c.restore(); c.globalAlpha = 1;
 }
 
 // Stylised Chinese auspicious cloud (祥云): rounded billows with a ruyi curl.
