@@ -8,6 +8,7 @@ import { Particles } from './particles.js';
 import { Player } from './player.js';
 import { GuqinGame } from './guqin.js';
 import { DawnGame } from './dawn.js';
+import { LanternGame } from './lantern.js';
 import { Enemy } from './enemy.js';
 import { LanternEater } from './boss.js';
 import { Platform } from './platform.js';
@@ -74,6 +75,8 @@ export class Game {
         this.guqinNext = 0; // secret end-of-level mini-games
         this.dawn = null;
         this.dawnNext = 0;
+        this.lantern = null;
+        this.lanternNext = 0;
         this.gems = [];
         this.bridges = [];
         this.embers = [];
@@ -790,6 +793,9 @@ export class Game {
             case 'dawn':
                 this.dawn?.update(dt);
                 break;
+            case 'lantern':
+                this.lantern?.update(dt);
+                break;
             case 'gameComplete':
                 this.updateGameComplete();
                 break;
@@ -1321,6 +1327,10 @@ export class Game {
                 this.startDawn(next);
                 return;
             }
+            if (!this.level.hidden && this.lanternDueFor(this.currentLevelIndex)) {
+                this.startLantern(next);
+                return;
+            }
             if (next >= 0 && next < levels.length && !levels[next].hidden)
                 this.startLevel(next, true);
             else
@@ -1331,6 +1341,7 @@ export class Game {
     }
     guqinDueFor(idx) { return [2, 7, 13, 19].includes(idx) && !this.minigamePlayed.has('g' + idx); }
     dawnDueFor(idx) { return [4, 10, 16, 21].includes(idx) && !this.minigamePlayed.has('d' + idx); }
+    lanternDueFor(idx) { return [3, 9, 15, 20].includes(idx) && !this.minigamePlayed.has('l' + idx); }
     startGuqin(next) {
         this.minigamePlayed.add('g' + this.currentLevelIndex);
         this.guqin = new GuqinGame(this);
@@ -1357,6 +1368,22 @@ export class Game {
     finishDawn() {
         const next = this.dawnNext;
         this.dawn = null;
+        this.persistSave();
+        if (next >= 0 && next < levels.length && !levels[next].hidden)
+            this.startLevel(next, true);
+        else
+            this.state = 'gameComplete';
+    }
+    startLantern(next) {
+        this.minigamePlayed.add('l' + this.currentLevelIndex);
+        this.lantern = new LanternGame(this);
+        this.lanternNext = next;
+        this.state = 'lantern';
+        this.audio.sfx('shrine');
+    }
+    finishLantern() {
+        const next = this.lanternNext;
+        this.lantern = null;
         this.persistSave();
         if (next >= 0 && next < levels.length && !levels[next].hidden)
             this.startLevel(next, true);
@@ -1440,6 +1467,12 @@ export class Game {
                 bg.drawParallax(this, c);
                 this.particles.draw(c, 0, 0, this.world);
                 this.dawn?.draw(c);
+                break;
+            case 'lantern':
+                bg.drawSky(this, c);
+                bg.drawParallax(this, c);
+                this.particles.draw(c, 0, 0, this.world);
+                this.lantern?.draw(c);
                 break;
             case 'codex':
                 bg.drawSky(this, c);
