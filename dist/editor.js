@@ -16,7 +16,7 @@ const TILE_TOOLS = [
     ['D', 'Day', '#f0b45a'], ['N', 'Night', '#7fa8d6'],
     ['^', 'Crags', '#8a7c7c'], ['F', 'Fire', '#ff7840'], ['S', 'Frost', '#8ed7ff'], ['.', 'Erase', '#241a30'],
 ];
-const OBJ_TOOLS = ['Spawn', 'Exit', 'Checkpoint', 'Gem', 'Enemy', 'Spawner', 'Bridge', 'Move', 'Delete', 'Pan'];
+const OBJ_TOOLS = ['✂ Select', 'Spawn', 'Exit', 'Checkpoint', 'Gem', 'Enemy', 'Spawner', 'Bridge', 'Move', 'Delete', 'Pan'];
 const STAMPS = [['pack', '👥 Enemy pack'], ['gemarc', '💎 Gem arc'], ['hazrun', '⚠️ Hazard strip'], ['aerial', '🌉 Aerial run']];
 const ENEMY_KINDS = ['moth', 'guardian', 'wisp', 'sentry', 'ghoul', 'skull', 'crawler', 'crow', 'sentinel', 'wraith'];
 let st = freshState(120);
@@ -30,6 +30,10 @@ let lastCell = null;
 let bridgeStart = null;
 let islandRow = null;
 let dragObj = null;
+// ✂ marquee selection: drag a box, then drag INSIDE it to move tiles + objects
+let sel = null;
+let selecting = false, movingSel = false;
+let selAnchor = { x: 0, y: 0 }, moveFrom = { x: 0, y: 0 }, moveDelta = { x: 0, y: 0 };
 // ---- undo / redo -------------------------------------------------------------
 const undoStack = [];
 const redoStack = [];
@@ -323,6 +327,20 @@ cv.addEventListener('pointerdown', e => {
         panStart = { x: e.clientX, y: e.clientY, cx: camX, cy: camY };
         return;
     }
+    if (tool === '✂ Select') {
+        if (sel && inSel(p)) {
+            pushUndo();
+            movingSel = true;
+            moveFrom = p;
+            moveDelta = { x: 0, y: 0 };
+        } // drag inside → move it
+        else {
+            selecting = true;
+            selAnchor = p;
+            sel = { x0: p.x, y0: p.y, x1: p.x, y1: p.y };
+        } // drag outside → new marquee
+        return;
+    }
     pushUndo();
     if (e.button === 2) {
         rightErase = true;
@@ -361,6 +379,16 @@ cv.addEventListener('pointermove', e => {
         clampCam();
         return;
     }
+    if (selecting) {
+        const p = cellAt(e);
+        sel = { x0: Math.min(selAnchor.x, p.x), y0: Math.min(selAnchor.y, p.y), x1: Math.max(selAnchor.x, p.x), y1: Math.max(selAnchor.y, p.y) };
+        return;
+    }
+    if (movingSel) {
+        const p = cellAt(e);
+        moveDelta = { x: p.x - moveFrom.x, y: p.y - moveFrom.y };
+        return;
+    }
     if (!painting)
         return;
     const p = cellAt(e), prev = lastCell ?? p;
@@ -384,6 +412,17 @@ cv.addEventListener('pointermove', e => {
     }
 });
 window.addEventListener('pointerup', () => {
+    if (movingSel) {
+        commitSelMove(moveDelta.x, moveDelta.y);
+        movingSel = false;
+        moveDelta = { x: 0, y: 0 };
+        save(false);
+        return;
+    }
+    if (selecting) {
+        selecting = false;
+        return;
+    }
     if (painting && !rightErase && tool !== 'island')
         normalize();
     painting = false;
@@ -405,6 +444,15 @@ window.addEventListener('keydown', e => {
         redo();
         return;
     }
+    if (e.key === 'Escape') {
+        sel = null;
+        return;
+    }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && sel && document.activeElement?.tagName !== 'INPUT') {
+        e.preventDefault();
+        deleteSel();
+        return;
+    }
     const k = e.key.toLowerCase();
     const sp = 26;
     if (k === 'arrowleft' || k === 'a')
@@ -420,6 +468,60 @@ window.addEventListener('keydown', e => {
 function clampCam() {
     camX = Math.max(0, Math.min(st.w * TILE - cv.width / zoom, camX));
     camY = Math.max(-40, Math.min(H * TILE - cv.height / zoom + 60, camY));
+}
+// ---- ✂ Select: area move/delete ---------------------------------------------
+const inSel = (p) => !!sel && p.x >= sel.x0 && p.x <= sel.x1 && p.y >= sel.y0 && p.y <= sel.y1;
+function commitSelMove(dx, dy) {
+    if (!sel || (dx === 0 && dy === 0))
+        return;
+    // lift the tile region, clear it, stamp at the offset (clipped to bounds)
+    const buf = [];
+    for (let y = sel.y0; y <= sel.y1; y++) {
+        const row = [];
+        for (let x = sel.x0; x <= sel.x1; x++) {
+            row.push(tileAt(x, y));
+            setTile(x, y, '.');
+        }
+        buf.push(row);
+    }
+    for (let y = 0; y < buf.length; y++)
+        for (let x = 0; x < buf[y].length; x++) {
+            if (buf[y][x] !== '.')
+                setTile(sel.x0 + x + dx, sel.y0 + y + dy, buf[y][x]);
+        }
+    // objects inside ride along
+    const shift = (o) => { if (inSel(o)) {
+        o.x += dx;
+        o.y += dy;
+    } };
+    st.enemies.forEach(shift);
+    st.gems.forEach(shift);
+    st.checkpoints.forEach(shift);
+    st.spawners.forEach(shift);
+    shift(st.spawn);
+    shift(st.exit);
+    for (const b of st.bridges)
+        if (inSel({ x: b.x, y: b.y })) {
+            b.x += dx;
+            b.y += dy;
+        }
+    sel = { x0: sel.x0 + dx, y0: sel.y0 + dy, x1: sel.x1 + dx, y1: sel.y1 + dy };
+    normalize();
+}
+function deleteSel() {
+    if (!sel)
+        return;
+    pushUndo();
+    for (let y = sel.y0; y <= sel.y1; y++)
+        for (let x = sel.x0; x <= sel.x1; x++)
+            setTile(x, y, '.');
+    st.enemies = st.enemies.filter(o => !inSel(o));
+    st.gems = st.gems.filter(o => !inSel(o));
+    st.checkpoints = st.checkpoints.filter(o => !inSel(o));
+    st.spawners = st.spawners.filter(o => !inSel(o));
+    st.bridges = st.bridges.filter(b => !inSel({ x: b.x, y: b.y }));
+    normalize();
+    save(false);
 }
 // ---- Move tool ------------------------------------------------------------------
 function findObj(p) {
@@ -625,6 +727,22 @@ function draw() {
     }
     glyph(st.spawn.x, st.spawn.y, '▲', '#8fd9a8');
     glyph(st.exit.x, st.exit.y, '⛩', '#ffd777');
+    // marquee selection (and its ghost while dragging to a new spot)
+    if (sel) {
+        const rect = (dx, dy, a) => {
+            c.save();
+            c.strokeStyle = `rgba(255,215,119,${a})`;
+            c.lineWidth = 2;
+            c.setLineDash([8, 6]);
+            c.strokeRect((sel.x0 + dx) * TILE, (sel.y0 + dy) * TILE, (sel.x1 - sel.x0 + 1) * TILE, (sel.y1 - sel.y0 + 1) * TILE);
+            c.fillStyle = `rgba(255,215,119,${a * 0.12})`;
+            c.fillRect((sel.x0 + dx) * TILE, (sel.y0 + dy) * TILE, (sel.x1 - sel.x0 + 1) * TILE, (sel.y1 - sel.y0 + 1) * TILE);
+            c.restore();
+        };
+        rect(0, 0, movingSel ? 0.35 : 0.9);
+        if (movingSel && (moveDelta.x || moveDelta.y))
+            rect(moveDelta.x, moveDelta.y, 0.9);
+    }
     requestAnimationFrame(draw);
 }
 load();
