@@ -56,6 +56,13 @@ interface Spec {
 function renderTheme(t: Theme): 'mountain' | 'bridge' | 'cavern' | 'arena' {
   return t === 'sunless' ? 'cavern' : t;
 }
+// solid ground row at a tile-x (so platforms/gems/hazards sit on the LOCAL
+// surface, not the flat base row — otherwise rolling terrain buries them)
+function topAt(segs: { x: number; top: number | null }[], tx: number): number {
+  let t = 14;
+  for (const s of segs) { if (s.x <= tx) { if (s.top !== null) t = s.top; } else break; }
+  return t;
+}
 function isFlyer(k: EntityKind) {
   return k === 'moth' || k === 'wisp' || k === 'skull' || k === 'crow' || k === 'wraith' || k === 'sentry';
 }
@@ -91,32 +98,34 @@ function buildLevel(spec: Spec, index: number): LevelData {
   // pit spikes + day/night crossings (blink to make the path)
   for (const p of pits) {
     row(m, p.x0, h - 2, p.x1 - p.x0, '^');
-    row(m, p.x0, gr - 2, 2, r() < 0.5 ? 'D' : 'N');
-    row(m, p.x1 - 2, gr - 3, 2, r() < 0.5 ? 'N' : 'D');
+    const t0 = topAt(segs, p.x0 - 1);
+    row(m, p.x0, t0 - 2, 2, r() < 0.5 ? 'D' : 'N');
+    row(m, p.x1 - 2, t0 - 3, 2, r() < 0.5 ? 'N' : 'D');
   }
-  // one-way vantage platforms
+  // one-way vantage platforms (above the LOCAL ground)
   for (let i = 0, n = 2 + Math.floor(w / 40); i < n; i++) {
-    const px = 12 + Math.floor(r() * (w - 26)), py = gr - 3 - Math.floor(r() * 4);
+    const px = 12 + Math.floor(r() * (w - 26)), py = topAt(segs, px) - 3 - Math.floor(r() * 3);
     if (py > 3) row(m, px, py, 3 + Math.floor(r() * 2), 'o');
   }
-  // stateful (day/night) ground hazards
+  // stateful (day/night) ground hazards (just above the LOCAL surface)
   for (let i = 0, n = Math.floor(spec.hazard * w / 30); i < n; i++) {
-    row(m, 14 + Math.floor(r() * (w - 26)), gr - 1, 3, r() < 0.5 ? 'F' : 'S');
+    const px = 14 + Math.floor(r() * (w - 26));
+    row(m, px, topAt(segs, px) - 1, 3, r() < 0.5 ? 'F' : 'S');
   }
 
-  // gems along the route
+  // gems along the route (just above the LOCAL ground)
   const gems: { x: number; y: number }[] = [];
   const gN = 5 + Math.floor(w / 60);
-  for (let i = 0; i < gN; i++) gems.push(gem(Math.floor((i + 0.5) / gN * (w - 14)) + 6, gr - 2 - Math.floor(r() * 4)));
+  for (let i = 0; i < gN; i++) { const gx = Math.floor((i + 0.5) / gN * (w - 14)) + 6; gems.push(gem(gx, topAt(segs, gx) - 2 - Math.floor(r() * 3))); }
 
-  // checkpoints
+  // checkpoints (on the LOCAL ground)
   const checkpoints = [];
-  for (let cx = 34; cx < w - 12; cx += 44) checkpoints.push({ x: cx * TILE, y: gr * TILE - 40, w: 28, h: 56 });
+  for (let cx = 34; cx < w - 12; cx += 44) checkpoints.push({ x: cx * TILE, y: topAt(segs, cx) * TILE - 40, w: 28, h: 56 });
 
-  // moving / crumbling platforms
+  // moving / crumbling platforms — kept above the LOCAL ground so they never bury
   const platforms: MovingPlatform[] = [];
-  if (spec.moving) platforms.push(mp(Math.floor(w * 0.4), gr - 1, 3, { ax: 4 * TILE, speed: 0.8 + spec.diff * 0.12 }));
-  if (spec.crumble) { platforms.push(mp(Math.floor(w * 0.55), gr - 1, 3, { crumble: true })); platforms.push(mp(Math.floor(w * 0.72), gr - 2, 3, { crumble: true })); }
+  if (spec.moving) { const px = Math.floor(w * 0.4); platforms.push(mp(px, topAt(segs, px) - 3, 3, { ax: 4 * TILE, speed: 0.8 + spec.diff * 0.12 })); }
+  if (spec.crumble) { const p1 = Math.floor(w * 0.55), p2 = Math.floor(w * 0.72); platforms.push(mp(p1, topAt(segs, p1) - 3, 3, { crumble: true })); platforms.push(mp(p2, topAt(segs, p2) - 4, 3, { crumble: true })); }
 
   const windZones = spec.windy
     ? [{ x: Math.floor(w * 0.35) * TILE, y: 2 * TILE, w: 8 * TILE, h: (h - 2) * TILE }, { x: Math.floor(w * 0.66) * TILE, y: 2 * TILE, w: 8 * TILE, h: (h - 2) * TILE }]
@@ -135,9 +144,9 @@ function buildLevel(spec: Spec, index: number): LevelData {
   // secret exit → a hidden level (a high night-ledge to find)
   let secretExit: Rect | undefined, secretExitTo: number | undefined;
   if (spec.secretTo !== undefined) {
-    const sx = Math.floor(w * 0.5);
-    row(m, sx, gr - 5, 3, 'N'); row(m, sx + 2, gr - 8, 3, 'N');
-    secretExit = { x: (sx + 2) * TILE, y: (gr - 11) * TILE, w: 44, h: 3 * TILE };
+    const sx = Math.floor(w * 0.5), st = topAt(segs, sx);
+    row(m, sx, st - 5, 3, 'N'); row(m, sx + 2, st - 8, 3, 'N');
+    secretExit = { x: (sx + 2) * TILE, y: (st - 11) * TILE, w: 44, h: 3 * TILE };
     secretExitTo = spec.secretTo;
   }
 
