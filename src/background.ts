@@ -263,11 +263,11 @@ export function drawParallax(game: Game, c: CanvasRenderingContext2D) {
   c.beginPath(); c.arc(moonX - 17, moonY - 11, 15, 0, Math.PI * 2); c.arc(moonX + 13, moonY + 15, 11, 0, Math.PI * 2); c.arc(moonX + 5, moonY - 19, 7, 0, Math.PI * 2); c.fill();
   c.restore(); c.globalAlpha = 1;
 
-  // Three bold, clean ridge planes (Shadow-of-the-Beast style): a hazy far range,
-  // a mid range, and a dark near silhouette. Fewer layers, stronger separation.
-  const PARS = [0.04, 0.13, 0.30];
-  const BASE = [262, 336, 424];
-  const AMP = [88, 74, 60];
+  // Layers 4 & 3: distant MOUNTAINS (hazy, far) and nearer HILLS (darker). The
+  // trees and buildings (layers 1 & 2) sit in front of these — see propBands.
+  const PARS = [0.05, 0.15];
+  const BASE = [270, 360];
+  const AMP = [94, 74];
   const N = PARS.length;
   const skyLight = day > 0.5 ? '#ffdcae' : '#bcd2ff';    // colour the crest catches from the sky
   const nearDark = mixHex(ridge, '#050308', 0.5);        // deep silhouette for the closest ridges
@@ -314,28 +314,25 @@ export function drawParallax(game: Game, c: CanvasRenderingContext2D) {
   }
   c.restore();
 
-  // large sprite props scattered across two depth bands
+  // Prop layers, drawn back-to-front over the hills:
+  //  Layer 2 — distant BUILDINGS (pagoda / dwelling / lantern / stele) on the hills
+  //  Layer 1 — nearer, LARGER TREES in front of everything
+  // Each band tints toward its depth's ridge/haze so it blends into the plane.
   ensureProps();
-  const names = ['pagoda', 'shishi', 'pine', 'stele', 'palace'];
-  // raised well above the foreground terrain so the Chinese-style silhouettes
-  // stand up on the ridges against the sky (not buried at the grass line)
-  // each band carries an atmospheric tint (toward the ridge/haze of its depth)
-  // so the props blend into their plane instead of sitting bright on the horizon
-  const bands = [
-    { par: 0.13, baseY: 276, h: 56, alpha: 0.7, step: 540, seed: 41, tintMix: 0.85, tintAmt: 0.62 },
-    { par: 0.24, baseY: 318, h: 86, alpha: 0.88, step: 470, seed: 7, tintMix: 0.5, tintAmt: 0.44 },
-    { par: 0.4, baseY: 358, h: 116, alpha: 0.98, step: 560, seed: 23, tintMix: 0.28, tintAmt: 0.3 },
+  const propBands = [
+    { par: 0.24, baseY: 344, h: 96, alpha: 0.9, step: 470, seed: 7, tintMix: 0.5, tintAmt: 0.44, sizeVar: 0.4, skip: 0.6, set: ['pagoda', 'palace', 'shishi', 'stele'] },
+    { par: 0.52, baseY: 424, h: 176, alpha: 0.98, step: 340, seed: 23, tintMix: 0.24, tintAmt: 0.24, sizeVar: 0.55, skip: 0.5, set: ['pine'] },
   ];
-  for (const b of bands) {
+  for (const b of propBands) {
     const sc = game.camera.x * b.par, voff = game.camera.y * b.par;
     const tintCol = mixHex(ridge, haze, b.tintMix);
-    const first = Math.floor((sc - 280) / b.step), last = Math.ceil((sc + LOGICAL_W + 280) / b.step);
+    const first = Math.floor((sc - 340) / b.step), last = Math.ceil((sc + LOGICAL_W + 340) / b.step);
     for (let i = first; i <= last; i++) {
-      if (hash(i * 13 + b.seed) > 0.62) continue;
-      const name = names[Math.floor(hash(i * 7 + b.seed) * names.length)];
+      if (hash(i * 13 + b.seed) > b.skip) continue;
+      const name = b.set[Math.floor(hash(i * 7 + b.seed) * b.set.length)];
       const sx = i * b.step + hash(i * 3 + b.seed) * 150 - sc;
       const alpha = name === 'pine' ? Math.max(b.alpha, 0.95) : b.alpha;
-      drawPropImg(c, name, sx, b.baseY - voff, b.h * (0.82 + hash(i * 5 + b.seed) * 0.5), alpha, tintCol, b.tintAmt);
+      drawPropImg(c, name, sx, b.baseY - voff, b.h * (0.82 + hash(i * 5 + b.seed) * b.sizeVar), alpha, tintCol, b.tintAmt);
     }
   }
 
