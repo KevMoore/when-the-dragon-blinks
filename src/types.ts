@@ -73,6 +73,7 @@ export type LevelData = {
   difficulty?: number;        // per-level aggression scalar
   act?: number;               // 1..4 (for the level-select map + lore)
   hidden?: boolean;           // a secret level, shown on the map only once found
+  custom?: boolean;           // a published community/custom level (always playable)
   secretExit?: Rect;          // reaching this warps to `secretExitTo` instead of the normal exit
   secretExitTo?: number;      // level index of the hidden level
 };

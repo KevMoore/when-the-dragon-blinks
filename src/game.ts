@@ -837,7 +837,7 @@ export class Game {
     for (let i = 0; i < levels.length; i++) if (!levels[i].hidden) base.push(i);
     return [...base, ...this.save.foundHidden.filter(i => i >= 0 && i < levels.length)];
   }
-  levelPlayable(li: number): boolean { return li <= this.save.highestUnlocked || !!levels[li].hidden; }
+  levelPlayable(li: number): boolean { return li <= this.save.highestUnlocked || !!levels[li].hidden || !!levels[li].custom; }
 
   private updateLevelSelect() {
     if (this.input.just('back')) { this.state = 'title'; return; }

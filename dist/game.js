@@ -1249,7 +1249,7 @@ export class Game {
                 base.push(i);
         return [...base, ...this.save.foundHidden.filter(i => i >= 0 && i < levels.length)];
     }
-    levelPlayable(li) { return li <= this.save.highestUnlocked || !!levels[li].hidden; }
+    levelPlayable(li) { return li <= this.save.highestUnlocked || !!levels[li].hidden || !!levels[li].custom; }
     updateLevelSelect() {
         if (this.input.just('back')) {
             this.state = 'title';

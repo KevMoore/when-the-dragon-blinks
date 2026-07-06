@@ -3,6 +3,7 @@
 import { LOGICAL_W, LOGICAL_H } from './types.js';
 import { Game } from './game.js';
 import { loadSprites } from './spritedata.js';
+import { levels, loadCustomLevels } from './content.js';
 loadSprites();
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -58,6 +59,20 @@ if (_coarse) {
 const game = new Game(ctx);
 // Optional deep-link for testing/sharing: index.html?level=0..3 jumps straight in.
 const _q = new URLSearchParams(location.search);
+// Shrine Forge playtest: the editor stores a draft level in localStorage
+if (_q.has('playtest')) {
+    try {
+        const d = JSON.parse(localStorage.getItem('wtdb-draft') || '');
+        if (d && Array.isArray(d.tiles) && d.spawn) {
+            d.custom = true;
+            levels.push(d);
+            game.startLevel(levels.length - 1, false);
+        }
+    }
+    catch { /* no draft */ }
+}
+// published Custom Trails (assets/levels/) appear in Level Select once loaded
+loadCustomLevels().catch(() => { });
 if (_q.has('level')) {
     const n = Math.max(0, Math.min(25, parseInt(_q.get('level') || '0') || 0));
     game.startLevel(n, false);

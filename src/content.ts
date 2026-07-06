@@ -461,6 +461,27 @@ function makeBossLevel(): LevelData {
 
 export const levels: LevelData[] = SPECS.map((s, i) => buildLevel(s, i));
 
+/** Published custom levels (from the Shrine Forge editor): fetched from
+ *  assets/levels/index.json and appended to the level list as Custom Trails. */
+export async function loadCustomLevels(): Promise<number> {
+  try {
+    const idx = await (await fetch('assets/levels/index.json')).json();
+    const files: string[] = idx?.files || [];
+    let n = 0;
+    for (const f of files) {
+      try {
+        const d = await (await fetch('assets/levels/' + f)).json();
+        if (d && Array.isArray(d.tiles) && d.spawn && d.exit) {
+          d.custom = true; d.id = d.id || 'custom-' + f.replace(/\W+/g, '-');
+          d.title = d.title || f; d.subtitle = d.subtitle || 'A custom shrine path';
+          levels.push(d as LevelData); n++;
+        }
+      } catch { /* skip bad file */ }
+    }
+    return n;
+  } catch { return 0; }
+}
+
 // ---- Lore panels -----------------------------------------------------------
 export const loreTexts: Record<string, LorePanel> = {
   // ---- the 24-level arc (per-act openers/finales) ----

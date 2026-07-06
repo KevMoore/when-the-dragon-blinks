@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+  <title>Shrine Forge — Level Editor · When the Dragon Blinks</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #0b0812; color: #fff1ca; font: 14px Georgia, serif; overflow: hidden; }
+    #bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 10px; background: #17101f; border-bottom: 1px solid #3a2a44; }
+    #bar b { color: #ffd777; margin-right: 6px; font-size: 15px; }
+    button, select, input[type=text], input[type=number] { background: #241a30; color: #fff1ca; border: 1px solid #4a3658; border-radius: 8px; padding: 6px 10px; font: 13px Georgia, serif; cursor: pointer; }
+    button:hover { background: #32243f; }
+    button.on { background: #d94a3a; border-color: #ffb24a; color: #fff; }
+    #tools { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 10px; background: #130d1a; border-bottom: 1px solid #3a2a44; }
+    #wrap { position: relative; }
+    canvas { display: block; background: #241a30; cursor: crosshair; touch-action: none; }
+    #hint { position: fixed; bottom: 8px; left: 10px; color: rgba(255,241,202,.55); font-size: 12px; pointer-events: none; }
+    #modal { position: fixed; inset: 0; background: rgba(5,3,8,.8); display: none; place-items: center; }
+    #modal .card { background: #1c1426; border: 1px solid #4a3658; border-radius: 12px; padding: 22px 26px; max-width: 640px; }
+    #modal h2 { color: #ffd777; margin-top: 0; }
+    #modal code { background: #0b0812; padding: 2px 6px; border-radius: 6px; }
+    textarea { width: 100%; height: 120px; background: #0b0812; color: #fff1ca; border: 1px solid #4a3658; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <div id="bar">
+    <b>⛩ Shrine Forge</b>
+    <input id="name" type="text" value="My Shrine Path" style="width:150px" title="Level name" />
+    <select id="theme" title="Theme">
+      <option value="mountain">Act I · Mountain</option>
+      <option value="bridge">Act II · Bridge</option>
+      <option value="cavern">Act III · Cavern</option>
+      <option value="sunless">Act IV · Sunless</option>
+    </select>
+    <label>W <input id="wtiles" type="number" min="40" max="300" value="120" style="width:64px" title="Width in tiles" /></label>
+    <button id="new">New</button>
+    <button id="import">Import</button>
+    <button id="export">Export JSON</button>
+    <button id="playtest" style="background:#2c5a2c">▶ Playtest</button>
+    <button id="publish">Publish…</button>
+    <input id="file" type="file" accept=".json" style="display:none" />
+  </div>
+  <div id="tools"></div>
+  <div id="wrap"><canvas id="ed" width="1280" height="620"></canvas></div>
+  <div id="hint">Paint: click/drag · Pan: arrows / WASD or the Pan tool · Bridge: click start then end · Draft autosaves</div>
+  <div id="modal"><div class="card">
+    <h2>Publish your level</h2>
+    <p>1. <b>Export JSON</b> and save the file (e.g. <code>my-shrine.json</code>).</p>
+    <p>2. Add it to the repo at <code>assets/levels/my-shrine.json</code> and list it in <code>assets/levels/index.json</code>:</p>
+    <textarea readonly>{ "files": ["my-shrine.json"] }</textarea>
+    <p>3. Push to <code>main</code> — Render deploys it, and the level appears in the game's <b>Level Select</b> as a Custom Trail.</p>
+    <p style="opacity:.7">Or just send the JSON to Claude and ask it to publish it for you. 🐉</p>
+    <p style="text-align:right"><button onclick="document.getElementById('modal').style.display='none'">Close</button></p>
+  </div></div>
+  <script type="module" src="dist/editor.js"></script>
+</body>
+</html>
