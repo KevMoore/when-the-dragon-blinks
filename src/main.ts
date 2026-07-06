@@ -9,6 +9,10 @@ loadSprites();
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d', { alpha: false })!;   // opaque backbuffer — cheaper compositing
+// PERF (Chrome): shadowBlur rasterizes on the CPU per draw call and we had ~70
+// call sites — Chrome tanked while Safari coped. Kill it globally; the additive
+// cached glow sprites carry the soft-light look instead.
+try { Object.defineProperty(ctx, 'shadowBlur', { get: () => 0, set: () => { /* disabled */ } }); } catch { /* stubbed ctx */ }
 
 // The logical resolution is fixed; we scale the backing buffer for crisp text
 // on high-DPI screens and let CSS `object-fit: contain` handle letterboxing.

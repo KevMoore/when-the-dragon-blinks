@@ -41,18 +41,9 @@ export function drawSky(game, c) {
     c.globalAlpha = 1;
     // celestial body: golden sun (day) crossfading to a blood-moon (night)
     const cx = 772 - game.camera.x * 0.04, cy = 96;
-    // atmospheric bloom
-    c.save();
-    c.globalCompositeOperation = 'lighter';
-    const bloom = c.createRadialGradient(cx, cy, 0, cx, cy, 260);
-    bloom.addColorStop(0, `rgba(255,190,120,${0.22 * day + 0.05})`);
-    bloom.addColorStop(0.5, `rgba(255,90,60,${0.10 * (1 - day)})`);
-    bloom.addColorStop(1, 'rgba(0,0,0,0)');
-    c.fillStyle = bloom;
-    c.beginPath();
-    c.arc(cx, cy, 260, 0, Math.PI * 2);
-    c.fill();
-    c.restore();
+    // atmospheric bloom (cached glow sprites; alpha carries the day/night fade)
+    drawGlow(c, cx, cy, 260, 'rgba(255,190,120,1)', 0.22 * day + 0.05);
+    drawGlow(c, cx, cy, 150, 'rgba(255,90,60,1)', 0.10 * (1 - day));
     // sun (tinted per act — golden dawn, pale twilight, violet, cold sunless)
     c.globalAlpha = day;
     c.fillStyle = th.sun;
@@ -545,13 +536,10 @@ export function drawParallax(game, c) {
         const bx = ((i * 250 + game.time * (7 + i * 2.2)) % (LOGICAL_W + 460)) - 230;
         const by = 296 + (i % 3) * 42 + Math.sin(game.time * 0.2 + i) * 10 - game.camera.y * 0.08;
         const r = 130 + (i % 3) * 64;
-        const g = c.createRadialGradient(bx, by, 0, bx, by, r);
-        g.addColorStop(0, `rgba(${tint},${0.07 + (i % 3) * 0.015})`);
-        g.addColorStop(1, 'rgba(0,0,0,0)');
-        c.fillStyle = g;
-        c.beginPath();
-        c.ellipse(bx, by, r, r * 0.42, 0, 0, Math.PI * 2);
-        c.fill();
+        // cached glow sprite, squashed vertically for the mist-bank ellipse
+        c.globalAlpha = 0.07 + (i % 3) * 0.015;
+        c.drawImage(glowSprite(`rgba(${tint},1)`), bx - r, by - r * 0.42, r * 2, r * 0.84);
+        c.globalAlpha = 1;
     }
     c.restore();
     // Prop layers, drawn back-to-front over the hills:
@@ -618,9 +606,11 @@ export function drawForeground(game, c) {
     const grass = stills.fgrass;
     if (!grass?.ready)
         return;
+    // PERF (Chrome): ctx.filter forces a slow software path — pre-darkened cached
+    // sprite gives the same silhouette for free
+    const dark = tintedSprite(grass.img, 'fgrass-sil', 'rgba(4,3,8,0.78)', 0.78);
     const t = game.time, par = 1.5, sc = game.camera.x * par;
     c.save();
-    c.filter = 'brightness(0.32) saturate(0.8)';
     const step = 620, first = Math.floor((sc - 360) / step), last = Math.ceil((sc + LOGICAL_W + 360) / step);
     for (let i = first; i <= last; i++) {
         if (hash(i * 17) > 0.5)
@@ -631,10 +621,9 @@ export function drawForeground(game, c) {
         c.save();
         c.translate(x, LOGICAL_H + h * 0.76);
         c.rotate(sway);
-        c.drawImage(grass.img, -w / 2, -h, w, h);
+        c.drawImage(dark, -w / 2, -h, w, h);
         c.restore();
     }
-    c.filter = 'none';
     c.globalAlpha = 1;
     c.restore();
 }
@@ -925,18 +914,7 @@ function drawSpan(game, c, th, a, b, camX, camY, bottom, topY) {
         if (hash(x * 41 + 17) > 0.055)
             continue;
         const cxp = x * TILE + 16 - camX, cyp = surfY(x) + 54 + hash(x * 13) * 80;
-        c.save();
-        c.globalCompositeOperation = 'lighter';
-        c.globalAlpha = 0.28 + 0.16 * Math.sin(game.time * 2 + x);
-        const gl = c.createRadialGradient(cxp, cyp - 14, 0, cxp, cyp - 14, 42);
-        gl.addColorStop(0, mixHex(th.accent, '#ffd88a', 0.4));
-        gl.addColorStop(1, 'rgba(0,0,0,0)');
-        c.fillStyle = gl;
-        c.beginPath();
-        c.arc(cxp, cyp - 14, 42, 0, Math.PI * 2);
-        c.fill();
-        c.restore();
-        c.globalAlpha = 1;
+        drawGlow(c, cxp, cyp - 14, 42, mixHex(th.accent, '#ffd88a', 0.4), 0.28 + 0.16 * Math.sin(game.time * 2 + x));
         drawPropImg(c, 'crystal', cxp, cyp, 32 + hash(x * 3) * 16, 0.92);
     }
     c.restore();
@@ -1308,11 +1286,19 @@ export function drawLighting(game, c) {
         c.globalCompositeOperation = 'source-over';
     }
 }
+let _vignette = null;
 export function drawVignette(c) {
-    const g = c.createRadialGradient(LOGICAL_W / 2, LOGICAL_H / 2, LOGICAL_H * 0.42, LOGICAL_W / 2, LOGICAL_H / 2, LOGICAL_H * 0.9);
-    g.addColorStop(0, 'rgba(0,0,0,0)');
-    g.addColorStop(1, 'rgba(0,0,0,.36)');
-    c.fillStyle = g;
-    c.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
+    if (!_vignette) { // rendered once, blitted forever
+        _vignette = document.createElement('canvas');
+        _vignette.width = LOGICAL_W;
+        _vignette.height = LOGICAL_H;
+        const vc = _vignette.getContext('2d');
+        const g = vc.createRadialGradient(LOGICAL_W / 2, LOGICAL_H / 2, LOGICAL_H * 0.42, LOGICAL_W / 2, LOGICAL_H / 2, LOGICAL_H * 0.9);
+        g.addColorStop(0, 'rgba(0,0,0,0)');
+        g.addColorStop(1, 'rgba(0,0,0,.36)');
+        vc.fillStyle = g;
+        vc.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
+    }
+    c.drawImage(_vignette, 0, 0);
 }
 //# sourceMappingURL=background.js.map
