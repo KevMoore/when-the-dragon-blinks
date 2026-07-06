@@ -86,6 +86,10 @@ if (_q.has('levelselect')) {
     game.save.foundHidden = [24, 25];
     game.state = 'levelSelect';
 }
+if (_q.has('lightning')) {
+    const h = () => { game.lightningT = 0.3; game.lightningX = 400; requestAnimationFrame(h); };
+    h();
+}
 // dev aid: hold an aim pose for screenshots — ?pose=up|updiag|down|downdiag
 if (_q.has('pose')) {
     const m = { up: [0, -1], updiag: [0.7, -0.7], down: [0, 1], downdiag: [0.7, 0.7] };

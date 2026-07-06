@@ -58,10 +58,33 @@ export function drawSky(game: Game, c: CanvasRenderingContext2D) {
   c.beginPath(); c.arc(cx - 12, cy - 6, 6, 0, Math.PI * 2); c.arc(cx + 10, cy + 10, 4, 0, Math.PI * 2); c.arc(cx + 4, cy - 14, 3, 0, Math.PI * 2); c.fill();
   c.globalAlpha = 1; c.shadowBlur = 0;
 
-  drawClouds(game, c, day);
+  const storm = !!game.level.isBoss;
+  drawClouds(game, c, day, storm);
   drawCoilingDragon(game, c, day);
   drawDragonEye(game, c, day);
   drawGodRays(game, c, day, cx, cy);
+  if (storm) drawStorm(game, c);
+}
+
+// Boss-arena storm: a gloom wash over the sky and periodic lightning bolts
+// (timed by Game.lightningT / lightningX, synced with the screen flash + thunder).
+function drawStorm(game: Game, c: CanvasRenderingContext2D) {
+  c.save(); c.fillStyle = 'rgba(8,12,26,0.4)'; c.fillRect(0, 0, LOGICAL_W, LOGICAL_H); c.restore();
+  const lt = game.lightningT;
+  if (lt > 0) {
+    const a = Math.min(1, lt / 0.3), lx = game.lightningX;
+    c.save();
+    c.globalCompositeOperation = 'lighter'; c.globalAlpha = a * 0.4; c.fillStyle = '#bcd2ff'; c.fillRect(0, 0, LOGICAL_W, 310); c.globalAlpha = 1;
+    c.globalCompositeOperation = 'source-over'; c.globalAlpha = a;
+    c.strokeStyle = '#eef4ff'; c.shadowColor = '#9fc0ff'; c.shadowBlur = 18; c.lineWidth = 2.4; c.lineCap = 'round'; c.lineJoin = 'round';
+    let x = lx, y = -8; c.beginPath(); c.moveTo(x, y);
+    for (let s = 1; s <= 9; s++) {
+      const hn = hash(Math.floor(lx) * 7 + s);
+      x = lx + (hn - 0.5) * 90 * (s / 9); y = (s / 9) * 300; c.lineTo(x, y);
+      if (hn > 0.72) { c.moveTo(x, y); c.lineTo(x + (hn - 0.5) * 60, y + 34); c.moveTo(x, y); }   // fork
+    }
+    c.stroke(); c.restore(); c.globalAlpha = 1; c.shadowBlur = 0;
+  }
 }
 
 // Stylised Chinese auspicious cloud (祥云): rounded billows with a ruyi curl.
@@ -77,14 +100,16 @@ function drawCloud(c: CanvasRenderingContext2D, x: number, y: number, s: number,
   c.beginPath(); c.arc(x - 7 * s, y + 3 * s, 5.5 * s, -0.3, Math.PI * 1.7); c.stroke();
   c.beginPath(); c.arc(x + 40 * s, y + 1 * s, 5 * s, Math.PI * 0.4, Math.PI * 2.1); c.stroke();
 }
-function drawClouds(game: Game, c: CanvasRenderingContext2D, day: number) {
-  const col = day > 0.5 ? 'rgba(255,206,158,0.17)' : 'rgba(140,168,220,0.15)';   // a touch more ominous
+function drawClouds(game: Game, c: CanvasRenderingContext2D, day: number, storm = false) {
+  const col = storm ? 'rgba(26,30,48,0.46)' : (day > 0.5 ? 'rgba(255,206,158,0.17)' : 'rgba(140,168,220,0.15)');
   c.save();
-  for (let i = 0; i < 7; i++) {
+  const n = storm ? 10 : 7;
+  for (let i = 0; i < n; i++) {
     const par = 0.05 + i * 0.008;
-    const x = (((i * 240 + game.time * (6 + i * 0.6)) - game.camera.x * par) % (LOGICAL_W + 340)) - 170;
-    const y = 50 + (i % 3) * 46 + Math.sin(game.time * 0.28 + i) * 7;   // slow vertical roll
-    drawCloud(c, x, y, 1.35 - i * 0.08, col, game.time * 0.6 + i * 1.3);
+    const speed = storm ? 15 + i * 1.4 : 6 + i * 0.6;
+    const x = (((i * 220 + game.time * speed) - game.camera.x * par) % (LOGICAL_W + 340)) - 170;
+    const y = (storm ? 38 : 50) + (i % 3) * (storm ? 40 : 46) + Math.sin(game.time * (storm ? 0.5 : 0.28) + i) * (storm ? 11 : 7);
+    drawCloud(c, x, y, (storm ? 1.6 : 1.35) - i * 0.07, col, game.time * (storm ? 1.1 : 0.6) + i * 1.3);
   }
   c.restore();
 }

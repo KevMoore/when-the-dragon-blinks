@@ -75,6 +75,7 @@ if (_q.has('level')) {
 // dev aid: force-show the touch controls on non-touch devices for layout testing
 if (_q.has('touch')) document.body.classList.add('force-touch');
 if (_q.has('levelselect')) { game.save.highestUnlocked = 25; game.save.foundHidden = [24, 25]; (game as any).state = 'levelSelect'; }
+if (_q.has('lightning')) { const h = () => { (game as any).lightningT = 0.3; (game as any).lightningX = 400; requestAnimationFrame(h); }; h(); }
 // dev aid: hold an aim pose for screenshots — ?pose=up|updiag|down|downdiag
 if (_q.has('pose')) {
   const m: Record<string, [number, number]> = { up: [0, -1], updiag: [0.7, -0.7], down: [0, 1], downdiag: [0.7, 0.7] };
