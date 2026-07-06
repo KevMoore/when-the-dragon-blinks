@@ -442,16 +442,16 @@ export function drawParallax(game, c) {
     const ridge = mixHex(th.ridgeNight, th.ridge, day);
     // a distant pale moon hanging behind the ranges — soft & luminous (feathered
     // edges so it reads as celestial, not a flat grey disc)
-    const moonX = LOGICAL_W * 0.24 - ((game.camera.x * 0.012) % (LOGICAL_W * 3));
-    const moonY = 106 - game.camera.y * 0.02, R = 50;
+    const moonX = LOGICAL_W * 0.24 - ((game.camera.x * 0.02) % (LOGICAL_W * 3)); // parallax past the ranges
+    const moonY = 128 - game.camera.y * 0.03, R = 52; // low enough that peaks cross it
     c.save();
     c.globalCompositeOperation = 'lighter';
-    const halo = c.createRadialGradient(moonX, moonY, R * 0.5, moonX, moonY, R * 2.8);
-    halo.addColorStop(0, `rgba(255,244,220,${0.12 + day * 0.05})`);
+    const halo = c.createRadialGradient(moonX, moonY, R * 0.5, moonX, moonY, R * 2.1);
+    halo.addColorStop(0, `rgba(255,244,220,${0.1 + day * 0.05})`);
     halo.addColorStop(1, 'rgba(0,0,0,0)');
     c.fillStyle = halo;
     c.beginPath();
-    c.arc(moonX, moonY, R * 2.8, 0, Math.PI * 2);
+    c.arc(moonX, moonY, R * 2.1, 0, Math.PI * 2);
     c.fill();
     const body = c.createRadialGradient(moonX - R * 0.28, moonY - R * 0.28, 2, moonX, moonY, R);
     body.addColorStop(0, `rgba(255,250,236,${0.6 + day * 0.18})`);
@@ -467,11 +467,11 @@ export function drawParallax(game, c) {
     // detail), tinted to the haze and tiled across, drifting slowly behind.
     const mtn = stills.mountains;
     if (mtn?.ready) {
-        const img = mtn.img, par = 0.05, sc = game.camera.x * par, voff = game.camera.y * par;
-        const H = 200, W = img.width * (H / img.height), y0 = 300 - H - voff;
+        const img = mtn.img, par = 0.07, sc = game.camera.x * par, voff = game.camera.y * par;
+        const H = 210, W = img.width * (H / img.height), y0 = 300 - H - voff;
         const start = -(((sc % W) + W) % W);
         for (let x = start; x < LOGICAL_W + W; x += W) {
-            drawTintedStill(c, img, x, y0, W, H, mixHex(ridge, haze, 0.72), 0.55, 0.85); // tint to far haze
+            drawTintedStill(c, img, x, y0, W, H, mixHex(ridge, haze, 0.72), 0.55, 0.93); // firmer so it occludes the moon
         }
     }
     // Layer 3: nearer HILLS — a single darker procedural ridge in front of the range.

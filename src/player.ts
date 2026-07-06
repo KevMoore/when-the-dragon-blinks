@@ -333,7 +333,7 @@ export class Player {
       const frame = hasSummon ? Math.min(7, Math.floor(p * 8)) : sheet.frameAt(this.animClock);
       c.save(); c.translate(sx + this.w / 2, sy + this.h); c.scale(this.facing, 1);
       c.shadowColor = '#ffcf5a'; c.shadowBlur = 22;
-      sheet.blit(c, frame, this.h * 1.72, true); c.restore();
+      sheet.blit(c, frame, this.h * 1.72 * game.spriteScale, true); c.restore();
     }
   }
 
@@ -344,6 +344,7 @@ export class Player {
     const sheet = sprites.get('dragon/' + anim)?.ready ? sprites.get('dragon/' + anim) : sprites.get('dragon/idle');
     if (sheet && sheet.ready) {
       const hx = this.x + this.w / 2 - cam.x, hy = this.y + this.h / 2 - cam.y;
+      const SZ = 156 * game.spriteScale;
       // clean soft motion streak (a warm smear behind the flight path) — no janky ribbon
       const pts: { x: number; y: number }[] = [];
       for (let i = 0; i < trail.length; i += 2) { const p = trail[i]; if (p) pts.push({ x: p.x - cam.x, y: p.y - cam.y }); }
@@ -356,7 +357,6 @@ export class Player {
       }
       c.restore();
       // a couple of faint afterimages of the dragon for a sense of speed
-      const SZ = 156;
       for (let g = 1; g <= 2; g++) {
         const p = trail[g * 5]; if (!p) continue;
         c.save(); c.globalAlpha = 0.14 / g; c.globalCompositeOperation = 'lighter';
@@ -468,7 +468,7 @@ export class Player {
     // ---- Sprite path: use AutoSprite sheet when loaded ----
     const sheet = sprites.get('player/' + this.animName);
     if (sheet && sheet.ready) {
-      const targetH = 72;                       // constant so crouch doesn't shrink the sprite
+      const targetH = 72 * game.spriteScale;    // constant so crouch doesn't shrink the sprite
       c.save();
       c.translate(sx + this.w / 2, sy + this.h + bob + idle);
       c.scale(this.facing * this.scaleX, this.scaleY);

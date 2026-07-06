@@ -151,7 +151,7 @@ export class LanternEater {
         const sheet = sprites.get('boss/' + anim) || sprites.get('boss/idle');
         if (sheet && sheet.ready) {
             const face = centerX(game.player.rect()) < centerX(this.bodyRect()) ? -1 : 1;
-            const targetH = this.h * 1.2;
+            const targetH = this.h * 1.2 * game.spriteScale;
             c.save();
             c.globalAlpha = this.hurtFlash > 0 ? 0.7 : 1;
             // aura keyed to state

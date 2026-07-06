@@ -66,6 +66,8 @@ export class Game {
   guqin: GuqinGame | null = null; guqinNext = 0;   // secret end-of-level mini-games
   dawn: DawnGame | null = null; dawnNext = 0;
   lantern: LanternGame | null = null; lanternNext = 0;
+  // characters render ~10% larger (a touch more again on mobile for readability)
+  readonly spriteScale = (typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 1.18 : 1.1;
   gems: { x: number; y: number; taken: boolean; rt: number }[] = [];
   bridges: { x: number; y: number; w: number; sag: number; sagVel: number; loadU: number }[] = [];
   embers: Ember[] = [];

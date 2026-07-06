@@ -77,6 +77,8 @@ export class Game {
         this.dawnNext = 0;
         this.lantern = null;
         this.lanternNext = 0;
+        // characters render ~10% larger (a touch more again on mobile for readability)
+        this.spriteScale = (typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 1.18 : 1.1;
         this.gems = [];
         this.bridges = [];
         this.embers = [];

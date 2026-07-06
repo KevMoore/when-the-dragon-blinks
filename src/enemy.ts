@@ -178,7 +178,7 @@ export class Enemy {
     const sheet = sprites.get('enemy/' + this.kind + '/' + animName) || sprites.get('enemy/' + this.kind + '/idle') || sprites.get('enemy/' + this.kind + '/walk');
     if (sheet && sheet.ready) {
       const grounded = this.kind === 'guardian' || this.kind === 'ghoul' || this.kind === 'crawler' || this.kind === 'sentinel';
-      const targetH = this.h * (this.kind === 'crawler' ? 2.5 : grounded ? 1.95 : 2.4);
+      const targetH = this.h * (this.kind === 'crawler' ? 2.5 : grounded ? 1.95 : 2.4) * game.spriteScale;
       let face = this.vx < -4 ? -1 : this.vx > 4 ? 1 : 1;
       if (this.kind === 'wisp' || this.kind === 'moth' || this.kind === 'skull' || this.kind === 'crow' || this.kind === 'wraith') face = centerX(game.player.rect()) < centerX(this.rect()) ? -1 : 1;
       c.save();
