@@ -866,6 +866,17 @@ export class Game {
         }
         this.audio.playMusic(key);
     }
+    ambientType() {
+        if (this.level.isBoss)
+            return 'ember';
+        switch (this.level.theme) {
+            case 'sunless': return 'snow';
+            case 'cavern': return 'spore';
+            case 'bridge': return this.world === 'night' ? 'firefly' : 'petal';
+            case 'arena': return 'ember';
+            default: return 'petal'; // mountain foothills
+        }
+    }
     updatePlaying(dt) {
         if (this.deathT > 0) {
             this.updateDeath(dt);
@@ -899,6 +910,8 @@ export class Game {
             this.hitstop -= dt;
             return;
         }
+        // per-act ambient weather (snow in the sunless north, petals in the foothills…)
+        this.particles.ambient(this.ambientType(), this.camera.x, this.camera.y);
         for (const pl of this.platforms)
             pl.update(dt, this.time);
         this.carryRider();

@@ -1,5 +1,6 @@
 // Lightweight particle system with a soft cap and typed emitters.
 import { clamp, rand } from './math.js';
+import { LOGICAL_W, LOGICAL_H } from './types.js';
 import type { Particle, WorldState } from './types.js';
 
 const MAX_PARTICLES = 620;
@@ -56,6 +57,17 @@ export class Particles {
       const ember = world === 'day';
       this.push({ x: rand(0, w), y: -10, vx: rand(-30, 10), vy: rand(20, 55), life: rand(4, 7), maxLife: 7, size: rand(2, 4), kind: ember ? 'petal' : 'glow', spin: rand(-2, 2), rot: rand(0, 6.28), color: ember ? '#ffcf7a' : '#a9d6ff' });
     }
+  }
+
+  // Per-act ambient weather, emitted in world space around the camera view.
+  ambient(type: string, camX: number, camY: number) {
+    const R = rand, sx = () => camX + R(-40, LOGICAL_W + 40), topY = camY - 24, botY = camY + LOGICAL_H + 24;
+    if (type === 'snow') { if (Math.random() < 0.95) this.push({ x: sx(), y: topY, vx: R(-16, 16), vy: R(24, 58), grav: 3, life: R(7, 13), maxLife: 13, size: R(1.6, 3.4), kind: 'petal', color: '#eef4ff', spin: R(-1, 1), rot: R(0, 6.28) }); }
+    else if (type === 'petal') { if (Math.random() < 0.5) this.push({ x: sx(), y: topY, vx: R(-34, 6), vy: R(20, 44), grav: 7, life: R(6, 10), maxLife: 10, size: R(2.4, 4.2), kind: 'petal', color: Math.random() < 0.5 ? '#ffc7d8' : '#ffd9a8', spin: R(-2.5, 2.5), rot: R(0, 6.28) }); }
+    else if (type === 'ash') { if (Math.random() < 0.75) this.push({ x: sx(), y: topY, vx: R(-10, 10), vy: R(12, 30), grav: 2, life: R(7, 12), maxLife: 12, size: R(1.4, 3), kind: 'petal', color: '#7a7480', spin: R(-1, 1), rot: R(0, 6.28) }); }
+    else if (type === 'ember') { if (Math.random() < 0.7) this.push({ x: sx(), y: botY, vx: R(-14, 14), vy: R(-54, -22), grav: -12, life: R(3, 6), maxLife: 6, size: R(1.6, 3.4), kind: 'ember', color: '#ff9d4d' }); }
+    else if (type === 'spore') { if (Math.random() < 0.5) this.push({ x: sx(), y: camY + R(0, LOGICAL_H), vx: R(-7, 7), vy: R(-12, -3), grav: -4, life: R(4, 8), maxLife: 8, size: R(1.4, 2.8), kind: 'glow', color: '#c2a6ff' }); }
+    else if (type === 'firefly') { if (Math.random() < 0.4) this.push({ x: sx(), y: camY + R(30, LOGICAL_H - 60), vx: R(-12, 12), vy: R(-8, 8), grav: 0, life: R(3, 6), maxLife: 6, size: R(1.6, 3), kind: 'glow', color: '#ffe08a' }); }
   }
 
   draw(c: CanvasRenderingContext2D, camX: number, camY: number, world: WorldState) {

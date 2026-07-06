@@ -599,6 +599,16 @@ export class Game {
     this.audio.playMusic(key);
   }
 
+  private ambientType(): string {
+    if (this.level.isBoss) return 'ember';
+    switch (this.level.theme) {
+      case 'sunless': return 'snow';
+      case 'cavern': return 'spore';
+      case 'bridge': return this.world === 'night' ? 'firefly' : 'petal';
+      case 'arena': return 'ember';
+      default: return 'petal';   // mountain foothills
+    }
+  }
   private updatePlaying(dt: number) {
     if (this.deathT > 0) { this.updateDeath(dt); this.particles.update(dt); return; }
     if (this.bossDeathT > 0) { this.updateBossDeath(dt); return; }
@@ -609,6 +619,9 @@ export class Game {
     if (this.input.just('toggle')) this.tryToggleWorld();
 
     if (this.hitstop > 0) { this.hitstop -= dt; return; }
+
+    // per-act ambient weather (snow in the sunless north, petals in the foothills…)
+    this.particles.ambient(this.ambientType(), this.camera.x, this.camera.y);
 
     for (const pl of this.platforms) pl.update(dt, this.time);
     this.carryRider();
