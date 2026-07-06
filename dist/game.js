@@ -12,7 +12,7 @@ import { LanternGame } from './lantern.js';
 import { Enemy } from './enemy.js';
 import { LanternEater } from './boss.js';
 import { Platform } from './platform.js';
-import { stills } from './sprites.js';
+import { stills, sprites } from './sprites.js';
 import { levels, loreTexts, codexEntries } from './content.js';
 import { loadSave, persist, freshSave } from './storage.js';
 import * as bg from './background.js';
@@ -77,6 +77,8 @@ export class Game {
         this.dawnNext = 0;
         this.lantern = null;
         this.lanternNext = 0;
+        // slain enemies dissolve as rising spirit ghosts (kind + pose kept for a beat)
+        this.remnants = [];
         // characters render ~10% larger (a touch more again on mobile for readability)
         this.spriteScale = (typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 1.18 : 1.1;
         this.gems = [];
@@ -262,17 +264,33 @@ export class Game {
         if (this.player.dragonTime > 0)
             return;
         const pr = this.player.rect();
+        const pcx = pr.x + pr.w / 2, pcy = pr.y + pr.h / 2;
         for (const g of this.gems) {
             if (g.taken) {
-                if (g.rt > 0 && (g.rt -= dt) <= 0)
+                if (g.rt > 0 && (g.rt -= dt) <= 0) {
                     g.taken = false;
+                    g.x = g.hx ?? g.x;
+                    g.y = g.hy ?? g.y;
+                }
                 continue;
+            }
+            if (g.hx === undefined) {
+                g.hx = g.x;
+                g.hy = g.y;
+            }
+            // magnet: nearby gems drift eagerly to the bearer of the eye-shard
+            const dx = pcx - (g.x + 12), dy = pcy - (g.y + 12), d = Math.hypot(dx, dy);
+            if (d < 110 && d > 1) {
+                const pull = (1 - d / 110) * 420 * dt;
+                g.x += dx / d * pull;
+                g.y += dy / d * pull;
             }
             if (overlap(pr, { x: g.x, y: g.y, w: 24, h: 24 })) {
                 g.taken = true;
                 g.rt = this.level.isBoss ? 5 : 0;
                 this.dragonMeter = Math.min(1, this.dragonMeter + 0.2);
                 this.particles.sparks(g.x + 12, g.y + 12, 22, '#ffd777');
+                this.particles.ring(g.x + 12, g.y + 12, 10, 190, '#ffe6a0');
                 this.audio.sfx('collect');
                 this.addScore(150, g.x + 12, g.y);
                 if (this.dragonMeter >= 1 && this.transformT <= 0)
@@ -920,6 +938,12 @@ export class Game {
         }
         // per-act ambient weather (snow in the sunless north, petals in the foothills…)
         this.particles.ambient(this.ambientType(), this.camera.x, this.camera.y);
+        // slain spirits rise and dissolve
+        for (const r of this.remnants) {
+            r.t += dt;
+            r.y -= 34 * dt;
+        }
+        this.remnants = this.remnants.filter(r => r.t < 0.55);
         for (const pl of this.platforms)
             pl.update(dt, this.time);
         this.carryRider();
@@ -1531,6 +1555,7 @@ export class Game {
         this.drawGems(c);
         for (const e of this.enemies)
             e.draw(this, c);
+        this.drawRemnants(c);
         if (this.boss)
             this.boss.draw(this, c);
         for (const pr of this.projectiles)
@@ -1946,6 +1971,35 @@ export class Game {
             c.restore();
         }
         c.globalAlpha = 1;
+    }
+    // Slain-spirit ghosts: the enemy sprite lingers, rising, brightening to light,
+    // stretching upward and dissolving — a soul leaving rather than a blink-out.
+    drawRemnants(c) {
+        for (const r of this.remnants) {
+            const p = r.t / 0.55, sheet = sprites.get('enemy/' + r.kind + '/idle') || sprites.get('enemy/' + r.kind + '/walk');
+            const x = r.x - this.camera.x, y = r.y - this.camera.y;
+            c.save();
+            c.globalCompositeOperation = 'lighter';
+            c.globalAlpha = (1 - p) * 0.75;
+            if (sheet && sheet.ready) {
+                c.translate(x, y);
+                c.scale(r.face * (1 - p * 0.25), 1 + p * 0.55);
+                c.shadowColor = r.night ? '#a9d6ff' : '#ffd777';
+                c.shadowBlur = 22;
+                sheet.blit(c, 0, r.h, false);
+            }
+            else {
+                const g = c.createRadialGradient(x, y, 0, x, y, r.h * 0.5);
+                g.addColorStop(0, r.night ? 'rgba(169,214,255,.8)' : 'rgba(255,215,119,.8)');
+                g.addColorStop(1, 'rgba(0,0,0,0)');
+                c.fillStyle = g;
+                c.beginPath();
+                c.arc(x, y, r.h * 0.5, 0, Math.PI * 2);
+                c.fill();
+            }
+            c.restore();
+            c.globalAlpha = 1;
+        }
     }
     // Wooden bridges spanning gaps (AutoSprite 2D sprite; tiny springy give).
     // Support uses the player's BOUNDING BOX (not centre) so there is never a

@@ -216,6 +216,11 @@ export class Player {
       if (impact > 0.55) game.camera.addTrauma(0.12);
     }
 
+    // sprint dust: little heel-puffs kicked back while running hard
+    if (this.grounded && Math.abs(this.vx) > 200 && Math.random() < 0.22) {
+      game.particles.dust(this.x + this.w / 2 - this.facing * 10, this.y + this.h - 2, 1);
+    }
+
     // ease squash back to neutral
     this.scaleX = damp(this.scaleX, 1, 12, dt);
     this.scaleY = damp(this.scaleY, 1, 12, dt);

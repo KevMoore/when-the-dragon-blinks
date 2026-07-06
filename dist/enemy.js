@@ -186,11 +186,15 @@ export class Enemy {
         game.audio.sfx('bosshit');
         if (this.hp <= 0) {
             this.alive = false;
-            game.particles.hit(centerX(this.rect()), centerY(this.rect()), 22, game.world === 'day' ? '#ffd777' : '#a9d6ff');
-            game.particles.sparks(centerX(this.rect()), centerY(this.rect()), 14);
+            const cx = centerX(this.rect()), cy = centerY(this.rect());
+            game.particles.hit(cx, cy, 22, game.world === 'day' ? '#ffd777' : '#a9d6ff');
+            game.particles.sparks(cx, cy, 14);
+            game.particles.ring(cx, cy, 12, this.elite ? 320 : 200, game.world === 'day' ? '#ffd777' : '#a9d6ff');
+            // the slain spirit lingers a beat, rising and dissolving
+            game.remnants.push({ kind: this.kind, x: cx, y: cy, h: this.h * (this.kind === 'crawler' ? 2.5 : this.isGround() ? 1.95 : 2.4) * game.spriteScale, face: this.vx < 0 ? -1 : 1, t: 0, night: game.world === 'night' });
             game.audio.sfx('collect');
-            game.addScore(this.points, centerX(this.rect()), centerY(this.rect()));
-            game.spawnEmbers(centerX(this.rect()), centerY(this.rect()), this.points >= 200 ? 2 : 1);
+            game.addScore(this.points, cx, cy);
+            game.spawnEmbers(cx, cy, this.points >= 200 ? 2 : 1);
         }
     }
     dim(game) { return this.isDormant(game); }
