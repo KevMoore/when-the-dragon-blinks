@@ -91,7 +91,8 @@ function buildLevel(spec, index) {
             segs.push({ x, top });
         }
         else {
-            top = clamp(top + (r() < 0.5 ? -1 : 1) * (1 + Math.floor(r() * 2)), h - 7, h - 3);
+            // mostly 1-tile steps (walkable via step-up); occasional 2-tile for a hop
+            top = clamp(top + (r() < 0.5 ? -1 : 1) * (r() < 0.78 ? 1 : 2), h - 7, h - 3);
             segs.push({ x, top });
         }
     }

@@ -448,6 +448,15 @@ export class Game {
       let rect = { x: e.x, y: e.y, w: e.w, h: e.h };
       for (const s of this.solidsForRect(rect)) {
         if (s.oneWay || !overlap(rect, s)) continue;
+        // auto step-up: walk up a low ledge (≤ ~1 tile) instead of stopping dead,
+        // so gentle hills are walkable by the player and enemies alike
+        if (e.grounded && sx !== 0) {
+          let climbed = false;
+          for (let up = 5; up <= 34; up += 5) {
+            if (!this.overlapsSolid({ x: e.x, y: e.y - up, w: e.w, h: e.h })) { e.y -= up; climbed = true; break; }
+          }
+          if (climbed) { rect = { x: e.x, y: e.y, w: e.w, h: e.h }; continue; }
+        }
         if (sx > 0) e.x = s.x - e.w; else if (sx < 0) e.x = s.x + s.w;
         e.vx = 0; rect = { x: e.x, y: e.y, w: e.w, h: e.h };
       }
