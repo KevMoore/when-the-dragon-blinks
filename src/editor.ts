@@ -425,9 +425,37 @@ cv.addEventListener('pointerdown', e => {
   if (tool === 'Move') { dragObj = findObj(p); return; }
   apply(p);
 });
+// hover tooltips: name whatever is under the cursor
+const TILE_NAME: Record<string, string> = { '#': 'Stone', g: 'Grass-top stone', o: 'One-way platform', D: 'Day block (solid in DAY)', N: 'Night block (solid in NIGHT)', '^': 'Crags hazard', F: 'Fire hazard', S: 'Frost hazard' };
+function hoverInfo(p: Obj): string | null {
+  const near = (o: Obj) => Math.hypot(o.x - p.x, o.y - p.y) < 1.4;
+  if (near(st.spawn)) return '▲ Player spawn';
+  if (near(st.exit)) return '⛩ Exit shrine';
+  const en = st.enemies.find(near);
+  if (en) return `👹 ${en.kind}${en.elite ? ' (ELITE mini-boss)' : ''}`;
+  const sp = st.spawners.find(near);
+  if (sp) return `♻️ Spawner — ${sp.kind}, keeps ${sp.max} alive, every ${sp.every}s`;
+  if (st.gems.find(near)) return '💠 Torch-gem (fills the dragon meter)';
+  if (st.checkpoints.find(near)) return '🏮 Checkpoint';
+  const br = st.bridges.find(b => p.y >= b.y - 1 && p.y <= b.y + 1 && p.x >= b.x && p.x <= b.x + b.w);
+  if (br) return `🌉 Bridge — ${br.w} tiles`;
+  const t = tileAt(p.x, p.y);
+  return TILE_NAME[t] ?? null;
+}
 cv.addEventListener('pointermove', e => {
   const p = cellAt(e);
   $('coords').textContent = `${p.x}, ${p.y}`;
+  // floating hover tip (hidden while actively painting/panning/selecting)
+  const tip = $('hovertip');
+  if (!painting && !panning && !selecting && !movingSel) {
+    const info = hoverInfo(p);
+    if (info) {
+      tip.textContent = info; tip.style.display = 'block';
+      const sr = stage.getBoundingClientRect();
+      tip.style.left = Math.min(e.clientX - sr.left + 16, sr.width - 220) + 'px';
+      tip.style.top = (e.clientY - sr.top + 18) + 'px';
+    } else tip.style.display = 'none';
+  } else tip.style.display = 'none';
   if (panning) { camX = panStart.cx - (e.clientX - panStart.x) / zoom; camY = panStart.cy - (e.clientY - panStart.y) / zoom; clampCam(); return; }
   if (selecting) { sel = { x0: Math.min(selAnchor.x, p.x), y0: Math.min(selAnchor.y, p.y), x1: Math.max(selAnchor.x, p.x), y1: Math.max(selAnchor.y, p.y) }; return; }
   if (movingSel) { moveDelta = { x: p.x - moveFrom.x, y: p.y - moveFrom.y }; return; }

@@ -834,15 +834,36 @@ function drawGround(game, c) {
 }
 function drawSpan(game, c, th, a, b, camX, camY, bottom, topY) {
     const leftX = a * TILE - camX, rightX = (b + 1) * TILE - camX;
-    const pts = [{ x: leftX, y: topY(a) }];
+    // build the surface polyline, inserting VERTICAL breaks at cliffs (jumps of
+    // >1.6 tiles) so the drawn rock hugs the tile wall instead of smoothing a
+    // diagonal across it — which painted rock where no tiles exist and made steep
+    // faces look walk-through-able
+    const raw = [{ x: leftX, y: topY(a) }];
     for (let x = a; x <= b; x++)
-        pts.push({ x: x * TILE + TILE / 2 - camX, y: topY(x) });
-    pts.push({ x: rightX, y: topY(b) });
+        raw.push({ x: x * TILE + TILE / 2 - camX, y: topY(x) });
+    raw.push({ x: rightX, y: topY(b) });
+    const pts = [raw[0]];
+    for (let i = 1; i < raw.length; i++) {
+        const p0 = pts[pts.length - 1], p1 = raw[i];
+        if (Math.abs(p1.y - p0.y) > TILE * 1.6) {
+            const mx = (p0.x + p1.x) / 2;
+            pts.push({ x: mx, y: p0.y, cliff: true }, { x: mx, y: p1.y, cliff: true });
+        }
+        pts.push(p1);
+    }
     const minY = Math.min(...pts.map(p => p.y));
-    const traceTop = () => { c.moveTo(pts[0].x, pts[0].y); for (let i = 1; i < pts.length; i++) {
-        const m = { x: (pts[i - 1].x + pts[i].x) / 2, y: (pts[i - 1].y + pts[i].y) / 2 };
-        c.quadraticCurveTo(pts[i - 1].x, pts[i - 1].y, m.x, m.y);
-    } c.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y); };
+    const traceTop = () => {
+        c.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) {
+            if (pts[i].cliff || pts[i - 1].cliff) {
+                c.lineTo(pts[i].x, pts[i].y);
+                continue;
+            } // hard edge at cliffs
+            const m = { x: (pts[i - 1].x + pts[i].x) / 2, y: (pts[i - 1].y + pts[i].y) / 2 };
+            c.quadraticCurveTo(pts[i - 1].x, pts[i - 1].y, m.x, m.y);
+        }
+        c.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+    };
     const surfY = (x) => topY(x);
     // ---- ROCK body: seamless AutoSprite fill texture, world-anchored + tinted
     // to the act's palette (replaces the old gradient/speckle/strata) ----
@@ -947,6 +968,8 @@ function drawSpan(game, c, th, a, b, camX, camY, bottom, topY) {
                 continue;
             const y0 = surfAt(sx), y1 = surfAt(sx + w2);
             const ang = Math.atan2(y1 - y0, w2);
+            if (Math.abs(ang) > 0.9)
+                continue; // cliff face — bare rock, no draped grass
             let su = ((sx + camX) / scale) % TW;
             if (su < 0)
                 su += TW;
