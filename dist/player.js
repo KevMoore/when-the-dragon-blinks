@@ -44,6 +44,7 @@ export class Player {
         this.dragonTime = 0; // seconds remaining in Zhulong flight form
         this.dragonTrail = [];
         this.dragonFireCd = 0;
+        this.dragonBank = 0; // climb/dive tilt for smooth banking
         this.crouching = false;
         this.wallDir = 0; // -1 wall on left, 1 on right, 0 none
         this.wallLock = 0; // brief control lock after a wall jump
@@ -346,13 +347,23 @@ export class Player {
         this.invuln = 0.5; // untouchable while transformed
         this.animTime += dt;
         const i = game.input;
-        const dx = (i.down('right') ? 1 : 0) - (i.down('left') ? 1 : 0);
-        const dy = (i.down('down') ? 1 : 0) - (i.down('up') ? 1 : 0);
-        const sp = 385;
-        this.vx = dx * sp;
-        this.vy = dy * sp;
-        if (dx !== 0)
-            this.facing = dx < 0 ? -1 : 1;
+        // analog flight: stick vector (or keys), with momentum so it glides & banks
+        let ax = 0, ay = 0;
+        if (Math.hypot(i.stickX, i.stickY) > 0.12) {
+            ax = clamp(i.stickX, -1, 1);
+            ay = clamp(i.stickY, -1, 1);
+        }
+        else {
+            ax = (i.down('right') ? 1 : 0) - (i.down('left') ? 1 : 0);
+            ay = (i.down('down') ? 1 : 0) - (i.down('up') ? 1 : 0);
+        }
+        const sp = 445;
+        this.vx = damp(this.vx, ax * sp, 5.5, dt);
+        this.vy = damp(this.vy, ay * sp, 5.5, dt);
+        const dy = ay; // aim (for fire below)
+        if (Math.abs(this.vx) > 24)
+            this.facing = this.vx < 0 ? -1 : 1;
+        this.dragonBank = damp(this.dragonBank, clamp(this.vy / sp, -1, 1) * 0.5, 6, dt); // climb/dive tilt
         // free flight, clamped to the level (no terrain collision)
         this.x = clamp(this.x + this.vx * dt, TILE, game.level.width * TILE - this.w - TILE);
         this.y = clamp(this.y + this.vy * dt, TILE, game.level.height * TILE - this.h - TILE);
@@ -422,30 +433,61 @@ export class Player {
         const anim = this.dragonFireCd > 0.06 ? 'attack' : 'idle';
         const sheet = sprites.get('dragon/' + anim)?.ready ? sprites.get('dragon/' + anim) : sprites.get('dragon/idle');
         if (sheet && sheet.ready) {
-            c.save();
-            for (let i = Math.min(trail.length - 1, 42); i >= 2; i -= 2) {
+            // flowing serpentine body: a tapering fire-ribbon along the flight trail
+            const pts = [];
+            for (let i = 0; i < trail.length; i += 2) {
                 const p = trail[i];
-                if (!p)
-                    continue;
-                const t = 1 - i / 44;
-                c.globalAlpha = t * 0.7;
-                c.fillStyle = mixHex('#8a1810', '#ffcf5a', t);
-                c.shadowColor = '#ff7a2a';
-                c.shadowBlur = 7;
+                if (p)
+                    pts.push({ x: p.x - cam.x, y: p.y - cam.y });
+            }
+            c.save();
+            c.lineCap = 'round';
+            c.lineJoin = 'round';
+            c.globalCompositeOperation = 'lighter'; // outer fire glow
+            for (let k = 1; k < pts.length; k++) {
+                const t = 1 - k / pts.length;
+                c.strokeStyle = `rgba(255,${(120 + 120 * t) | 0},${(50 * t) | 0},${0.36 * t + 0.07})`;
+                c.lineWidth = 24 * t + 4;
                 c.beginPath();
-                c.arc(p.x - cam.x, p.y - cam.y, 2 + t * t * 7, 0, Math.PI * 2);
+                c.moveTo(pts[k - 1].x, pts[k - 1].y);
+                c.lineTo(pts[k].x, pts[k].y);
+                c.stroke();
+            }
+            c.globalCompositeOperation = 'source-over'; // solid tapering body
+            for (let k = 1; k < pts.length; k++) {
+                const t = 1 - k / pts.length;
+                c.strokeStyle = mixHex('#6e1207', '#ffb347', t);
+                c.lineWidth = 13 * t + 2.5;
+                c.beginPath();
+                c.moveTo(pts[k - 1].x, pts[k - 1].y);
+                c.lineTo(pts[k].x, pts[k].y);
+                c.stroke();
+            }
+            for (let k = 3; k < pts.length - 1; k += 3) { // dorsal fin-spikes
+                const t = 1 - k / pts.length;
+                if (t < 0.2)
+                    continue;
+                const a = pts[k - 1], b = pts[k], ddx = b.x - a.x, ddy = b.y - a.y, L = Math.hypot(ddx, ddy) || 1, s = 8 * t;
+                c.fillStyle = '#ffd877';
+                c.beginPath();
+                c.moveTo(b.x - ddx / L * 4, b.y - ddy / L * 4);
+                c.lineTo(b.x - ddy / L * s, b.y + ddx / L * s);
+                c.lineTo(b.x + ddx / L * 4, b.y + ddy / L * 4);
+                c.closePath();
                 c.fill();
             }
             c.restore();
             c.globalAlpha = 1;
             c.shadowBlur = 0;
+            // head sprite, banked to the flight angle
             const hx = this.x + this.w / 2 - cam.x, hy = this.y + this.h / 2 - cam.y;
             c.save();
             c.translate(hx, hy);
+            c.rotate(this.dragonBank * this.facing);
             c.scale(this.facing, 1);
             c.shadowColor = '#ff8b3a';
-            c.shadowBlur = 18;
-            sheet.blit(c, sheet.frameAt(this.animTime), 108, false);
+            c.shadowBlur = 20;
+            sheet.blit(c, sheet.frameAt(this.animTime), 112, false);
             c.restore();
             return;
         }

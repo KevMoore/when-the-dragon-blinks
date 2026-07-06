@@ -232,10 +232,11 @@ export function drawParallax(game: Game, c: CanvasRenderingContext2D) {
   // large sprite props scattered across two depth bands
   ensureProps();
   const names = ['pagoda', 'shishi', 'pine', 'stele', 'palace'];
+  // raised so the Chinese-style silhouettes sit above the foreground terrain
   const bands = [
-    { par: 0.13, baseY: 356, h: 66, alpha: 0.26, step: 540, seed: 41 },   // very distant, ghostly
-    { par: 0.24, baseY: 402, h: 106, alpha: 0.46, step: 470, seed: 7 },
-    { par: 0.4, baseY: 466, h: 158, alpha: 0.82, step: 560, seed: 23 },
+    { par: 0.13, baseY: 300, h: 60, alpha: 0.26, step: 540, seed: 41 },   // very distant, ghostly
+    { par: 0.24, baseY: 344, h: 96, alpha: 0.46, step: 470, seed: 7 },
+    { par: 0.4, baseY: 388, h: 132, alpha: 0.82, step: 560, seed: 23 },
   ];
   for (const b of bands) {
     const sc = game.camera.x * b.par, voff = game.camera.y * b.par;
