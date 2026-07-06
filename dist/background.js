@@ -445,9 +445,9 @@ export function drawParallax(game, c) {
     // raised well above the foreground terrain so the Chinese-style silhouettes
     // stand up on the ridges against the sky (not buried at the grass line)
     const bands = [
-        { par: 0.13, baseY: 272, h: 56, alpha: 0.26, step: 540, seed: 41 }, // very distant, ghostly
-        { par: 0.24, baseY: 312, h: 86, alpha: 0.46, step: 470, seed: 7 },
-        { par: 0.4, baseY: 350, h: 116, alpha: 0.82, step: 560, seed: 23 },
+        { par: 0.13, baseY: 272, h: 56, alpha: 0.55, step: 540, seed: 41 }, // distant (still solid, not see-through)
+        { par: 0.24, baseY: 312, h: 86, alpha: 0.82, step: 470, seed: 7 },
+        { par: 0.4, baseY: 350, h: 116, alpha: 0.97, step: 560, seed: 23 },
     ];
     for (const b of bands) {
         const sc = game.camera.x * b.par, voff = game.camera.y * b.par;
@@ -457,7 +457,9 @@ export function drawParallax(game, c) {
                 continue;
             const name = names[Math.floor(hash(i * 7 + b.seed) * names.length)];
             const sx = i * b.step + hash(i * 3 + b.seed) * 150 - sc;
-            drawPropImg(c, name, sx, b.baseY - voff, b.h * (0.82 + hash(i * 5 + b.seed) * 0.5), b.alpha);
+            // flat silhouettes (pine) must stay solid or the mountains show through
+            const alpha = name === 'pine' ? Math.max(b.alpha, 0.95) : b.alpha;
+            drawPropImg(c, name, sx, b.baseY - voff, b.h * (0.82 + hash(i * 5 + b.seed) * 0.5), alpha);
         }
     }
     // paifang landmark + lantern string
