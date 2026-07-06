@@ -5,12 +5,16 @@ import { clamp, mixHex } from './math.js';
 import { LOGICAL_W, LOGICAL_H, TILE } from './types.js';
 import type { Game } from './game.js';
 
-type Theme = { day: string[]; night: string[]; haze: string; hazeNight: string; ridge: string; ridgeNight: string; accent: string; soilTop: string; soilBot: string; grass: string; grassLo: string; decor: string };
+type Theme = { day: string[]; night: string[]; haze: string; hazeNight: string; ridge: string; ridgeNight: string; accent: string; sun: string; soilTop: string; soilBot: string; grass: string; grassLo: string; decor: string };
+// Each act gets a distinct time-of-day mood so the journey reads as progression:
+// Act I warm golden dawn → Act II teal twilight → Act III violet deep →
+// Act IV the cold sunless night. (Both the day and night palettes shift.)
 const THEMES: Record<string, Theme> = {
-  mountain: { day: ['#ffbf7a', '#e07048', '#7a2b47', '#1a0a17'], night: ['#0b234f', '#152048', '#171233', '#08050d'], haze: '#e08a5a', hazeNight: '#33477a', ridge: '#5a2740', ridgeNight: '#141b3a', accent: '#ff5c38', soilTop: '#8a5a34', soilBot: '#39220f', grass: '#7ca23f', grassLo: '#517028', decor: '#2c1418' },
-  bridge: { day: ['#ffc38f', '#e8785f', '#7a2f52', '#180a17'], night: ['#0b2c48', '#123a4c', '#181c3e', '#08060f'], haze: '#e89a72', hazeNight: '#2f5266', ridge: '#5e2a49', ridgeNight: '#132638', accent: '#ff7a52', soilTop: '#875841', soilBot: '#331b15', grass: '#729a49', grassLo: '#4a6a2c', decor: '#26121e' },
-  cavern: { day: ['#8a4a30', '#5a2a24', '#2f171b', '#0d0608'], night: ['#0c1c38', '#121e34', '#141122', '#070509'], haze: '#7a4436', hazeNight: '#243444', ridge: '#3a2020', ridgeNight: '#101826', accent: '#ff8b44', soilTop: '#6e4d38', soilBot: '#2a1a18', grass: '#4f9068', grassLo: '#356048', decor: '#2c2020' },
-  arena: { day: ['#8a2420', '#54141c', '#2c0a12', '#0d0407'], night: ['#150720', '#1e0b26', '#16091a', '#070409'], haze: '#7a2e2c', hazeNight: '#3e1c34', ridge: '#3a1220', ridgeNight: '#1a0c1f', accent: '#ff3b2a', soilTop: '#7a4238', soilBot: '#2a1216', grass: '#96543a', grassLo: '#623428', decor: '#2a0e16' },
+  mountain: { day: ['#ffd08a', '#ef8f56', '#9c4457', '#26121f'], night: ['#132a56', '#172246', '#151a38', '#08060f'], haze: '#efa06a', hazeNight: '#324a7c', ridge: '#6a3350', ridgeNight: '#151d3c', accent: '#ff6a44', sun: '#ffd583', soilTop: '#8a5a34', soilBot: '#39220f', grass: '#7ca23f', grassLo: '#517028', decor: '#2c1418' },
+  bridge: { day: ['#a6dcda', '#5f9bb0', '#4a5680', '#191631'], night: ['#0a2e3e', '#0d2a3a', '#0f1a30', '#060810'], haze: '#77b4b6', hazeNight: '#2a5162', ridge: '#2f4a62', ridgeNight: '#122834', accent: '#57d0c4', sun: '#f0f4d4', soilTop: '#5f6a55', soilBot: '#20281f', grass: '#5aa07a', grassLo: '#3a7056', decor: '#182028' },
+  cavern: { day: ['#7f4a90', '#502a64', '#301644', '#0e0714'], night: ['#1c0f34', '#190c2c', '#120820', '#06040c'], haze: '#864f98', hazeNight: '#301a4a', ridge: '#3c2052', ridgeNight: '#160c28', accent: '#c265ff', sun: '#e2a6ff', soilTop: '#5a3a62', soilBot: '#241428', grass: '#5a9a86', grassLo: '#3a6a5c', decor: '#241830' },
+  sunless: { day: ['#33445e', '#243349', '#181f32', '#080c15'], night: ['#0a1526', '#0a1120', '#080b18', '#04050a'], haze: '#3e4e68', hazeNight: '#1c2a40', ridge: '#1c2740', ridgeNight: '#0e1626', accent: '#6f92da', sun: '#9fb6de', soilTop: '#454f5e', soilBot: '#181e28', grass: '#5a6f66', grassLo: '#3a4a44', decor: '#141c26' },
+  arena: { day: ['#8a2420', '#54141c', '#2c0a12', '#0d0407'], night: ['#150720', '#1e0b26', '#16091a', '#070409'], haze: '#7a2e2c', hazeNight: '#3e1c34', ridge: '#3a1220', ridgeNight: '#1a0c1f', accent: '#ff3b2a', sun: '#ff9a6a', soilTop: '#7a4238', soilBot: '#2a1216', grass: '#96543a', grassLo: '#623428', decor: '#2a0e16' },
 };
 function theme(game: Game): Theme { return THEMES[game.level.theme] || THEMES.mountain; }
 
@@ -42,8 +46,8 @@ export function drawSky(game: Game, c: CanvasRenderingContext2D) {
   bloom.addColorStop(1, 'rgba(0,0,0,0)');
   c.fillStyle = bloom; c.beginPath(); c.arc(cx, cy, 260, 0, Math.PI * 2); c.fill();
   c.restore();
-  // sun
-  c.globalAlpha = day; c.fillStyle = '#ffd583'; c.shadowColor = '#ffbe57'; c.shadowBlur = 46;
+  // sun (tinted per act — golden dawn, pale twilight, violet, cold sunless)
+  c.globalAlpha = day; c.fillStyle = th.sun; c.shadowColor = mixHex(th.sun, '#ff8b3a', 0.4); c.shadowBlur = 46;
   c.beginPath(); c.arc(cx, cy, 46, 0, Math.PI * 2); c.fill();
   // blood-moon
   c.globalAlpha = 1 - day; c.shadowColor = '#c53a2a'; c.shadowBlur = 44;

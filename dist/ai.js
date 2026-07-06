@@ -73,7 +73,8 @@ export function lineOfSight(game, x0, y0, x1, y1) {
 }
 function threatened(c) {
     const p = c.game.player;
-    return p.dragonTime > 0 || c.e.hp <= 1 || (p.charging && c.dist < 180);
+    // NOTE: no fear of the dragon — in Zhulong mode every enemy charges in (below)
+    return c.e.hp <= 1 || (p.charging && c.dist < 180);
 }
 // gravity + edge-aware horizontal step for walkers, with auto step-up over low
 // ledges, tolerance for small drops, and a stuck-escape hop.

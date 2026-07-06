@@ -216,7 +216,7 @@ export class Game {
             e.life -= dt;
             if (p.dragonTime <= 0 && d < 22) {
                 e.life = 0;
-                this.dragonMeter = Math.min(1, this.dragonMeter + 0.085);
+                this.dragonMeter = Math.min(1, this.dragonMeter + 0.04);
                 this.score += 25;
                 this.particles.sparks(e.x, e.y, 4, '#ffd777');
                 this.audio.sfx('menu');
@@ -241,7 +241,7 @@ export class Game {
             if (overlap(pr, { x: g.x, y: g.y, w: 24, h: 24 })) {
                 g.taken = true;
                 g.rt = this.level.isBoss ? 5 : 0;
-                this.dragonMeter = Math.min(1, this.dragonMeter + 0.34);
+                this.dragonMeter = Math.min(1, this.dragonMeter + 0.2);
                 this.particles.sparks(g.x + 12, g.y + 12, 22, '#ffd777');
                 this.audio.sfx('collect');
                 this.addScore(150, g.x + 12, g.y);
@@ -954,7 +954,7 @@ export class Game {
                 this.particles.sparks(relic.x + 11, relic.y + 11, 26, '#ffd777');
                 this.audio.sfx('collect');
                 this.addScore(500, relic.x + 11, relic.y);
-                this.dragonMeter = Math.min(1, this.dragonMeter + 0.25);
+                this.dragonMeter = Math.min(1, this.dragonMeter + 0.15);
                 this.openLore(relic.noteId, 'playing');
             }
         }
@@ -1448,26 +1448,46 @@ export class Game {
             c.fill();
             c.restore();
         }
-        // exit gate
+        // exit gate — a distinct gate per act, wreathed in glowing overlays
         if (!this.level.isBoss) {
             const e = this.level.exit, cx = e.x + e.w / 2 - this.camera.x, by = e.y + e.h - this.camera.y;
-            if (stills.gate?.ready) {
-                const h = e.h + 30, midY = by - h * 0.5;
+            const act = this.level.act || 1;
+            const st = stills[['gate', 'gate2', 'gate3', 'gate4'][act - 1]]?.ready ? stills[['gate', 'gate2', 'gate3', 'gate4'][act - 1]] : (stills.gate?.ready ? stills.gate : undefined);
+            const glow = ['255,90,50', '90,210,200', '190,100,255', '110,150,230'][act - 1] || '255,90,50';
+            if (st) {
+                const h = e.h + 30, midY = by - h * 0.55, pulse = 0.5 + 0.3 * Math.sin(this.time * 3);
                 c.save();
                 c.globalCompositeOperation = 'lighter';
-                c.globalAlpha = 0.4 + 0.2 * Math.sin(this.time * 4);
-                const g = c.createRadialGradient(cx, midY, 0, cx, midY, 70);
-                g.addColorStop(0, 'rgba(255,90,50,.7)');
+                c.globalAlpha = pulse * 0.6; // big soft aura
+                const g = c.createRadialGradient(cx, midY, 0, cx, midY, 122);
+                g.addColorStop(0, `rgba(${glow},.5)`);
+                g.addColorStop(0.5, `rgba(${glow},.18)`);
                 g.addColorStop(1, 'rgba(0,0,0,0)');
                 c.fillStyle = g;
                 c.beginPath();
-                c.arc(cx, midY, 70, 0, Math.PI * 2);
+                c.arc(cx, midY, 122, 0, Math.PI * 2);
                 c.fill();
+                c.globalAlpha = pulse * 0.5;
+                c.strokeStyle = `rgba(${glow},.7)`;
+                c.lineWidth = 2; // shimmer ring
+                c.beginPath();
+                c.arc(cx, midY, 46 + 6 * Math.sin(this.time * 2), 0, Math.PI * 2);
+                c.stroke();
+                for (let k = 0; k < 6; k++) { // rising light motes
+                    const ph = (this.time * 0.55 + k * 0.31) % 1;
+                    const mx = cx + Math.sin(k * 2.1 + this.time) * 36, my = by - ph * (h * 0.9);
+                    c.globalAlpha = (1 - ph) * pulse * 0.9;
+                    c.fillStyle = `rgba(${glow},1)`;
+                    c.beginPath();
+                    c.arc(mx, my, 2.2 * (1 - ph) + 0.6, 0, Math.PI * 2);
+                    c.fill();
+                }
                 c.restore();
+                c.globalAlpha = 1;
                 c.save();
-                c.shadowColor = '#ff4a28';
+                c.shadowColor = `rgba(${glow},1)`;
                 c.shadowBlur = 22 + Math.sin(this.time * 3) * 8;
-                stills.gate.draw(c, cx, by, h);
+                st.draw(c, cx, by, h);
                 c.restore();
             }
             else {

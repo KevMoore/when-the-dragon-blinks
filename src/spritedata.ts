@@ -5,6 +5,9 @@ import { sprites, loadStill } from './sprites.js';
 
 export function loadSprites() {
   loadStill('gate', 'assets/sprites/structures/gate.png');
+  loadStill('gate2', 'assets/sprites/structures/gate2.png');
+  loadStill('gate3', 'assets/sprites/structures/gate3.png');
+  loadStill('gate4', 'assets/sprites/structures/gate4.png');
   loadStill('shrine', 'assets/sprites/structures/shrine.png');
   loadStill('checkpoint', 'assets/sprites/structures/checkpoint.png');
   loadStill('aimup', 'assets/sprites/player/aimup.png');

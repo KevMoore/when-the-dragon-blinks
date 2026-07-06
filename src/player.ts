@@ -307,6 +307,7 @@ export class Player {
     game.particles.embers(hx - this.facing * 16 + rand(-6, 6), hy + rand(-8, 8), 1);
     if (this.dragonTime <= 0) {
       this.dragonTrail.length = 0; this.vy = 0; this.invuln = 1.2;
+      game.dragonMeter = 0;              // fully spent — earn the next transform from scratch
       let guard = 0;                                  // don't revert stuck inside terrain
       while (game.overlapsSolid(this.rect()) && this.y > TILE && guard++ < 40) this.y -= TILE;
       game.particles.sparks(hx, hy, 24, '#ffd777');

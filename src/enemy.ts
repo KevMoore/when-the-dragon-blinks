@@ -56,14 +56,17 @@ export class Enemy {
     // guardian) rule the DAY; shadow/spirit/undead (wisp, skull, ghoul, crawler)
     // rule the NIGHT. In the wrong world they fall dormant — harmless, and easy
     // prey — so blinking is a weapon, not just traversal.
-    const dormant = this.isDormant(game);
+    // Zhulong is loose: every enemy wakes and charges the dragon regardless of
+    // world or range (it's the strongest form — they throw themselves at it).
+    const dragonRush = p.dragonTime > 0;
+    const dormant = !dragonRush && this.isDormant(game);
     if (dormant) {
       if (this.isGround()) { this.vy += GRAVITY * dt; game.moveEntity(this, 0, this.vy * dt); }
       else this.y = this.baseY + Math.sin(game.time * 2 + this.phase) * 18;
     } else {
       const dx = centerX(p.rect()) - centerX(this.rect()), dy = centerY(p.rect()) - centerY(this.rect());
       const dist = Math.hypot(dx, dy);
-      if (dist > this.aggro * game.difficulty) {
+      if (!dragonRush && dist > this.aggro * game.difficulty) {
         // out of aggro range — wait quietly until the player draws near
         if (this.isGround()) { this.vy += GRAVITY * dt; game.moveEntity(this, 0, this.vy * dt); }
         else this.y = this.baseY + Math.sin(game.time * 2 + this.phase) * 14;

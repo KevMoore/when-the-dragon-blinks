@@ -391,6 +391,7 @@ export class Player {
             this.dragonTrail.length = 0;
             this.vy = 0;
             this.invuln = 1.2;
+            game.dragonMeter = 0; // fully spent — earn the next transform from scratch
             let guard = 0; // don't revert stuck inside terrain
             while (game.overlapsSolid(this.rect()) && this.y > TILE && guard++ < 40)
                 this.y -= TILE;

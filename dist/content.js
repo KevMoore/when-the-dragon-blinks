@@ -46,7 +46,7 @@ function rngFor(seed) {
     return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; };
 }
 function renderTheme(t) {
-    return t === 'sunless' ? 'cavern' : t;
+    return t; // each act keeps its own distinct theme/palette
 }
 // solid ground row at a tile-x (so platforms/gems/hazards sit on the LOCAL
 // surface, not the flat base row — otherwise rolling terrain buries them)

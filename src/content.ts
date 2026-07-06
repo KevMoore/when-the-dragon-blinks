@@ -53,8 +53,8 @@ interface Spec {
   hidden?: boolean; secretTo?: number; intro?: string; outro?: string; unlock?: string[]; shrine?: string;
 }
 
-function renderTheme(t: Theme): 'mountain' | 'bridge' | 'cavern' | 'arena' {
-  return t === 'sunless' ? 'cavern' : t;
+function renderTheme(t: Theme): 'mountain' | 'bridge' | 'cavern' | 'sunless' | 'arena' {
+  return t;   // each act keeps its own distinct theme/palette
 }
 // solid ground row at a tile-x (so platforms/gems/hazards sit on the LOCAL
 // surface, not the flat base row — otherwise rolling terrain buries them)
