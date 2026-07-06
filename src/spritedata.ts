@@ -32,16 +32,16 @@ export function loadSprites() {
   addF('enemy/moth/idle', 'moth/idle.png', 96, 14);
   addF('enemy/wisp/idle', 'wisp/idle.png', 96, 12);
   add('enemy/guardian/idle', 'guardian/idle.png', 128, 8, true);
-  add('enemy/guardian/walk', 'guardian/walk.png', 128, 10, true);
+  addF('enemy/guardian/walk', 'guardian/walk.png', 128, 12);
   add('enemy/sentry/idle', 'sentry/idle.png', 96, 8, true);
 
-  add('enemy/ghoul/walk', 'ghoul/walk.png', 128, 8, true);
+  addF('enemy/ghoul/walk', 'ghoul/walk.png', 128, 11);
   addF('enemy/skull/idle', 'skull/idle.png', 96, 12);
-  add('enemy/crawler/walk', 'crawler/walk.png', 128, 12, true);
+  addF('enemy/crawler/walk', 'crawler/walk.png', 128, 16);
   // new fable bad dudes (crow + wraith fly silky 12-frame; sentinel walks)
   addF('enemy/crow/idle', 'crow/idle.png', 96, 14);
   add('enemy/sentinel/idle', 'sentinel/idle.png', 128, 8, true);
-  add('enemy/sentinel/walk', 'sentinel/walk.png', 128, 10, true);
+  addF('enemy/sentinel/walk', 'sentinel/walk.png', 128, 11);
   addF('enemy/wraith/idle', 'wraith/idle.png', 96, 12);
 
   // boss — smooth 12-frame loom + mask-crack lunge
