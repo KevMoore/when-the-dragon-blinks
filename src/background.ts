@@ -250,6 +250,19 @@ export function drawParallax(game: Game, c: CanvasRenderingContext2D) {
   const haze = mixHex(th.hazeNight, th.haze, day);
   const ridge = mixHex(th.ridgeNight, th.ridge, day);
 
+  // a distant moon/planet hanging behind the ranges (Shadow of the Beast)
+  const moonX = LOGICAL_W * 0.26 - ((game.camera.x * 0.012) % (LOGICAL_W * 3)) - game.camera.x * 0;
+  const moonY = 112 - game.camera.y * 0.02;
+  c.save();
+  const halo = c.createRadialGradient(moonX, moonY, 0, moonX, moonY, 140);
+  halo.addColorStop(0, `rgba(255,255,255,${0.09 + day * 0.05})`); halo.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = halo; c.beginPath(); c.arc(moonX, moonY, 140, 0, Math.PI * 2); c.fill();
+  const disc = mixHex(haze, '#eef2ff', 0.5), aM = 0.42 + day * 0.12;
+  c.globalAlpha = aM; c.fillStyle = disc; c.beginPath(); c.arc(moonX, moonY, 56, 0, Math.PI * 2); c.fill();
+  c.globalAlpha = aM * 0.45; c.fillStyle = mixHex(disc, ridge, 0.45);            // faint maria
+  c.beginPath(); c.arc(moonX - 17, moonY - 11, 15, 0, Math.PI * 2); c.arc(moonX + 13, moonY + 15, 11, 0, Math.PI * 2); c.arc(moonX + 5, moonY - 19, 7, 0, Math.PI * 2); c.fill();
+  c.restore(); c.globalAlpha = 1;
+
   // Three bold, clean ridge planes (Shadow-of-the-Beast style): a hazy far range,
   // a mid range, and a dark near silhouette. Fewer layers, stronger separation.
   const PARS = [0.04, 0.13, 0.30];
@@ -346,19 +359,24 @@ export function drawForeground(game: Game, c: CanvasRenderingContext2D) {
   if (!grass?.ready || !hang?.ready) return;
   const t = game.time, par = 1.5, sc = game.camera.x * par;   // >1 → rushes past faster than the play plane
   c.save();
-  c.filter = 'brightness(0.34) saturate(0.85)';               // pushed to a dark silhouette
-  const step = 340, first = Math.floor((sc - 320) / step), last = Math.ceil((sc + LOGICAL_W + 320) / step);
+  c.filter = 'brightness(0.32) saturate(0.8)';               // dark silhouette
+  // sparse framing only — mostly top vine curtains; a rare low grass tuft at the
+  // very bottom edge. Never fills the play area.
+  const step = 560, first = Math.floor((sc - 360) / step), last = Math.ceil((sc + LOGICAL_W + 360) / step);
   for (let i = first; i <= last; i++) {
-    const x = i * step - sc + hash(i * 7) * 170, pick = hash(i * 3), sway = Math.sin(t * 1.0 + i) * 0.05;
-    if (pick < 0.32) {
-      const w = 160 + hash(i * 5) * 130, h = hang.img.height * (w / hang.img.width);
-      c.save(); c.translate(x, -h * 0.1); c.rotate(sway * 0.6); c.drawImage(hang.img, -w / 2, 0, w, h); c.restore();
+    if (hash(i * 17) > 0.7) continue;                         // big gaps between clumps
+    const x = i * step - sc + hash(i * 7) * 260, pick = hash(i * 3), sway = Math.sin(t + i) * 0.04;
+    if (pick < 0.7) {
+      // vine curtain hanging from the very top — only the top ~90px shows
+      const w = 150 + hash(i * 5) * 110, h = hang.img.height * (w / hang.img.width);
+      c.globalAlpha = 0.85; c.save(); c.translate(x, -h * 0.6); c.rotate(sway * 0.5); c.drawImage(hang.img, -w / 2, 0, w, h); c.restore();
     } else {
-      const w = 150 + hash(i * 5) * 150, h = grass.img.height * (w / grass.img.width);
-      c.save(); c.translate(x, LOGICAL_H + 14); c.rotate(sway); c.drawImage(grass.img, -w / 2, -h, w, h); c.restore();
+      // low grass tuft peeking up from the bottom edge (mostly off-screen)
+      const w = 130 + hash(i * 5) * 90, h = grass.img.height * (w / grass.img.width);
+      c.globalAlpha = 0.6; c.save(); c.translate(x, LOGICAL_H + h * 0.74); c.rotate(sway); c.drawImage(grass.img, -w / 2, -h, w, h); c.restore();
     }
   }
-  c.filter = 'none';
+  c.filter = 'none'; c.globalAlpha = 1;
   c.restore();
 }
 
