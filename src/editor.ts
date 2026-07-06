@@ -27,7 +27,8 @@ const c = cv.getContext('2d')!;
 const toolsEl = document.getElementById('tools')!;
 
 const TILE_TOOLS: [string, string, string][] = [
-  ['#', 'Stone', '#5a4a66'], ['g', 'Grass cap', '#7ca23f'], ['o', 'Platform', '#8a6b45'],
+  ['terrain', '✏️ Terrain', '#7ca23f'], ['pit', '⛏ Pit', '#241a30'],
+  ['#', 'Stone', '#5a4a66'], ['o', 'Platform', '#8a6b45'],
   ['D', 'Day block', '#f0b45a'], ['N', 'Night block', '#7fa8d6'],
   ['^', 'Crags', '#8a7c7c'], ['F', 'Fire', '#ff7840'], ['S', 'Frost', '#8ed7ff'], ['.', 'Erase', '#241a30'],
 ];
@@ -35,7 +36,8 @@ const OBJ_TOOLS = ['Spawn', 'Exit', 'Checkpoint', 'Gem', 'Enemy', 'Bridge', 'Del
 const ENEMY_KINDS: EntityKind[] = ['moth', 'guardian', 'wisp', 'sentry', 'ghoul', 'skull', 'crawler', 'crow', 'sentinel', 'wraith'];
 
 let st: EdState = freshState(120);
-let tool = '#';
+let tool = 'terrain';
+let lastCell: { x: number; y: number } | null = null;
 let enemyKind: EntityKind = 'guardian';
 let elite = false;
 let camX = 0, camY = 0, zoom = 1;
@@ -58,6 +60,31 @@ function setTile(x: number, y: number, ch: string) {
   st.tiles[y] = row.slice(0, x) + ch + row.slice(x + 1);
 }
 function tileAt(x: number, y: number) { return (x < 0 || x >= st.w || y < 0 || y >= H) ? '.' : st.tiles[y][x]; }
+const isTerrainCh = (ch: string) => ch === '#' || ch === 'g';
+
+/** Terrain brush: drag a heightline and the column fills itself (grass cap on
+ *  top, stone below) — auto-tiling, no pixel-by-pixel clicking. */
+function setSurface(x: number, y: number) {
+  if (x < 0 || x >= st.w) return;
+  const sy = Math.max(1, Math.min(H - 2, y));
+  for (let cy = 0; cy < H; cy++) {
+    const cur = tileAt(x, cy);
+    if (cy < sy) { if (isTerrainCh(cur)) setTile(x, cy, '.'); }        // keep placed objects above ground
+    else setTile(x, cy, cy === sy ? 'g' : '#');                        // solid earth below the line
+  }
+}
+function clearColumn(x: number) {
+  for (let cy = 0; cy < H; cy++) if (isTerrainCh(tileAt(x, cy))) setTile(x, cy, '.');
+}
+/** Auto-join pass: any terrain tile with open air above it becomes a grass cap,
+ *  everything else stone — paint blobs freely, the joins sort themselves (and
+ *  the game's renderer draws the ribbon/caps/fill from this data). */
+function normalize() {
+  for (let x = 0; x < st.w; x++) for (let y = 0; y < H; y++) {
+    if (!isTerrainCh(tileAt(x, y))) continue;
+    setTile(x, y, isTerrainCh(tileAt(x, y - 1)) ? '#' : 'g');
+  }
+}
 
 // ---- UI wiring --------------------------------------------------------------
 function buildTools() {
@@ -132,16 +159,23 @@ function cellAt(e: PointerEvent) {
   const py = (e.clientY - r.top) * (cv.height / r.height) / zoom + camY;
   return { x: Math.floor(px / TILE), y: Math.floor(py / TILE), px, py };
 }
+const isBrush = () => tool.length === 1 || tool === 'terrain' || tool === 'pit';
 cv.addEventListener('pointerdown', e => {
   const p = cellAt(e);
   if (tool === 'Pan' || e.button === 1) { panning = true; panStart = { x: e.clientX, y: e.clientY, cx: camX, cy: camY }; return; }
-  painting = true; apply(p);
+  painting = true; lastCell = p; apply(p);
 });
 cv.addEventListener('pointermove', e => {
   if (panning) { camX = panStart.cx - (e.clientX - panStart.x) / zoom; camY = panStart.cy - (e.clientY - panStart.y) / zoom; clampCam(); return; }
-  if (painting && tool.length === 1) apply(cellAt(e));
+  if (painting && isBrush()) {
+    // interpolate between move events so fast drags leave no gaps
+    const p = cellAt(e), prev = lastCell ?? p;
+    const steps = Math.max(1, Math.abs(p.x - prev.x));
+    for (let i = 1; i <= steps; i++) apply({ x: Math.round(prev.x + (p.x - prev.x) * i / steps), y: Math.round(prev.y + (p.y - prev.y) * i / steps) });
+    lastCell = p;
+  }
 });
-window.addEventListener('pointerup', () => { painting = false; panning = false; save(); });
+window.addEventListener('pointerup', () => { if (painting) normalize(); painting = false; panning = false; lastCell = null; save(); });
 window.addEventListener('keydown', e => {
   const k = e.key.toLowerCase(); const sp = 26;
   if (k === 'arrowleft' || k === 'a') camX -= sp; if (k === 'arrowright' || k === 'd') camX += sp;
@@ -155,6 +189,8 @@ function clampCam() {
 
 function apply(p: { x: number; y: number }) {
   if (p.x < 0 || p.x >= st.w || p.y < 0 || p.y >= H) return;
+  if (tool === 'terrain') { setSurface(p.x, p.y); return; }
+  if (tool === 'pit') { clearColumn(p.x); return; }
   if (tool.length === 1) { setTile(p.x, p.y, tool); return; }
   if (tool === 'Spawn') st.spawn = { x: p.x, y: p.y };
   else if (tool === 'Exit') st.exit = { x: p.x, y: p.y };
