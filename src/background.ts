@@ -3,6 +3,7 @@
 // lantern strings / drifting fog, tiles, wind, and an additive lighting pass.
 import { clamp, mixHex } from './math.js';
 import { LOGICAL_W, LOGICAL_H, TILE } from './types.js';
+import { stills } from './sprites.js';
 import type { Game } from './game.js';
 
 type Theme = { day: string[]; night: string[]; haze: string; hazeNight: string; ridge: string; ridgeNight: string; accent: string; sun: string; soilTop: string; soilBot: string; grass: string; grassLo: string; decor: string };
@@ -219,9 +220,23 @@ function ensureProps() {
     const im = new Image(); im.onload = () => (propReady[n] = true); im.src = 'assets/sprites/props/' + n + '.png'; propImgs[n] = im;
   }
 }
-function drawPropImg(c: CanvasRenderingContext2D, name: string, cx: number, baseY: number, targetH: number, alpha: number) {
+// reusable offscreen buffer for tinting a prop toward the haze (atmospheric
+// perspective) so it reads as part of its depth plane, not a bright sticker.
+let _tintCv: HTMLCanvasElement | null = null, _tintCtx: CanvasRenderingContext2D | null = null;
+function drawPropImg(c: CanvasRenderingContext2D, name: string, cx: number, baseY: number, targetH: number, alpha: number, tint?: string, tintAmt = 0) {
   const img = propImgs[name]; if (!img || !propReady[name]) return;
   const scale = targetH / img.height, w = img.width * scale;
+  if (tint && tintAmt > 0) {
+    if (!_tintCv) { _tintCv = document.createElement('canvas'); _tintCtx = _tintCv.getContext('2d'); }
+    const tc = _tintCtx!, iw = img.width, ih = img.height;
+    if (_tintCv.width !== iw || _tintCv.height !== ih) { _tintCv.width = iw; _tintCv.height = ih; }
+    tc.clearRect(0, 0, iw, ih);
+    tc.globalCompositeOperation = 'source-over'; tc.globalAlpha = 1; tc.drawImage(img, 0, 0);
+    tc.globalCompositeOperation = 'source-atop'; tc.globalAlpha = tintAmt; tc.fillStyle = tint; tc.fillRect(0, 0, iw, ih);
+    tc.globalAlpha = 1; tc.globalCompositeOperation = 'source-over';
+    c.globalAlpha = alpha; c.drawImage(_tintCv, cx - w / 2, baseY - targetH, w, targetH); c.globalAlpha = 1;
+    return;
+  }
   c.globalAlpha = alpha; c.drawImage(img, cx - w / 2, baseY - targetH, w, targetH); c.globalAlpha = 1;
 }
 // smooth multi-octave ridgeline height at world-x
@@ -291,21 +306,23 @@ export function drawParallax(game: Game, c: CanvasRenderingContext2D) {
   const names = ['pagoda', 'shishi', 'pine', 'stele', 'palace'];
   // raised well above the foreground terrain so the Chinese-style silhouettes
   // stand up on the ridges against the sky (not buried at the grass line)
+  // each band carries an atmospheric tint (toward the ridge/haze of its depth)
+  // so the props blend into their plane instead of sitting bright on the horizon
   const bands = [
-    { par: 0.13, baseY: 272, h: 56, alpha: 0.55, step: 540, seed: 41 },   // distant (still solid, not see-through)
-    { par: 0.24, baseY: 312, h: 86, alpha: 0.82, step: 470, seed: 7 },
-    { par: 0.4, baseY: 350, h: 116, alpha: 0.97, step: 560, seed: 23 },
+    { par: 0.13, baseY: 276, h: 56, alpha: 0.7, step: 540, seed: 41, tintMix: 0.85, tintAmt: 0.62 },
+    { par: 0.24, baseY: 318, h: 86, alpha: 0.88, step: 470, seed: 7, tintMix: 0.5, tintAmt: 0.44 },
+    { par: 0.4, baseY: 358, h: 116, alpha: 0.98, step: 560, seed: 23, tintMix: 0.28, tintAmt: 0.3 },
   ];
   for (const b of bands) {
     const sc = game.camera.x * b.par, voff = game.camera.y * b.par;
+    const tintCol = mixHex(ridge, haze, b.tintMix);
     const first = Math.floor((sc - 280) / b.step), last = Math.ceil((sc + LOGICAL_W + 280) / b.step);
     for (let i = first; i <= last; i++) {
       if (hash(i * 13 + b.seed) > 0.62) continue;
       const name = names[Math.floor(hash(i * 7 + b.seed) * names.length)];
       const sx = i * b.step + hash(i * 3 + b.seed) * 150 - sc;
-      // flat silhouettes (pine) must stay solid or the mountains show through
       const alpha = name === 'pine' ? Math.max(b.alpha, 0.95) : b.alpha;
-      drawPropImg(c, name, sx, b.baseY - voff, b.h * (0.82 + hash(i * 5 + b.seed) * 0.5), alpha);
+      drawPropImg(c, name, sx, b.baseY - voff, b.h * (0.82 + hash(i * 5 + b.seed) * 0.5), alpha, tintCol, b.tintAmt);
     }
   }
 
@@ -325,24 +342,23 @@ export function drawParallax(game: Game, c: CanvasRenderingContext2D) {
 // rush past IN FRONT of the action — swaying reed clumps rising from the bottom
 // and leafy vines hanging from the top. Drawn over the world, under the HUD.
 export function drawForeground(game: Game, c: CanvasRenderingContext2D) {
-  const th = theme(game), t = game.time;
-  const par = 1.5, sc = game.camera.x * par;                 // >1 → rushes past faster than the play plane
-  const col = mixHex(th.decor, '#000000', 0.45);
-  c.save(); c.fillStyle = col; c.strokeStyle = col; c.lineCap = 'round';
-  const step = 300, first = Math.floor((sc - 280) / step), last = Math.ceil((sc + LOGICAL_W + 280) / step);
+  const grass = stills.fgrass, hang = stills.fhang;
+  if (!grass?.ready || !hang?.ready) return;
+  const t = game.time, par = 1.5, sc = game.camera.x * par;   // >1 → rushes past faster than the play plane
+  c.save();
+  c.filter = 'brightness(0.34) saturate(0.85)';               // pushed to a dark silhouette
+  const step = 340, first = Math.floor((sc - 320) / step), last = Math.ceil((sc + LOGICAL_W + 320) / step);
   for (let i = first; i <= last; i++) {
-    const x = i * step - sc + hash(i * 7) * 150, pick = hash(i * 3);
-    if (pick < 0.34) {
-      // leafy vine hanging from the top edge
-      const len = 84 + hash(i * 5) * 100, sway = Math.sin(t * 0.9 + i) * 12;
-      c.lineWidth = 5; c.beginPath(); c.moveTo(x, -12); c.quadraticCurveTo(x + sway * 0.5, len * 0.5, x + sway, len); c.stroke();
-      for (let k = 0; k < 5; k++) { const f = 0.35 + k * 0.14, lx = x + sway * f, ly = len * f; c.beginPath(); c.ellipse(lx, ly, 14, 7, 0.5, 0, Math.PI * 2); c.fill(); c.beginPath(); c.ellipse(lx + 11, ly + 4, 12, 6, -0.4, 0, Math.PI * 2); c.fill(); }
+    const x = i * step - sc + hash(i * 7) * 170, pick = hash(i * 3), sway = Math.sin(t * 1.0 + i) * 0.05;
+    if (pick < 0.32) {
+      const w = 160 + hash(i * 5) * 130, h = hang.img.height * (w / hang.img.width);
+      c.save(); c.translate(x, -h * 0.1); c.rotate(sway * 0.6); c.drawImage(hang.img, -w / 2, 0, w, h); c.restore();
     } else {
-      // reed / grass clump rising from the bottom edge
-      const base = LOGICAL_H + 12, blades = 5 + Math.floor(hash(i * 9) * 4);
-      for (let k = 0; k < blades; k++) { const bx = x + (k - blades / 2) * 11 + hash(i * 11 + k) * 6, bh = 96 + hash(i * 13 + k) * 96, sway = Math.sin(t * 1.2 + i + k * 0.6) * 15; c.lineWidth = 4.5; c.beginPath(); c.moveTo(bx, base); c.quadraticCurveTo(bx + sway * 0.4, base - bh * 0.6, bx + sway, base - bh); c.stroke(); }
+      const w = 150 + hash(i * 5) * 150, h = grass.img.height * (w / grass.img.width);
+      c.save(); c.translate(x, LOGICAL_H + 14); c.rotate(sway); c.drawImage(grass.img, -w / 2, -h, w, h); c.restore();
     }
   }
+  c.filter = 'none';
   c.restore();
 }
 

@@ -6,6 +6,8 @@ import { sprites, loadStill } from './sprites.js';
 export function loadSprites() {
   loadStill('platform', 'assets/sprites/props/platform.png');
   loadStill('bridge', 'assets/sprites/props/bridge.png');
+  loadStill('fgrass', 'assets/sprites/props/fgrass.png');
+  loadStill('fhang', 'assets/sprites/props/fhang.png');
   loadStill('gate', 'assets/sprites/structures/gate.png');
   loadStill('gate1', 'assets/sprites/structures/gate1.png');
   loadStill('gate2', 'assets/sprites/structures/gate2.png');
