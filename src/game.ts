@@ -907,11 +907,18 @@ export class Game {
       const x = pl.x - this.camera.x + jitter, y = pl.y - this.camera.y;
       c.globalAlpha = active ? 1 : 0.25;
       c.save();
-      if (active) { c.shadowColor = pl.crumble ? '#c98a3a' : (this.world === 'day' ? '#ffcf7a' : '#a9d6ff'); c.shadowBlur = 12; }
-      c.fillStyle = pl.crumble ? '#7a5a34' : '#3b4c63';
-      c.fillRect(x, y, pl.w, pl.h);
-      c.fillStyle = pl.crumble ? '#a9803f' : '#5f7ea6'; c.fillRect(x, y, pl.w, 5);
-      if (pl.crumble) { c.strokeStyle = 'rgba(0,0,0,.4)'; c.beginPath(); c.moveTo(x + pl.w * 0.4, y); c.lineTo(x + pl.w * 0.5, y + pl.h); c.stroke(); }
+      const sprite = stills.platform;
+      if (sprite?.ready) {
+        const sw = pl.w + 14, sh = Math.min(sprite.img.height * (sw / sprite.img.width), pl.h + 60), sx = x - 7, sy = y - 6;
+        if (active) { c.shadowColor = pl.crumble ? '#c98a3a' : (this.world === 'day' ? '#ffcf7a' : '#a9d6ff'); c.shadowBlur = 12; }
+        c.drawImage(sprite.img, sx, sy, sw, sh);
+        if (pl.crumble) { c.strokeStyle = 'rgba(30,10,4,.5)'; c.lineWidth = 2; c.beginPath(); c.moveTo(x + pl.w * 0.42, y - 2); c.lineTo(x + pl.w * 0.52, y + pl.h + 10); c.stroke(); }
+      } else {
+        if (active) { c.shadowColor = pl.crumble ? '#c98a3a' : (this.world === 'day' ? '#ffcf7a' : '#a9d6ff'); c.shadowBlur = 12; }
+        c.fillStyle = pl.crumble ? '#7a5a34' : '#3b4c63'; c.fillRect(x, y, pl.w, pl.h);
+        c.fillStyle = pl.crumble ? '#a9803f' : '#5f7ea6'; c.fillRect(x, y, pl.w, 5);
+        if (pl.crumble) { c.strokeStyle = 'rgba(0,0,0,.4)'; c.beginPath(); c.moveTo(x + pl.w * 0.4, y); c.lineTo(x + pl.w * 0.5, y + pl.h); c.stroke(); }
+      }
       c.restore();
     }
     c.globalAlpha = 1;

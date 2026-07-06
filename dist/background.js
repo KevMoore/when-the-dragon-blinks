@@ -622,6 +622,7 @@ function surfaceRow(game, x) {
 function surfaceBump(wx) { return Math.sin(wx * 0.011) * 6 + Math.sin(wx * 0.037) * 3 + Math.sin(wx * 0.091) * 1.5; }
 export function drawTiles(game, c) {
     drawGround(game, c);
+    const tt = theme(game);
     const x0 = Math.floor(game.camera.x / TILE) - 1, x1 = Math.ceil((game.camera.x + LOGICAL_W) / TILE) + 1;
     const y0 = Math.floor(game.camera.y / TILE) - 1, y1 = Math.ceil((game.camera.y + LOGICAL_H) / TILE) + 1;
     for (let y = y0; y <= y1; y++)
@@ -631,20 +632,25 @@ export function drawTiles(game, c) {
                 continue;
             const sx = x * TILE - game.camera.x, sy = y * TILE - game.camera.y;
             if (ch === 'o') {
+                // grassy-stone ledge (matches the level terrain)
                 c.save();
                 c.shadowColor = 'rgba(0,0,0,.4)';
                 c.shadowBlur = 6;
-                c.fillStyle = '#6b533a';
-                c.fillRect(sx, sy, TILE, 9);
+                c.fillStyle = mixHex(tt.soilTop, tt.soilBot, 0.4);
+                c.fillRect(sx, sy + 4, TILE, 8);
                 c.restore();
-                c.fillStyle = '#8a6b45';
-                c.fillRect(sx, sy, TILE, 3);
-                c.fillStyle = 'rgba(0,0,0,.3)';
-                c.fillRect(sx, sy + 7, TILE, 2);
-                for (let i = 0; i < 3; i++) {
-                    c.fillStyle = 'rgba(0,0,0,.2)';
-                    c.fillRect(sx + 4 + i * 9, sy + 1, 1, 7);
-                }
+                c.fillStyle = tt.grass;
+                c.fillRect(sx, sy, TILE, 5);
+                c.fillStyle = mixHex(tt.grass, '#eaffb4', 0.4);
+                c.fillRect(sx, sy, TILE, 2);
+                c.fillStyle = 'rgba(0,0,0,.32)';
+                c.fillRect(sx, sy + 10, TILE, 2);
+                c.strokeStyle = 'rgba(0,0,0,.22)';
+                c.lineWidth = 1;
+                c.beginPath();
+                c.moveTo(sx + TILE * 0.5, sy + 5);
+                c.lineTo(sx + TILE * 0.46, sy + 11);
+                c.stroke();
             }
             else if (ch === 'D')
                 drawStatePlatform(game, c, sx, sy, 'day');
