@@ -55,6 +55,13 @@ export function drawHUD(game: Game, c: CanvasRenderingContext2D) {
     c.fillStyle = 'rgba(255,255,255,.6)'; c.font = '10px Georgia'; c.textAlign = 'left';
     c.fillText(full ? 'Dragon ready!' : 'Dragon Gauge — collect torch embers', gx + 4, gy - 3);
   }
+  // Nova inner-energy bar (creeps up over the level; full → hold fire to burst)
+  const ny = gy + gh + 4, nready = game.nova >= 1;
+  c.fillStyle = 'rgba(9,5,13,.5)'; c.fillRect(gx, ny, gw, 9); c.strokeStyle = 'rgba(150,195,255,.3)'; c.strokeRect(gx + .5, ny + .5, gw, 9);
+  const ng = c.createLinearGradient(gx, 0, gx + gw, 0); ng.addColorStop(0, '#7fb8ff'); ng.addColorStop(1, nready ? '#eaf4ff' : '#3f86c8');
+  c.fillStyle = ng; c.fillRect(gx + 2, ny + 2, (gw - 4) * game.nova, 5);
+  if (nready) { c.save(); c.globalAlpha = 0.35 + 0.35 * Math.sin(game.time * 6); c.fillStyle = '#eaf4ff'; c.fillRect(gx + 2, ny + 2, gw - 4, 5); c.restore(); c.textAlign = 'center'; c.font = 'bold 8px Georgia'; c.fillStyle = '#0a1420'; c.fillText('✦ NOVA READY — HOLD FIRE', gx + gw / 2, ny + 8); }
+  else { c.textAlign = 'left'; c.font = '8px Georgia'; c.fillStyle = 'rgba(200,220,255,.55)'; c.fillText('✦ Inner Energy', gx + 4, ny + 8); }
 
   // day/night dial
   const dx = 250, dy = 36, day = game.dayAmount;

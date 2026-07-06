@@ -178,7 +178,9 @@ export class Player {
     if (this.charging) {
       if (atkDown) {
         this.chargeT += dt;
-        if (this.chargeT > 0.5 && Math.random() < 0.5) {
+        // NOVA: with inner energy full, a sustained hold unleashes a radial burst
+        if (game.nova >= 1 && this.chargeT >= 0.75) { game.fireNova(this); this.charging = false; this.chargeT = 0; }
+        else if (this.chargeT > 0.5 && Math.random() < 0.5) {
           const [ax, ay] = this.aim(game);
           game.particles.embers(this.x + this.w / 2 + ax * 18, this.y + this.h * 0.42 + ay * 12, 1);
         }

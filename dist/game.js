@@ -63,6 +63,10 @@ export class Game {
         this.comboT = 0;
         this.scorePops = [];
         this.dragonMeter = 0; // 0..1 — fills from Torch Embers + gems; full → become Zhulong
+        this.nova = 0.35; // 0..1 inner energy — full → hold fire to unleash a Nova burst
+        this.novaT = 0;
+        this.novaX = 0;
+        this.novaY = 0; // burst animation
         this.gems = [];
         this.embers = [];
         this.transformT = 0; // >0 while the transformation cinematic plays
@@ -121,6 +125,8 @@ export class Game {
         this.player.dragonTime = 0;
         this.player.dragonTrail = [];
         this.transformT = 0;
+        this.nova = 0.35;
+        this.novaT = 0;
         this.gems = (this.level.gems || []).map(g => ({ x: g.x, y: g.y, taken: false, rt: 0 }));
         this.clearT = 0;
         this.clearing = false;
@@ -776,6 +782,9 @@ export class Game {
         }
         this.flash = Math.max(0, this.flash - dt * 2.5);
         this.eyeReact = Math.max(0, this.eyeReact - dt * 2.4);
+        if (this.player.dragonTime <= 0)
+            this.nova = Math.min(1, this.nova + dt / 34); // inner energy creeps back
+        this.novaT = Math.max(0, this.novaT - dt);
         // boss-arena storm: periodic lightning strikes — near-constant flicker once
         // the Lantern Eater is in its final phase (flash + bolt + thunder + shake)
         if (this.level.isBoss) {
@@ -1347,6 +1356,8 @@ export class Game {
                 if (this.state === 'gameComplete')
                     ui.drawGameComplete(this, c);
         }
+        if (this.novaT > 0)
+            this.drawNova(c);
         if (this.bossDeathT > 0)
             this.drawBossDeathCinematic(c);
         if (this.transformT > 0)
@@ -1766,6 +1777,79 @@ export class Game {
             c.fillText('過關', 0, 0);
             c.restore();
         }
+        c.globalAlpha = 1;
+    }
+    // Nova: spend all inner energy on a radial burst — vaporises nearby enemies,
+    // heavily damages (but never finishes) a boss.
+    fireNova(p) {
+        this.nova = 0;
+        const cx = p.x + p.w / 2, cy = p.y + p.h / 2;
+        this.novaT = 0.7;
+        this.novaX = cx;
+        this.novaY = cy;
+        this.flash = Math.max(this.flash, 0.85);
+        this.flashColor = '#fff2c8';
+        this.camera.addTrauma(1);
+        this.addHitstop(0.05);
+        this.audio.sfx('boss');
+        this.audio.sfx('collect');
+        this.particles.ring(cx, cy, 24, 560, '#ffd777');
+        this.particles.ring(cx, cy, 16, 380, '#ff9d4d');
+        this.particles.sparks(cx, cy, 90, '#ffca6a');
+        this.particles.embers(cx, cy, 60);
+        const R = 275;
+        for (const e of this.enemies)
+            if (e.alive) {
+                const d = Math.hypot(e.x + e.w / 2 - cx, e.y + e.h / 2 - cy);
+                if (d < R)
+                    e.hit(this, e.x < cx ? -1 : 1, 99);
+            }
+        if (this.boss && this.boss.alive) {
+            const bd = Math.hypot(this.boss.x + this.boss.w / 2 - cx, this.boss.y + this.boss.h / 2 - cy);
+            if (bd < R * 1.7) {
+                this.boss.hp = Math.max(1, this.boss.hp - 4);
+                this.boss.hurtFlash = 0.25;
+                this.particles.hit(this.boss.x + this.boss.w / 2, this.boss.y + this.boss.h / 2, 44, '#ffd777');
+            }
+        }
+        this.flashText('Nova — the gathered light erupts!');
+    }
+    drawNova(c) {
+        const t = clamp(1 - this.novaT / 0.7, 0, 1);
+        const x = this.novaX - this.camera.x, y = this.novaY - this.camera.y;
+        c.save();
+        c.globalCompositeOperation = 'lighter';
+        for (let r = 0; r < 3; r++) {
+            const rp = t * 1.3 - r * 0.18;
+            if (rp > 0 && rp < 1) {
+                c.globalAlpha = (1 - rp) * 0.7;
+                c.strokeStyle = '#ffe6a0';
+                c.lineWidth = 9 * (1 - rp) + 2;
+                c.beginPath();
+                c.arc(x, y, rp * 300, 0, Math.PI * 2);
+                c.stroke();
+            }
+        }
+        const rad = 44 + 230 * t;
+        const g = c.createRadialGradient(x, y, 0, x, y, rad);
+        g.addColorStop(0, `rgba(255,250,220,${(1 - t) * 0.9})`);
+        g.addColorStop(0.4, `rgba(255,180,90,${(1 - t) * 0.5})`);
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        c.fillStyle = g;
+        c.beginPath();
+        c.arc(x, y, rad, 0, Math.PI * 2);
+        c.fill();
+        c.globalAlpha = (1 - t) * 0.6;
+        c.strokeStyle = '#fff0c0';
+        c.lineWidth = 2;
+        for (let i = 0; i < 18; i++) {
+            const a = i / 18 * Math.PI * 2 + this.time * 2;
+            c.beginPath();
+            c.moveTo(x + Math.cos(a) * 44, y + Math.sin(a) * 44);
+            c.lineTo(x + Math.cos(a) * rad * 1.5, y + Math.sin(a) * rad * 1.5);
+            c.stroke();
+        }
+        c.restore();
         c.globalAlpha = 1;
     }
     drawEmbers(c) {
