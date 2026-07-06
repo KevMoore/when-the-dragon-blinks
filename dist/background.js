@@ -386,11 +386,11 @@ export function drawParallax(game, c) {
     const th = theme(game), day = game.dayAmount;
     const haze = mixHex(th.hazeNight, th.haze, day);
     const ridge = mixHex(th.ridgeNight, th.ridge, day);
-    // 5 ridge layers with strong atmospheric perspective: distant peaks nearly
-    // dissolve into the haze (mysterious depth); near ridges move much faster.
-    const PARS = [0.02, 0.055, 0.115, 0.22, 0.37];
-    const BASE = [258, 296, 342, 394, 460];
-    const AMP = [86, 78, 70, 62, 54];
+    // Three bold, clean ridge planes (Shadow-of-the-Beast style): a hazy far range,
+    // a mid range, and a dark near silhouette. Fewer layers, stronger separation.
+    const PARS = [0.04, 0.13, 0.30];
+    const BASE = [262, 336, 424];
+    const AMP = [88, 74, 60];
     const N = PARS.length;
     const skyLight = day > 0.5 ? '#ffdcae' : '#bcd2ff'; // colour the crest catches from the sky
     const nearDark = mixHex(ridge, '#050308', 0.5); // deep silhouette for the closest ridges
@@ -501,6 +501,53 @@ export function drawParallax(game, c) {
     c.fillRect(0, LOGICAL_H - 90, LOGICAL_W, 90);
     c.restore();
     c.globalAlpha = 1;
+}
+// Fast foreground parallax (Shadow of the Beast): bold dark silhouettes that
+// rush past IN FRONT of the action — swaying reed clumps rising from the bottom
+// and leafy vines hanging from the top. Drawn over the world, under the HUD.
+export function drawForeground(game, c) {
+    const th = theme(game), t = game.time;
+    const par = 1.5, sc = game.camera.x * par; // >1 → rushes past faster than the play plane
+    const col = mixHex(th.decor, '#000000', 0.45);
+    c.save();
+    c.fillStyle = col;
+    c.strokeStyle = col;
+    c.lineCap = 'round';
+    const step = 300, first = Math.floor((sc - 280) / step), last = Math.ceil((sc + LOGICAL_W + 280) / step);
+    for (let i = first; i <= last; i++) {
+        const x = i * step - sc + hash(i * 7) * 150, pick = hash(i * 3);
+        if (pick < 0.34) {
+            // leafy vine hanging from the top edge
+            const len = 84 + hash(i * 5) * 100, sway = Math.sin(t * 0.9 + i) * 12;
+            c.lineWidth = 5;
+            c.beginPath();
+            c.moveTo(x, -12);
+            c.quadraticCurveTo(x + sway * 0.5, len * 0.5, x + sway, len);
+            c.stroke();
+            for (let k = 0; k < 5; k++) {
+                const f = 0.35 + k * 0.14, lx = x + sway * f, ly = len * f;
+                c.beginPath();
+                c.ellipse(lx, ly, 14, 7, 0.5, 0, Math.PI * 2);
+                c.fill();
+                c.beginPath();
+                c.ellipse(lx + 11, ly + 4, 12, 6, -0.4, 0, Math.PI * 2);
+                c.fill();
+            }
+        }
+        else {
+            // reed / grass clump rising from the bottom edge
+            const base = LOGICAL_H + 12, blades = 5 + Math.floor(hash(i * 9) * 4);
+            for (let k = 0; k < blades; k++) {
+                const bx = x + (k - blades / 2) * 11 + hash(i * 11 + k) * 6, bh = 96 + hash(i * 13 + k) * 96, sway = Math.sin(t * 1.2 + i + k * 0.6) * 15;
+                c.lineWidth = 4.5;
+                c.beginPath();
+                c.moveTo(bx, base);
+                c.quadraticCurveTo(bx + sway * 0.4, base - bh * 0.6, bx + sway, base - bh);
+                c.stroke();
+            }
+        }
+    }
+    c.restore();
 }
 function drawPagoda(c, x, baseY, s, col, tiers) {
     const n = 3 + tiers;

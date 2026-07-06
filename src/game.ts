@@ -893,6 +893,7 @@ export class Game {
     this.drawEmbers(c);
     this.player.draw(this, c);
     this.particles.draw(c, this.camera.x, this.camera.y, this.world);
+    bg.drawForeground(this, c);          // fast silhouette layer rushing past in front
     bg.drawLighting(this, c);
     if (this.level.isBoss) bg.drawRain(this, c);
     bg.drawVignette(c);
@@ -1135,16 +1136,27 @@ export class Game {
     }
   }
   private drawBridges(c: CanvasRenderingContext2D) {
+    const spr = stills.bridge;
     for (const b of this.bridges) {
-      const N = Math.max(7, Math.floor(b.w / 15));
       const x0 = b.x - this.camera.x, y0 = b.y - this.camera.y;
-      const pts: { x: number; y: number }[] = [];
-      for (let i = 0; i <= N; i++) { const u = i / N, base = Math.sin(u * Math.PI) * 5, load = b.sag * Math.max(0, 1 - Math.abs(u - b.loadU) * 2.2); pts.push({ x: x0 + u * b.w, y: y0 + base + load }); }
+      const droop = (u: number) => Math.sin(u * Math.PI) * 5 + b.sag * Math.max(0, 1 - Math.abs(u - b.loadU) * 2.2);
       c.save();
-      c.fillStyle = '#4a3018'; c.fillRect(x0 - 5, y0 - 18, 6, 26); c.fillRect(x0 + b.w - 1, y0 - 18, 6, 26);    // posts
-      c.strokeStyle = '#5a3c22'; c.lineWidth = 2.5; c.beginPath(); c.moveTo(x0 - 2, y0 - 16); c.lineTo(pts[0].x, pts[0].y); c.moveTo(x0 + b.w + 2, y0 - 16); c.lineTo(pts[N].x, pts[N].y); c.stroke();
-      c.strokeStyle = '#6b4a2a'; c.lineWidth = 2; c.beginPath(); pts.forEach((pt, i) => i ? c.lineTo(pt.x, pt.y) : c.moveTo(pt.x, pt.y)); c.stroke();   // top rope
-      for (let i = 0; i < N; i++) { const a = pts[i], d = pts[i + 1], mx = (a.x + d.x) / 2, my = (a.y + d.y) / 2; c.save(); c.translate(mx, my); c.rotate(Math.atan2(d.y - a.y, d.x - a.x)); c.fillStyle = '#8a6b45'; c.fillRect(-8, -2, 16, 5); c.fillStyle = 'rgba(0,0,0,.28)'; c.fillRect(-8, 3, 16, 2); c.strokeStyle = 'rgba(0,0,0,.3)'; c.lineWidth = 1; c.strokeRect(-8, -2, 16, 5); c.restore(); }
+      // anchor posts on both banks
+      c.fillStyle = '#4a3018'; c.fillRect(x0 - 6, y0 - 22, 7, 34); c.fillRect(x0 + b.w - 1, y0 - 22, 7, 34);
+      c.fillStyle = '#6a4526'; c.fillRect(x0 - 6, y0 - 22, 7, 4); c.fillRect(x0 + b.w - 1, y0 - 22, 7, 4);
+      if (spr?.ready) {
+        // bend the bridge sprite along the sag curve, drawn as vertical strips
+        const img = spr.img, BH = 54, strips = Math.max(28, Math.floor(b.w / 5)), sStep = img.width / strips, dStep = b.w / strips;
+        for (let i = 0; i < strips; i++) {
+          const u = (i + 0.5) / strips, cy = y0 + droop(u);
+          c.drawImage(img, i * sStep, 0, sStep + 0.8, img.height, x0 + u * b.w, cy - BH * 0.36, dStep + 0.8, BH);
+        }
+      } else {
+        const N = Math.max(7, Math.floor(b.w / 15)), pts: { x: number; y: number }[] = [];
+        for (let i = 0; i <= N; i++) { const u = i / N; pts.push({ x: x0 + u * b.w, y: y0 + droop(u) }); }
+        c.strokeStyle = '#6b4a2a'; c.lineWidth = 2; c.beginPath(); pts.forEach((pt, i) => i ? c.lineTo(pt.x, pt.y) : c.moveTo(pt.x, pt.y)); c.stroke();
+        for (let i = 0; i < N; i++) { const a = pts[i], d = pts[i + 1], mx = (a.x + d.x) / 2, my = (a.y + d.y) / 2; c.save(); c.translate(mx, my); c.rotate(Math.atan2(d.y - a.y, d.x - a.x)); c.fillStyle = '#8a6b45'; c.fillRect(-8, -2, 16, 5); c.restore(); }
+      }
       c.restore();
     }
   }
