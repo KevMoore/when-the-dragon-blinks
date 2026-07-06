@@ -406,6 +406,31 @@ function drawPropImg(c, name, cx, baseY, targetH, alpha, tint, tintAmt = 0) {
     c.drawImage(img, cx - w / 2, baseY - targetH, w, targetH);
     c.globalAlpha = 1;
 }
+// draw an arbitrary image tinted toward a colour (atmospheric), at dw×dh
+function drawTintedStill(c, img, dx, dy, dw, dh, tint, tintAmt, alpha) {
+    if (!_tintCv) {
+        _tintCv = document.createElement('canvas');
+        _tintCtx = _tintCv.getContext('2d');
+    }
+    const tc = _tintCtx, iw = img.width, ih = img.height;
+    if (_tintCv.width !== iw || _tintCv.height !== ih) {
+        _tintCv.width = iw;
+        _tintCv.height = ih;
+    }
+    tc.clearRect(0, 0, iw, ih);
+    tc.globalCompositeOperation = 'source-over';
+    tc.globalAlpha = 1;
+    tc.drawImage(img, 0, 0);
+    tc.globalCompositeOperation = 'source-atop';
+    tc.globalAlpha = tintAmt;
+    tc.fillStyle = tint;
+    tc.fillRect(0, 0, iw, ih);
+    tc.globalAlpha = 1;
+    tc.globalCompositeOperation = 'source-over';
+    c.globalAlpha = alpha;
+    c.drawImage(_tintCv, dx, dy, dw, dh);
+    c.globalAlpha = 1;
+}
 // smooth multi-octave ridgeline height at world-x
 function ridgeH(wx, layer) {
     return Math.sin(wx * 0.006 + layer) * 0.6 + Math.sin(wx * 0.017 + layer * 2) * 0.28 + Math.sin(wx * 0.043 + layer) * 0.12;
@@ -441,18 +466,28 @@ export function drawParallax(game, c) {
     c.fill();
     c.restore();
     c.globalAlpha = 1;
-    // Layers 4 & 3: distant MOUNTAINS (hazy, far) and nearer HILLS (darker). The
-    // trees and buildings (layers 1 & 2) sit in front of these — see propBands.
-    const PARS = [0.05, 0.15];
-    const BASE = [270, 360];
-    const AMP = [94, 74];
+    // Layer 4: distant MOUNTAINS — an AutoSprite ink-wash range (monochrome with
+    // detail), tinted to the haze and tiled across, drifting slowly behind.
+    const mtn = stills.mountains;
+    if (mtn?.ready) {
+        const img = mtn.img, par = 0.05, sc = game.camera.x * par, voff = game.camera.y * par;
+        const H = 200, W = img.width * (H / img.height), y0 = 300 - H - voff;
+        const start = -(((sc % W) + W) % W);
+        for (let x = start; x < LOGICAL_W + W; x += W) {
+            drawTintedStill(c, img, x, y0, W, H, mixHex(ridge, haze, 0.72), 0.55, 0.85); // tint to far haze
+        }
+    }
+    // Layer 3: nearer HILLS — a single darker procedural ridge in front of the range.
+    const PARS = [0.15];
+    const BASE = [360];
+    const AMP = [78];
     const N = PARS.length;
     const skyLight = day > 0.5 ? '#ffdcae' : '#bcd2ff'; // colour the crest catches from the sky
     const nearDark = mixHex(ridge, '#050308', 0.5); // deep silhouette for the closest ridges
     for (let layer = 0; layer < N; layer++) {
         const par = PARS[layer], sc = game.camera.x * par, voff = game.camera.y * par;
         const y0 = BASE[layer] - voff, amp = AMP[layer];
-        const far = 1 - layer / (N - 1); // 1 = farthest, 0 = nearest
+        const far = N > 1 ? 1 - layer / (N - 1) : 0.28; // hills sit near-ish (darker), just ahead of the range
         // collect the ridgeline, tracking the highest crest for the fill gradient
         const pts = [];
         let crest = LOGICAL_H;
@@ -524,9 +559,10 @@ export function drawParallax(game, c) {
     //  Layer 1 — nearer, LARGER TREES in front of everything
     // Each band tints toward its depth's ridge/haze so it blends into the plane.
     ensureProps();
+    const hillCol = mixHex(nearDark, haze, 0.24); // matches the hills plane
     const propBands = [
-        { par: 0.24, baseY: 344, h: 96, alpha: 0.9, step: 470, seed: 7, tintMix: 0.5, tintAmt: 0.44, sizeVar: 0.4, skip: 0.6, set: ['pagoda', 'palace', 'shishi', 'stele'] },
-        { par: 0.52, baseY: 424, h: 176, alpha: 0.98, step: 340, seed: 23, tintMix: 0.24, tintAmt: 0.24, sizeVar: 0.55, skip: 0.5, set: ['pine'] },
+        { par: 0.24, baseY: 346, h: 96, alpha: 0.92, step: 470, seed: 7, tintMix: 0.5, tintAmt: 0.44, sizeVar: 0.4, skip: 0.6, mound: true, set: ['pagoda', 'palace', 'shishi', 'stele'] },
+        { par: 0.52, baseY: 424, h: 176, alpha: 0.98, step: 340, seed: 23, tintMix: 0.24, tintAmt: 0.24, sizeVar: 0.55, skip: 0.5, mound: false, set: ['pine'] },
     ];
     for (const b of propBands) {
         const sc = game.camera.x * b.par, voff = game.camera.y * b.par;
@@ -537,8 +573,21 @@ export function drawParallax(game, c) {
                 continue;
             const name = b.set[Math.floor(hash(i * 7 + b.seed) * b.set.length)];
             const sx = i * b.step + hash(i * 3 + b.seed) * 150 - sc;
+            const th2 = b.h * (0.82 + hash(i * 5 + b.seed) * b.sizeVar);
+            const by = b.baseY - voff;
+            // buildings sit on a hill spur so they read as part of the landscape
+            if (b.mound) {
+                const hw = th2 * (0.9 + hash(i * 9 + b.seed) * 0.5), lift = 6 + hash(i * 4 + b.seed) * 10;
+                c.fillStyle = hillCol;
+                c.beginPath();
+                c.moveTo(sx - hw, by + 70);
+                c.bezierCurveTo(sx - hw * 0.5, by - lift, sx - hw * 0.18, by - lift - 4, sx, by - lift - 2);
+                c.bezierCurveTo(sx + hw * 0.22, by - lift - 4, sx + hw * 0.55, by - lift, sx + hw, by + 70);
+                c.closePath();
+                c.fill();
+            }
             const alpha = name === 'pine' ? Math.max(b.alpha, 0.95) : b.alpha;
-            drawPropImg(c, name, sx, b.baseY - voff, b.h * (0.82 + hash(i * 5 + b.seed) * b.sizeVar), alpha, tintCol, b.tintAmt);
+            drawPropImg(c, name, sx, by + (b.mound ? 4 : 0), th2, alpha, tintCol, b.tintAmt);
         }
     }
     // paifang landmark + lantern string
