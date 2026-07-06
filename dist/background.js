@@ -440,29 +440,26 @@ export function drawParallax(game, c) {
     const th = theme(game), day = game.dayAmount;
     const haze = mixHex(th.hazeNight, th.haze, day);
     const ridge = mixHex(th.ridgeNight, th.ridge, day);
-    // a distant moon/planet hanging behind the ranges (Shadow of the Beast)
-    const moonX = LOGICAL_W * 0.26 - ((game.camera.x * 0.012) % (LOGICAL_W * 3)) - game.camera.x * 0;
-    const moonY = 112 - game.camera.y * 0.02;
+    // a distant pale moon hanging behind the ranges — soft & luminous (feathered
+    // edges so it reads as celestial, not a flat grey disc)
+    const moonX = LOGICAL_W * 0.24 - ((game.camera.x * 0.012) % (LOGICAL_W * 3));
+    const moonY = 106 - game.camera.y * 0.02, R = 50;
     c.save();
-    const halo = c.createRadialGradient(moonX, moonY, 0, moonX, moonY, 140);
-    halo.addColorStop(0, `rgba(255,255,255,${0.09 + day * 0.05})`);
+    c.globalCompositeOperation = 'lighter';
+    const halo = c.createRadialGradient(moonX, moonY, R * 0.5, moonX, moonY, R * 2.8);
+    halo.addColorStop(0, `rgba(255,244,220,${0.12 + day * 0.05})`);
     halo.addColorStop(1, 'rgba(0,0,0,0)');
     c.fillStyle = halo;
     c.beginPath();
-    c.arc(moonX, moonY, 140, 0, Math.PI * 2);
+    c.arc(moonX, moonY, R * 2.8, 0, Math.PI * 2);
     c.fill();
-    const disc = mixHex(haze, '#eef2ff', 0.5), aM = 0.42 + day * 0.12;
-    c.globalAlpha = aM;
-    c.fillStyle = disc;
+    const body = c.createRadialGradient(moonX - R * 0.28, moonY - R * 0.28, 2, moonX, moonY, R);
+    body.addColorStop(0, `rgba(255,250,236,${0.6 + day * 0.18})`);
+    body.addColorStop(0.65, `rgba(255,240,212,${0.34 + day * 0.12})`);
+    body.addColorStop(1, 'rgba(255,240,212,0)');
+    c.fillStyle = body;
     c.beginPath();
-    c.arc(moonX, moonY, 56, 0, Math.PI * 2);
-    c.fill();
-    c.globalAlpha = aM * 0.45;
-    c.fillStyle = mixHex(disc, ridge, 0.45); // faint maria
-    c.beginPath();
-    c.arc(moonX - 17, moonY - 11, 15, 0, Math.PI * 2);
-    c.arc(moonX + 13, moonY + 15, 11, 0, Math.PI * 2);
-    c.arc(moonX + 5, moonY - 19, 7, 0, Math.PI * 2);
+    c.arc(moonX, moonY, R, 0, Math.PI * 2);
     c.fill();
     c.restore();
     c.globalAlpha = 1;
