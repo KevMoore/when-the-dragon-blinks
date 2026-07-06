@@ -38,9 +38,9 @@ export function loadSprites() {
     add('enemy/sentinel/idle', 'sentinel/idle.png', 128, 8, true);
     add('enemy/sentinel/walk', 'sentinel/walk.png', 128, 10, true);
     addF('enemy/wraith/idle', 'wraith/idle.png', 96, 12);
-    // boss
-    add('boss/idle', 'boss/idle.png', 160, 8, true);
-    add('boss/attack', 'boss/attack.png', 160, 12, true);
+    // boss — smooth 12-frame loom + mask-crack lunge
+    sprites.add('boss/idle', { src: S + 'boss/idle.png', fw: 160, fh: 160, frames: 12, cols: 4, fps: 10, loop: true });
+    sprites.add('boss/attack', { src: S + 'boss/attack.png', fw: 160, fh: 160, frames: 12, cols: 4, fps: 14, loop: true });
     // Zhulong transformation (smoother 12-frame / 4-column flight + breath)
     sprites.add('dragon/idle', { src: S + 'dragon/idle.png', fw: 160, fh: 160, frames: 12, cols: 4, fps: 12, loop: true });
     sprites.add('dragon/attack', { src: S + 'dragon/attack.png', fw: 160, fh: 160, frames: 12, cols: 4, fps: 16, loop: false });
