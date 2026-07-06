@@ -262,27 +262,13 @@ export function drawParallax(game: Game, c: CanvasRenderingContext2D) {
   const haze = mixHex(th.hazeNight, th.haze, day);
   const ridge = mixHex(th.ridgeNight, th.ridge, day);
 
-  // Layer 4: distant MOUNTAINS (AutoSprite ink-wash range) with a moon tucked
-  // behind them. The moon is drawn FIRST and locked to the RANGE's parallax and
-  // its tall peak, so the silhouette always crosses in front of it (it can never
-  // drift into a gap and float free in the sky).
+  // Layer 4: distant MOUNTAINS — an AutoSprite ink-wash range (monochrome with
+  // detail), tinted to the haze and tiled across, drifting slowly behind.
   const mtn = stills.mountains;
   if (mtn?.ready) {
     const img = mtn.img, par = 0.07, sc = game.camera.x * par, voff = game.camera.y * par;
     const H = 216, W = img.width * (H / img.height), y0 = 300 - H - voff;
     const start = -(((sc % W) + W) % W);
-    // moon locked behind the tall peak (~25% across the range) — drawn behind the range
-    let moonX = start + 0.25 * W; if (moonX < -80) moonX += W;
-    const moonY = y0 + H * 0.30, R = 50;
-    c.save(); c.globalCompositeOperation = 'lighter';
-    const halo = c.createRadialGradient(moonX, moonY, R * 0.5, moonX, moonY, R * 1.7);
-    halo.addColorStop(0, `rgba(255,244,220,${0.1 + day * 0.05})`); halo.addColorStop(1, 'rgba(0,0,0,0)');
-    c.fillStyle = halo; c.beginPath(); c.arc(moonX, moonY, R * 1.7, 0, Math.PI * 2); c.fill();
-    const body = c.createRadialGradient(moonX - R * 0.28, moonY - R * 0.28, 2, moonX, moonY, R);
-    body.addColorStop(0, `rgba(255,250,236,${0.62 + day * 0.16})`); body.addColorStop(0.65, `rgba(255,240,212,${0.36 + day * 0.12})`); body.addColorStop(1, 'rgba(255,240,212,0)');
-    c.fillStyle = body; c.beginPath(); c.arc(moonX, moonY, R, 0, Math.PI * 2); c.fill();
-    c.restore(); c.globalAlpha = 1;
-    // the range, fully opaque so its silhouette cleanly occludes the moon's lower half
     for (let x = start; x < LOGICAL_W + W; x += W) drawTintedStill(c, img, x, y0, W, H, mixHex(ridge, haze, 0.72), 0.55, 1);
   }
 
