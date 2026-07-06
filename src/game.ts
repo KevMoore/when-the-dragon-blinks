@@ -1153,9 +1153,9 @@ export class Game {
   private updateBridges(dt: number) {
     const p = this.player, pcx = p.x + p.w / 2, feet = p.y + p.h;
     for (const b of this.bridges) {
-      const onX = pcx > b.x - 2 && pcx < b.x + b.w + 2;
+      const onX = pcx > b.x - 4 && pcx < b.x + b.w + 4;
       const surf = b.y + b.sag;
-      const grab = onX && feet >= surf - 10 && feet <= surf + 22 && p.vy >= -40;
+      const grab = onX && feet >= surf - 12 && feet <= surf + 26 && p.vy >= -40;
       const target = grab ? 4 : 0;                            // subtle plank give
       b.sagVel += (target - b.sag) * 130 * dt; b.sagVel *= Math.pow(0.03, dt);
       b.sag = clamp(b.sag + b.sagVel * dt, -2, 7);

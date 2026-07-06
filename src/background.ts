@@ -516,12 +516,18 @@ export function drawTiles(game: Game, c: CanvasRenderingContext2D) {
     const ch = game.tileAt(x, y); if (ch === '.' || ch === '#' || ch === 'g') continue;
     const sx = x * TILE - game.camera.x, sy = y * TILE - game.camera.y;
     if (ch === 'o') {
-      // grassy-stone ledge (matches the level terrain)
-      c.save(); c.shadowColor = 'rgba(0,0,0,.4)'; c.shadowBlur = 6;
-      c.fillStyle = mixHex(tt.soilTop, tt.soilBot, 0.4); c.fillRect(sx, sy + 4, TILE, 8); c.restore();
-      c.fillStyle = tt.grass; c.fillRect(sx, sy, TILE, 5); c.fillStyle = mixHex(tt.grass, '#eaffb4', 0.4); c.fillRect(sx, sy, TILE, 2);
-      c.fillStyle = 'rgba(0,0,0,.32)'; c.fillRect(sx, sy + 10, TILE, 2);
-      c.strokeStyle = 'rgba(0,0,0,.22)'; c.lineWidth = 1; c.beginPath(); c.moveTo(sx + TILE * 0.5, sy + 5); c.lineTo(sx + TILE * 0.46, sy + 11); c.stroke();
+      // one-way platform → grassy terrain island sprite spanning the whole run
+      if (game.tileAt(x - 1, y) === 'o') continue;              // draw once per run, at its left end
+      let run = 1; while (game.tileAt(x + run, y) === 'o') run++;
+      const runW = run * TILE, spr = stills.platform;
+      if (spr?.ready) {
+        const dh = Math.min(spr.img.height * ((runW + 14) / spr.img.width), TILE + 34);
+        c.save(); c.shadowColor = 'rgba(0,0,0,.35)'; c.shadowBlur = 8;
+        c.drawImage(spr.img, sx - 7, sy - 6, runW + 14, dh); c.restore();
+      } else {
+        c.fillStyle = mixHex(tt.soilTop, tt.soilBot, 0.4); c.fillRect(sx, sy + 4, runW, 8);
+        c.fillStyle = tt.grass; c.fillRect(sx, sy, runW, 5);
+      }
     }
     else if (ch === 'D') drawStatePlatform(game, c, sx, sy, 'day');
     else if (ch === 'N') drawStatePlatform(game, c, sx, sy, 'night');
@@ -740,20 +746,28 @@ function drawHazard(game: Game, c: CanvasRenderingContext2D, x: number, y: numbe
 }
 
 export function drawWind(game: Game, c: CanvasRenderingContext2D) {
+  const col = game.world === 'day' ? '255,225,150' : '190,235,255';
   for (const z of game.level.windZones || []) {
     const sx = z.x - game.camera.x, sy = z.y - game.camera.y;
-    c.save(); c.globalAlpha = game.world === 'day' ? 0.18 : 0.28;
-    c.strokeStyle = game.world === 'day' ? '#ffe19a' : '#bfeeff'; c.lineWidth = 2; c.lineCap = 'round';
-    for (let i = 0; i < 8; i++) {
-      // updraft: streams rise upward (y decreases over time)
-      const y = sy + z.h - ((i * 40 + game.time * 150) % z.h);
-      const wob = Math.sin(game.time * 2 + i) * 10;
-      c.beginPath();
-      c.moveTo(sx + 20 + wob, y);
-      c.bezierCurveTo(sx + z.w * 0.35, y - 18, sx + z.w * 0.65, y - 34, sx + z.w - 18 + wob, y - 46);
-      c.stroke();
-      // little upward chevron at the head of each stream
-      c.beginPath(); c.moveTo(sx + z.w - 24 + wob, y - 40); c.lineTo(sx + z.w - 18 + wob, y - 48); c.lineTo(sx + z.w - 12 + wob, y - 40); c.stroke();
+    if (sx > LOGICAL_W || sx + z.w < 0) continue;
+    c.save();
+    c.beginPath(); c.rect(sx, sy, z.w, z.h); c.clip();          // keep the effect inside the shaft
+    // faint upward wash — the updraft reads as a soft column of light
+    const wash = c.createLinearGradient(0, sy + z.h, 0, sy);
+    wash.addColorStop(0, `rgba(${col},0)`); wash.addColorStop(1, `rgba(${col},${game.world === 'day' ? 0.05 : 0.09})`);
+    c.fillStyle = wash; c.fillRect(sx, sy, z.w, z.h);
+    // smooth thin streaks rising and fading (no jitter, gentle sway)
+    c.globalCompositeOperation = 'lighter'; c.lineCap = 'round';
+    const N = Math.max(5, Math.round(z.w / 26));
+    for (let i = 0; i < N; i++) {
+      const lane = sx + (i + 0.5) * (z.w / N) + Math.sin(game.time * 0.8 + i) * 6;
+      const len = 46 + (i % 3) * 22;
+      const yv = sy + z.h - (((i * 90 + game.time * 130) % (z.h + len)));   // travels up, loops
+      const a = game.world === 'day' ? 0.16 : 0.26;
+      const g = c.createLinearGradient(0, yv + len, 0, yv);
+      g.addColorStop(0, `rgba(${col},0)`); g.addColorStop(0.5, `rgba(${col},${a})`); g.addColorStop(1, `rgba(${col},0)`);
+      c.strokeStyle = g; c.lineWidth = 1.6;
+      c.beginPath(); c.moveTo(lane, yv + len); c.lineTo(lane + Math.sin(game.time + i) * 3, yv); c.stroke();
     }
     c.restore();
   }

@@ -187,7 +187,7 @@ function buildLevel(spec, index) {
             for (let cy = gt; cy < h; cy++)
                 setTile(m, cx, cy, '.');
         row(m, gx, h - 2, gw, '^');
-        bridges.push({ x: gx * TILE, y: gt * TILE, w: gw * TILE });
+        bridges.push({ x: gx * TILE - 12, y: gt * TILE, w: gw * TILE + 24 }); // overlap the banks so no edge-gap
     }
     // (2) an aerial run of floating platforms linked by plank bridges (ground stays
     // below, so a fall is survivable). A stepped ramp leads up to it. (Act II onward)
@@ -203,7 +203,7 @@ function buildLevel(spec, index) {
                 entities.push({ kind: spec.pal[Math.floor(r() * spec.pal.length)], x: (px + 1) * TILE, y: (H - 2) * TILE });
             if (seg < 2) {
                 const gap = 3 + Math.floor(r() * 2);
-                bridges.push({ x: (px + platW) * TILE, y: H * TILE, w: gap * TILE });
+                bridges.push({ x: (px + platW) * TILE - 12, y: H * TILE, w: gap * TILE + 24 });
                 px += platW + gap;
             }
         }
@@ -216,6 +216,19 @@ function buildLevel(spec, index) {
         row(m, sx + 2, st - 8, 3, 'N');
         secretExit = { x: (sx + 2) * TILE, y: (st - 11) * TILE, w: 44, h: 3 * TILE };
         secretExitTo = spec.secretTo;
+    }
+    // lift any gem that ended up inside/under a solid or platform tile so all are grabbable
+    for (const g of gems) {
+        let tx = Math.round(g.x / TILE), ty = Math.round(g.y / TILE), guard = 0;
+        while (guard++ < 14) {
+            const t = m[ty] && m[ty][tx];
+            if (t === '#' || t === 'g' || t === 'o' || t === 'D' || t === 'N' || t === '^') {
+                ty -= 1;
+                g.y = ty * TILE;
+            }
+            else
+                break;
+        }
     }
     const endTop = segs[segs.length - 1].top ?? gr;
     return {

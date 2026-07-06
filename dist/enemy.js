@@ -84,7 +84,10 @@ export class Enemy {
         this.brain = kind === 'sentry' ? rangedBrain()
             : (kind === 'ghoul' || kind === 'crawler' || kind === 'guardian' || kind === 'sentinel') ? groundBrain()
                 : flyerBrain();
-        this.aggro = kind === 'sentry' ? 420 : kind === 'skull' ? 360 : (kind === 'ghoul' || kind === 'crawler' || kind === 'guardian' || kind === 'sentinel') ? 300 : 340;
+        // ground walkers pursue from right across the screen (they navigate toward you,
+        // not idle until you arrive); flyers keep a tighter engage range
+        this.aggro = (kind === 'ghoul' || kind === 'crawler' || kind === 'guardian' || kind === 'sentinel') ? 1150
+            : kind === 'sentry' ? 460 : kind === 'skull' ? 380 : 380;
         // elite = end-of-level mini-boss: much bigger, tankier, hits harder, wider reach
         this.elite = elite;
         if (elite) {
@@ -227,12 +230,21 @@ export class Enemy {
             c.restore();
             c.globalAlpha = 1;
         }
-        // aura so the enemy always reads against terrain (also myth-codes day/night)
+        // readability: a dark contrast halo behind, then the day/night-coded glow —
+        // so even dark sprites pop against busy terrain
         {
-            const cx = sx + this.w / 2, cy = sy + this.h / 2, gr = this.w * 1.25;
+            const cx = sx + this.w / 2, cy = sy + this.h / 2, gr = this.w * 1.4;
             c.save();
+            const dark = c.createRadialGradient(cx, cy, 0, cx, cy, gr * 0.9);
+            dark.addColorStop(0, 'rgba(0,0,0,0.5)');
+            dark.addColorStop(0.7, 'rgba(0,0,0,0.28)');
+            dark.addColorStop(1, 'rgba(0,0,0,0)');
+            c.fillStyle = dark;
+            c.beginPath();
+            c.arc(cx, cy, gr * 0.9, 0, Math.PI * 2);
+            c.fill();
             c.globalCompositeOperation = 'lighter';
-            c.globalAlpha = this.dim(game) ? 0.3 : 0.6;
+            c.globalAlpha = this.dim(game) ? 0.35 : 0.72;
             const gg = c.createRadialGradient(cx, cy, 0, cx, cy, gr);
             gg.addColorStop(0, this.glowColor(game));
             gg.addColorStop(1, 'rgba(0,0,0,0)');
