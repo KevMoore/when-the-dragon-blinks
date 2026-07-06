@@ -241,24 +241,35 @@ export function drawParallax(game: Game, c: CanvasRenderingContext2D) {
   const BASE = [258, 296, 342, 394, 460];
   const AMP = [86, 78, 70, 62, 54];
   const N = PARS.length;
+  const skyLight = day > 0.5 ? '#ffdcae' : '#bcd2ff';    // colour the crest catches from the sky
+  const nearDark = mixHex(ridge, '#050308', 0.5);        // deep silhouette for the closest ridges
   for (let layer = 0; layer < N; layer++) {
     const par = PARS[layer], sc = game.camera.x * par, voff = game.camera.y * par;
     const y0 = BASE[layer] - voff, amp = AMP[layer];
     const far = 1 - layer / (N - 1);                       // 1 = farthest, 0 = nearest
-    // atmospheric perspective, but keep even the farthest ridge readable so all
-    // five planes stay visible (don't fully dissolve into the sky)
-    const col = mixHex(ridge, haze, 0.1 + far * 0.58);
-    c.globalAlpha = 0.64 + (1 - far) * 0.34;
-    c.fillStyle = col;
+    // collect the ridgeline, tracking the highest crest for the fill gradient
+    const pts: { x: number; y: number }[] = []; let crest = LOGICAL_H;
+    for (let x = -20; x <= LOGICAL_W + 20; x += 10) { const y = y0 - amp * (0.5 + 0.5 * ridgeH(x + sc, layer)); pts.push({ x, y }); if (y < crest) crest = y; }
+    // strong depth value-ramp: nearest ridge is near-black, farthest melts into haze
+    const base = mixHex(nearDark, haze, far);
+    const grad = c.createLinearGradient(0, crest - 6, 0, LOGICAL_H);
+    grad.addColorStop(0, mixHex(base, skyLight, 0.16 + far * 0.12));   // lit crest
+    grad.addColorStop(0.45, base);
+    grad.addColorStop(1, mixHex(base, '#000', 0.32 - far * 0.24));     // shadowed foot
+    c.globalAlpha = 1; c.fillStyle = grad;                            // opaque → clean occlusion between planes
     c.beginPath(); c.moveTo(-20, LOGICAL_H + 4);
-    for (let x = -20; x <= LOGICAL_W + 20; x += 12) { const y = y0 - amp * (0.5 + 0.5 * ridgeH(x + sc, layer)); c.lineTo(x, y); }
+    for (const p of pts) c.lineTo(p.x, p.y);
     c.lineTo(LOGICAL_W + 20, LOGICAL_H + 4); c.closePath(); c.fill();
-    // rim-light EVERY crest so each layer separates from the one behind it
-    c.globalAlpha = (0.64 + (1 - far) * 0.34) * (0.3 + (1 - far) * 0.24);
-    c.strokeStyle = mixHex(col, day > 0.5 ? '#ffd0a4' : '#b3ccff', 0.55); c.lineWidth = 1.4;
-    c.beginPath();
-    for (let x = -20; x <= LOGICAL_W + 20; x += 12) { const y = y0 - amp * (0.5 + 0.5 * ridgeH(x + sc, layer)); x === -20 ? c.moveTo(x, y) : c.lineTo(x, y); }
-    c.stroke();
+    // a soft haze wash pooling just under each crest — separates it from the plane behind
+    c.save(); c.globalCompositeOperation = 'screen'; c.globalAlpha = 0.10 + far * 0.16;
+    const hz = c.createLinearGradient(0, crest - 4, 0, crest + 46);
+    hz.addColorStop(0, mixHex(haze, skyLight, far * 0.4)); hz.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = hz; c.beginPath(); c.moveTo(-20, crest + 60); for (const p of pts) c.lineTo(p.x, p.y); c.lineTo(LOGICAL_W + 20, crest + 60); c.closePath(); c.fill();
+    c.restore();
+    // bright rim-light along every crest so each silhouette pops
+    c.globalAlpha = 0.5 + far * 0.35;
+    c.strokeStyle = mixHex(base, skyLight, 0.6); c.lineWidth = 1.5;
+    c.beginPath(); pts.forEach((p, i) => i ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y)); c.stroke();
   }
   c.globalAlpha = 1;
 
