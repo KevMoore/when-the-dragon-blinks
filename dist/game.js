@@ -1791,74 +1791,76 @@ export class Game {
         }
         c.globalAlpha = 1;
     }
-    // Nova: spend all inner energy on a radial burst — vaporises nearby enemies,
-    // heavily damages (but never finishes) a boss.
+    // Nova: spend all inner energy on a screen-wide burst — vaporises EVERY enemy
+    // on screen, heavily damages (but never finishes) a boss.
     fireNova(p) {
         this.nova = 0;
         const cx = p.x + p.w / 2, cy = p.y + p.h / 2;
-        this.novaT = 0.7;
+        this.novaT = 0.75;
         this.novaX = cx;
         this.novaY = cy;
-        this.flash = Math.max(this.flash, 0.85);
+        this.flash = Math.max(this.flash, 0.9);
         this.flashColor = '#fff2c8';
         this.camera.addTrauma(1);
         this.addHitstop(0.05);
         this.audio.sfx('boss');
         this.audio.sfx('collect');
-        this.particles.ring(cx, cy, 24, 560, '#ffd777');
-        this.particles.ring(cx, cy, 16, 380, '#ff9d4d');
-        this.particles.sparks(cx, cy, 90, '#ffca6a');
-        this.particles.embers(cx, cy, 60);
-        const R = 275;
+        this.particles.ring(cx, cy, 30, 1000, '#ffd777');
+        this.particles.ring(cx, cy, 20, 680, '#ff9d4d');
+        this.particles.sparks(cx, cy, 120, '#ffca6a');
+        this.particles.embers(cx, cy, 80);
+        // clear every enemy currently on screen (bosses only take damage)
+        const vx0 = this.camera.x - 48, vx1 = this.camera.x + LOGICAL_W + 48, vy0 = this.camera.y - 48, vy1 = this.camera.y + LOGICAL_H + 48;
         for (const e of this.enemies)
             if (e.alive) {
-                const d = Math.hypot(e.x + e.w / 2 - cx, e.y + e.h / 2 - cy);
-                if (d < R)
-                    e.hit(this, e.x < cx ? -1 : 1, 99);
+                const ex = e.x + e.w / 2, ey = e.y + e.h / 2;
+                if (ex > vx0 && ex < vx1 && ey > vy0 && ey < vy1)
+                    e.hit(this, ex < cx ? -1 : 1, 99);
             }
         if (this.boss && this.boss.alive) {
-            const bd = Math.hypot(this.boss.x + this.boss.w / 2 - cx, this.boss.y + this.boss.h / 2 - cy);
-            if (bd < R * 1.7) {
+            const bx = this.boss.x + this.boss.w / 2, by = this.boss.y + this.boss.h / 2;
+            if (bx > vx0 && bx < vx1 && by > vy0 && by < vy1) {
                 this.boss.hp = Math.max(1, this.boss.hp - 4);
                 this.boss.hurtFlash = 0.25;
-                this.particles.hit(this.boss.x + this.boss.w / 2, this.boss.y + this.boss.h / 2, 44, '#ffd777');
+                this.particles.hit(bx, by, 44, '#ffd777');
             }
         }
         this.flashText('Nova — the gathered light erupts!');
     }
     drawNova(c) {
-        const t = clamp(1 - this.novaT / 0.7, 0, 1);
+        const t = clamp(1 - this.novaT / 0.75, 0, 1);
         const x = this.novaX - this.camera.x, y = this.novaY - this.camera.y;
         c.save();
         c.globalCompositeOperation = 'lighter';
+        // shockwave rings sweep out to the screen edges
         for (let r = 0; r < 3; r++) {
-            const rp = t * 1.3 - r * 0.18;
+            const rp = t * 1.25 - r * 0.16;
             if (rp > 0 && rp < 1) {
                 c.globalAlpha = (1 - rp) * 0.7;
                 c.strokeStyle = '#ffe6a0';
-                c.lineWidth = 9 * (1 - rp) + 2;
+                c.lineWidth = 12 * (1 - rp) + 2;
                 c.beginPath();
-                c.arc(x, y, rp * 300, 0, Math.PI * 2);
+                c.arc(x, y, rp * 820, 0, Math.PI * 2);
                 c.stroke();
             }
         }
-        const rad = 44 + 230 * t;
+        const rad = 70 + 560 * t;
         const g = c.createRadialGradient(x, y, 0, x, y, rad);
         g.addColorStop(0, `rgba(255,250,220,${(1 - t) * 0.9})`);
-        g.addColorStop(0.4, `rgba(255,180,90,${(1 - t) * 0.5})`);
+        g.addColorStop(0.4, `rgba(255,180,90,${(1 - t) * 0.45})`);
         g.addColorStop(1, 'rgba(0,0,0,0)');
         c.fillStyle = g;
         c.beginPath();
         c.arc(x, y, rad, 0, Math.PI * 2);
         c.fill();
-        c.globalAlpha = (1 - t) * 0.6;
+        c.globalAlpha = (1 - t) * 0.55;
         c.strokeStyle = '#fff0c0';
-        c.lineWidth = 2;
-        for (let i = 0; i < 18; i++) {
-            const a = i / 18 * Math.PI * 2 + this.time * 2;
+        c.lineWidth = 2.5;
+        for (let i = 0; i < 22; i++) {
+            const a = i / 22 * Math.PI * 2 + this.time * 2;
             c.beginPath();
-            c.moveTo(x + Math.cos(a) * 44, y + Math.sin(a) * 44);
-            c.lineTo(x + Math.cos(a) * rad * 1.5, y + Math.sin(a) * rad * 1.5);
+            c.moveTo(x + Math.cos(a) * 50, y + Math.sin(a) * 50);
+            c.lineTo(x + Math.cos(a) * (200 + t * 700), y + Math.sin(a) * (200 + t * 700));
             c.stroke();
         }
         c.restore();
