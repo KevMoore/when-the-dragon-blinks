@@ -517,11 +517,14 @@ export class Game {
       let rect = { x: e.x, y: e.y, w: e.w, h: e.h };
       for (const s of this.solidsForRect(rect)) {
         if (s.oneWay || !overlap(rect, s)) continue;
-        // auto step-up: walk up a low ledge (≤ ~1 tile) instead of stopping dead,
-        // so gentle hills are walkable by the player and enemies alike
+        // auto step-up so hills are walkable. The PLAYER (corner=true) climbs up
+        // to 2-tile rises — matching the renderer's rule that anything up to a
+        // 2:1 slope is turfed and therefore should be runnable; enemies keep the
+        // 1-tile hop (their AI jumps taller obstacles deliberately).
         if (e.grounded && sx !== 0) {
+          const maxUp = corner ? 66 : 34;
           let climbed = false;
-          for (let up = 5; up <= 34; up += 5) {
+          for (let up = 5; up <= maxUp; up += 5) {
             if (!this.overlapsSolid({ x: e.x, y: e.y - up, w: e.w, h: e.h })) { e.y -= up; climbed = true; break; }
           }
           if (climbed) { rect = { x: e.x, y: e.y, w: e.w, h: e.h }; continue; }

@@ -673,7 +673,7 @@ function drawSpan(game: Game, c: CanvasRenderingContext2D, th: Theme, a: number,
       const w2 = Math.min(sx0 + step, rightX) - sx;
       if (w2 <= 0) continue;
       const y0 = surfAt(sx), y1 = surfAt(sx + w2);
-      if (Math.abs(y1 - y0) > TILE * 1.2) continue;        // only TRUE cliffs go bare
+      if (Math.abs(y1 - y0) > w2 * 2.05) continue;         // steeper than 2:1 = cliff, bare rock (2-tile steps stay turfed + climbable)
       // SHEAR, don't rotate: sheared slices keep vertical edges, so neighbours
       // meet EXACTLY on any slope (rotated slices fanned apart -> crack seams)
       const k = (y1 - y0) / Math.max(1e-6, w2);
