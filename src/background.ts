@@ -65,24 +65,26 @@ export function drawSky(game: Game, c: CanvasRenderingContext2D) {
 }
 
 // Stylised Chinese auspicious cloud (祥云): rounded billows with a ruyi curl.
-function drawCloud(c: CanvasRenderingContext2D, x: number, y: number, s: number, col: string) {
+// `t` gently billows the puffs (cheap animation — a few sines per cloud).
+function drawCloud(c: CanvasRenderingContext2D, x: number, y: number, s: number, col: string, t = 0) {
+  const b = (k: number) => 1 + Math.sin(t + k) * 0.1;   // per-puff billow
   c.fillStyle = col;
   c.beginPath();
-  c.arc(x, y, 11 * s, 0, Math.PI * 2); c.arc(x + 15 * s, y - 4 * s, 14 * s, 0, Math.PI * 2);
-  c.arc(x + 32 * s, y, 11 * s, 0, Math.PI * 2); c.arc(x + 17 * s, y + 6 * s, 13 * s, 0, Math.PI * 2);
+  c.arc(x, y, 11 * s * b(0), 0, Math.PI * 2); c.arc(x + 15 * s, y - 4 * s + Math.sin(t) * 2, 14 * s * b(1.7), 0, Math.PI * 2);
+  c.arc(x + 32 * s, y, 11 * s * b(3.4), 0, Math.PI * 2); c.arc(x + 17 * s, y + 6 * s + Math.sin(t + 1) * 1.5, 13 * s * b(5.1), 0, Math.PI * 2);
   c.fill();
   c.strokeStyle = col; c.lineWidth = 3.5 * s; c.lineCap = 'round';
   c.beginPath(); c.arc(x - 7 * s, y + 3 * s, 5.5 * s, -0.3, Math.PI * 1.7); c.stroke();
   c.beginPath(); c.arc(x + 40 * s, y + 1 * s, 5 * s, Math.PI * 0.4, Math.PI * 2.1); c.stroke();
 }
 function drawClouds(game: Game, c: CanvasRenderingContext2D, day: number) {
-  const col = day > 0.5 ? 'rgba(255,214,168,0.13)' : 'rgba(150,178,224,0.11)';
+  const col = day > 0.5 ? 'rgba(255,206,158,0.17)' : 'rgba(140,168,220,0.15)';   // a touch more ominous
   c.save();
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 7; i++) {
     const par = 0.05 + i * 0.008;
-    const x = (((i * 250 + game.time * 7) - game.camera.x * par) % (LOGICAL_W + 320)) - 160;
-    const y = 54 + (i % 3) * 44 + Math.sin(game.time * 0.3 + i) * 4;
-    drawCloud(c, x, y, 1.25 - i * 0.08, col);
+    const x = (((i * 240 + game.time * (6 + i * 0.6)) - game.camera.x * par) % (LOGICAL_W + 340)) - 170;
+    const y = 50 + (i % 3) * 46 + Math.sin(game.time * 0.28 + i) * 7;   // slow vertical roll
+    drawCloud(c, x, y, 1.35 - i * 0.08, col, game.time * 0.6 + i * 1.3);
   }
   c.restore();
 }
