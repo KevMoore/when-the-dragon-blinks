@@ -71,9 +71,9 @@ function buildLevel(spec: Spec, index: number): LevelData {
   if (spec.boss) return buildBoss(spec);
   const r = rngFor(1000 + index * 97);
   const cavern = spec.theme === 'cavern' || spec.theme === 'sunless';
-  const h = cavern ? 20 : 18;
+  const h = cavern ? 18 : 17;
   const w = spec.len;
-  const gr = h - 4;                                    // base ground row
+  const gr = h - 3;                                    // base ground row — shallow terrain below (more sky)
   const m = emptyMap(w, h);
 
   // rolling ground with small (always jumpable) pits
@@ -114,10 +114,10 @@ function buildLevel(spec: Spec, index: number): LevelData {
     row(m, px, topAt(segs, px) - 1, 3, r() < 0.5 ? 'F' : 'S');
   }
 
-  // gems along the route (just above the LOCAL ground)
+  // gems along the route (fewer, less cluttered)
   const gems: { x: number; y: number }[] = [];
-  const gN = 5 + Math.floor(w / 60);
-  for (let i = 0; i < gN; i++) { const gx = Math.floor((i + 0.5) / gN * (w - 14)) + 6; gems.push(gem(gx, topAt(segs, gx) - 2 - Math.floor(r() * 3))); }
+  const gN = 3 + Math.floor(w / 105);
+  for (let i = 0; i < gN; i++) { const gx = Math.floor((i + 0.5) / gN * (w - 14)) + 6; gems.push(gem(gx, topAt(segs, gx) - 2 - Math.floor(r() * 2))); }
 
   // checkpoints (on the LOCAL ground)
   const checkpoints = [];
@@ -157,17 +157,29 @@ function buildLevel(spec: Spec, index: number): LevelData {
     }
   }
 
-  // a railed plank bridge spanning a real carved chasm (Act II onward)
   const bridges: { x: number; y: number; w: number }[] = [];
+  // (1) a railed plank bridge over a real carved chasm on the ground (Act II onward)
   if (spec.act >= 2 && w > 112 && !spec.boss) {
-    const gx = Math.floor(w * 0.52), gw = 6 + Math.floor(r() * 3), gt = topAt(segs, gx - 1);
-    // level the two banks to the same height so the deck sits flat
+    const gx = Math.floor(w * 0.5), gw = 6 + Math.floor(r() * 3), gt = topAt(segs, gx - 1);
     for (let cx = gx - 2; cx < gx; cx++) { setTile(m, cx, gt, 'g'); for (let cy = gt + 1; cy < h; cy++) setTile(m, cx, cy, '#'); }
     for (let cx = gx + gw; cx < gx + gw + 2; cx++) { setTile(m, cx, gt, 'g'); for (let cy = gt + 1; cy < h; cy++) setTile(m, cx, cy, '#'); }
-    // carve the true gap in the middle (no surface at all) with spikes below
     for (let cx = gx; cx < gx + gw; cx++) for (let cy = gt; cy < h; cy++) setTile(m, cx, cy, '.');
     row(m, gx, h - 2, gw, '^');
     bridges.push({ x: gx * TILE, y: gt * TILE, w: gw * TILE });
+  }
+  // (2) an aerial run of floating platforms linked by plank bridges (ground stays
+  // below, so a fall is survivable). A stepped ramp leads up to it. (Act II onward)
+  if (spec.act >= 2 && w > 120 && !spec.boss) {
+    const gTop = topAt(segs, Math.floor(w * 0.24)), H = gTop - 4;
+    let px = Math.floor(w * 0.20);
+    row(m, px - 5, gTop - 2, 3, 'o');                                  // ramp up
+    for (let seg = 0; seg < 3; seg++) {
+      const platW = 4 + Math.floor(r() * 2);
+      row(m, px, H, platW, 'o');                                       // floating platform
+      gems.push(gem(px + Math.floor(platW / 2), H - 2));
+      if (r() < 0.5) entities.push({ kind: spec.pal[Math.floor(r() * spec.pal.length)], x: (px + 1) * TILE, y: (H - 2) * TILE });
+      if (seg < 2) { const gap = 3 + Math.floor(r() * 2); bridges.push({ x: (px + platW) * TILE, y: H * TILE, w: gap * TILE }); px += platW + gap; }
+    }
   }
 
   // secret exit → a hidden level (a high night-ledge to find)

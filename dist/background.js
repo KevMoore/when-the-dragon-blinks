@@ -313,41 +313,41 @@ function drawGodRays(game, c, day, cx, cy) {
 }
 export function drawDragonEye(game, c, day) {
     c.save();
-    const x = 214 - game.camera.x * 0.03, y = 84;
+    const x = 210 - game.camera.x * 0.05, y = 76;
     const openness = clamp(day * game.eyeBlink, 0, 1);
-    // outer socket haze
-    c.globalAlpha = 0.45;
+    // outer socket haze (smaller, subtler — moves with the eye on one plane)
+    c.globalAlpha = 0.4;
     c.fillStyle = 'rgba(255,120,80,.05)';
     c.beginPath();
-    c.ellipse(x, y, 112, 40, 0, 0, Math.PI * 2);
+    c.ellipse(x, y, 60, 22, 0, 0, Math.PI * 2);
     c.fill();
     // lid outline
-    c.globalAlpha = 0.72;
-    c.lineWidth = 3.5;
-    c.strokeStyle = day > 0.5 ? 'rgba(255,210,120,.65)' : 'rgba(141,202,255,.38)';
+    c.globalAlpha = 0.62;
+    c.lineWidth = 2.2;
+    c.strokeStyle = day > 0.5 ? 'rgba(255,210,120,.6)' : 'rgba(141,202,255,.34)';
     c.beginPath();
-    c.ellipse(x, y, 84, 27 * (0.16 + openness * 0.84), 0, 0, Math.PI * 2);
+    c.ellipse(x, y, 45, 15 * (0.16 + openness * 0.84), 0, 0, Math.PI * 2);
     c.stroke();
     if (openness > 0.05) {
         const react = game.eyeReact;
         c.globalAlpha = openness;
         c.shadowColor = '#ff4a28';
-        c.shadowBlur = 30 + react * 34;
+        c.shadowBlur = 18 + react * 22;
         c.fillStyle = '#1a0509';
         c.beginPath();
-        c.ellipse(x, y, 23, 24 * openness, 0, 0, Math.PI * 2);
+        c.ellipse(x, y, 12.5, 13 * openness, 0, 0, Math.PI * 2);
         c.fill();
-        const iris = c.createRadialGradient(x, y, 1, x, y, 24);
+        const iris = c.createRadialGradient(x, y, 1, x, y, 13);
         iris.addColorStop(0, react > 0.02 ? '#fff1c8' : '#ffd08a');
         iris.addColorStop(0.4, '#f0452c');
         iris.addColorStop(1, '#8a1810');
         c.fillStyle = iris;
         c.beginPath();
-        c.ellipse(x, y, 9 + react * 5, 24 * openness, 0, 0, Math.PI * 2);
+        c.ellipse(x, y, 5 + react * 3, 13 * openness, 0, 0, Math.PI * 2);
         c.fill();
         c.fillStyle = '#fff0d0';
         c.beginPath();
-        c.arc(x - 4, y - 6 * openness, 2.4, 0, Math.PI * 2);
+        c.arc(x - 2.5, y - 3.5 * openness, 1.5, 0, Math.PI * 2);
         c.fill();
     }
     c.restore();
@@ -362,7 +362,7 @@ function ensureProps() {
     if (propsInit)
         return;
     propsInit = true;
-    for (const n of ['pagoda', 'shishi', 'pine', 'stele', 'palace', 'crystal']) {
+    for (const n of ['pagoda', 'shishi', 'pine', 'stele', 'palace', 'crystal', 'spikes_rock', 'spikes_ice']) {
         const im = new Image();
         im.onload = () => (propReady[n] = true);
         im.src = 'assets/sprites/props/' + n + '.png';
@@ -1133,22 +1133,61 @@ function drawStatePlatform(game, c, x, y, state) {
     c.restore();
     c.globalAlpha = 1;
 }
+// Legend-true hazards: '^' Mount-Zhong rock crags, 'S' frost shards (the dragon's
+// winter breath), 'F' torch-fire (the Torch Dragon's flame).
 function drawHazard(game, c, x, y, ch) {
     const active = game.isHazardChar(ch);
-    c.globalAlpha = active ? 1 : 0.2;
     c.save();
-    if (active && ch !== '^') {
-        c.shadowColor = ch === 'F' ? '#ff7840' : '#8ed7ff';
-        c.shadowBlur = 16;
+    c.globalAlpha = active ? 1 : 0.22;
+    if (ch === 'F') {
+        // torch-fire — layered animated flame tongues
+        const n = 3;
+        for (let i = 0; i < n; i++) {
+            const fx = x + 6 + i * ((TILE - 12) / (n - 1));
+            const flick = active ? Math.sin(game.time * 12 + i * 2 + x) * 3 : 0;
+            const hgt = (active ? 24 : 12) + (active ? Math.sin(game.time * 16 + i) * 4 : 0);
+            const g = c.createLinearGradient(0, y + TILE, 0, y + TILE - hgt);
+            g.addColorStop(0, 'rgba(255,120,40,.15)');
+            g.addColorStop(0.5, active ? '#ff7a2a' : '#7a4020');
+            g.addColorStop(1, active ? '#ffe08a' : '#caa');
+            c.fillStyle = g;
+            if (active) {
+                c.shadowColor = '#ff7a2a';
+                c.shadowBlur = 12;
+            }
+            c.beginPath();
+            c.moveTo(fx - 5, y + TILE);
+            c.quadraticCurveTo(fx - 4 + flick, y + TILE - hgt * 0.5, fx + flick, y + TILE - hgt);
+            c.quadraticCurveTo(fx + 4 + flick, y + TILE - hgt * 0.5, fx + 5, y + TILE);
+            c.closePath();
+            c.fill();
+        }
+        c.restore();
+        c.globalAlpha = 1;
+        return;
     }
-    c.fillStyle = ch === 'F' ? '#ff7840' : ch === 'S' ? '#8ed7ff' : '#b8a6a6';
-    const wob = active ? Math.sin(game.time * 8 + x) * 1.5 : 0;
-    for (let i = 0; i < 4; i++) {
-        c.beginPath();
-        c.moveTo(x + i * 8, y + TILE);
-        c.lineTo(x + i * 8 + 4, y + 6 + wob);
-        c.lineTo(x + i * 8 + 8, y + TILE);
-        c.fill();
+    // rock crags ('^') / frost shards ('S') — 2D side-view sprites, tiled across the run
+    const key = ch === 'S' ? 'spikes_ice' : 'spikes_rock';
+    const img = propImgs[key];
+    if (img && propReady[key]) {
+        const ti = Math.round((x + game.camera.x) / TILE);
+        const per = 6, sw = img.width / per, si = ((ti % per) + per) % per;
+        const dh = 30, wob = active && ch === 'S' ? Math.sin(game.time * 4 + x) * 1 : 0;
+        if (active && ch === 'S') {
+            c.shadowColor = '#8ed7ff';
+            c.shadowBlur = 8;
+        }
+        c.drawImage(img, si * sw, 0, sw, img.height, x - 2, y + TILE - dh + wob, TILE + 4, dh);
+    }
+    else {
+        c.fillStyle = ch === 'S' ? '#8ed7ff' : '#8a7c7c';
+        for (let i = 0; i < 4; i++) {
+            c.beginPath();
+            c.moveTo(x + i * 8, y + TILE);
+            c.lineTo(x + i * 8 + 4, y + 6);
+            c.lineTo(x + i * 8 + 8, y + TILE);
+            c.fill();
+        }
     }
     c.restore();
     c.globalAlpha = 1;
