@@ -415,20 +415,12 @@ export function drawThreeSlice(c, img, x, y, w, h, capFrac = 0.26, mid = [0.4, 0
         capW = w / 2;
     c.drawImage(img, 0, 0, srcCap, ih, x, y, capW, h); // left cap
     c.drawImage(img, iw - srcCap, 0, srcCap, ih, x + w - capW, y, capW, h); // right cap
+    // the strips' mid regions are pre-processed tile-seamless (roll + crossfade
+    // in the asset), so plain repetition is join-free
     const m0 = iw * mid[0], mw = iw * (mid[1] - mid[0]), dstMw = Math.max(4, mw * s);
-    let k = 0;
-    for (let dx2 = x + capW; dx2 < x + w - capW - 0.5; dx2 += dstMw, k++) { // tiled middle
+    for (let dx2 = x + capW; dx2 < x + w - capW - 0.5; dx2 += dstMw) { // tiled middle
         const dw2 = Math.min(dstMw, x + w - capW - dx2);
-        if (k % 2 === 0)
-            c.drawImage(img, m0, 0, mw * (dw2 / dstMw), ih, dx2, y, dw2, h);
-        else {
-            // mirror alternate tiles so every seam meets its own reflection — seamless
-            c.save();
-            c.translate(dx2 + dw2 / 2, 0);
-            c.scale(-1, 1);
-            c.drawImage(img, m0, 0, mw * (dw2 / dstMw), ih, -dw2 / 2, y, dw2, h);
-            c.restore();
-        }
+        c.drawImage(img, m0, 0, mw * (dw2 / dstMw), ih, dx2, y, dw2, h);
     }
 }
 // draw an arbitrary image tinted toward a colour (atmospheric), at dw×dh

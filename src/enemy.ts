@@ -17,6 +17,7 @@ export class Enemy {
   alive = true; hp = 2; maxHp = 2; baseY: number; baseX: number;
   phase = Math.random() * 10; flash = 0; fireTimer = rand(1, 2.4);
   points = 100; grounded = false; aggro = 340; elite = false;
+  stuckT = 0; lastPX = 0; lastPY = 0;      // unstick watchdog
   brain: Brain;
   bb: Record<string, any> = {};
 
@@ -78,7 +79,7 @@ export class Enemy {
     const dormant = !dragonRush && this.isDormant(game);
     if (dormant) {
       if (this.isGround()) { this.vy += GRAVITY * dt; game.moveEntity(this, 0, this.vy * dt); }
-      else this.y = this.baseY + Math.sin(game.time * 2 + this.phase) * 18;
+      else { this.y = this.baseY + Math.sin(game.time * 2 + this.phase) * 18; this.x = this.baseX + Math.sin(game.time * 0.7 + this.phase * 2) * 12; }
     } else {
       const dx = centerX(p.rect()) - centerX(this.rect()), dy = centerY(p.rect()) - centerY(this.rect());
       const dist = Math.hypot(dx, dy);
@@ -89,6 +90,19 @@ export class Enemy {
       } else {
         const los = lineOfSight(game, centerX(this.rect()), centerY(this.rect()), centerX(p.rect()), centerY(p.rect()));
         this.brain.update({ e: this, game, dx, dy, dist, los, bb: this.bb }, dt);
+        // flyers steer without collision — if one drifts inside terrain, lift it out
+        if (!this.isGround() && game.overlapsSolid(this.rect())) {
+          for (let up = 6; up <= 60; up += 6) if (!game.overlapsSolid({ x: this.x, y: this.y - up, w: this.w, h: this.h })) { this.y -= up; break; }
+        }
+        // unstick watchdog: hunting but not actually moving → break free
+        const moved = Math.hypot(this.x - this.lastPX, this.y - this.lastPY);
+        if (moved < 0.5 && dist > 70) this.stuckT += dt; else this.stuckT = 0;
+        if (this.stuckT > 1.1) {
+          this.stuckT = 0; this.bb.positioned = false; this.bb.side = undefined;
+          if (this.isGround()) { this.vy = -430; this.vx = Math.sign(dx) * 130; }
+          else { this.y -= 44; this.x += Math.sign(dx) * 26; }
+        }
+        this.lastPX = this.x; this.lastPY = this.y;
       }
     }
 

@@ -23,6 +23,9 @@ export class Enemy {
         this.grounded = false;
         this.aggro = 340;
         this.elite = false;
+        this.stuckT = 0;
+        this.lastPX = 0;
+        this.lastPY = 0; // unstick watchdog
         this.bb = {};
         this.kind = kind;
         this.x = x;
@@ -140,8 +143,10 @@ export class Enemy {
                 this.vy += GRAVITY * dt;
                 game.moveEntity(this, 0, this.vy * dt);
             }
-            else
+            else {
                 this.y = this.baseY + Math.sin(game.time * 2 + this.phase) * 18;
+                this.x = this.baseX + Math.sin(game.time * 0.7 + this.phase * 2) * 12;
+            }
         }
         else {
             const dx = centerX(p.rect()) - centerX(this.rect()), dy = centerY(p.rect()) - centerY(this.rect());
@@ -158,6 +163,35 @@ export class Enemy {
             else {
                 const los = lineOfSight(game, centerX(this.rect()), centerY(this.rect()), centerX(p.rect()), centerY(p.rect()));
                 this.brain.update({ e: this, game, dx, dy, dist, los, bb: this.bb }, dt);
+                // flyers steer without collision — if one drifts inside terrain, lift it out
+                if (!this.isGround() && game.overlapsSolid(this.rect())) {
+                    for (let up = 6; up <= 60; up += 6)
+                        if (!game.overlapsSolid({ x: this.x, y: this.y - up, w: this.w, h: this.h })) {
+                            this.y -= up;
+                            break;
+                        }
+                }
+                // unstick watchdog: hunting but not actually moving → break free
+                const moved = Math.hypot(this.x - this.lastPX, this.y - this.lastPY);
+                if (moved < 0.5 && dist > 70)
+                    this.stuckT += dt;
+                else
+                    this.stuckT = 0;
+                if (this.stuckT > 1.1) {
+                    this.stuckT = 0;
+                    this.bb.positioned = false;
+                    this.bb.side = undefined;
+                    if (this.isGround()) {
+                        this.vy = -430;
+                        this.vx = Math.sign(dx) * 130;
+                    }
+                    else {
+                        this.y -= 44;
+                        this.x += Math.sign(dx) * 26;
+                    }
+                }
+                this.lastPX = this.x;
+                this.lastPY = this.y;
             }
         }
         const dangerous = this.dangerous(game);
