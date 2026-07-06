@@ -448,6 +448,14 @@ export class Game {
       if (pl.x + pl.w < r.x - TILE || pl.x > r.x + r.w + TILE || pl.y + pl.h < r.y - TILE || pl.y > r.y + r.h + TILE) continue;
       out.push({ x: pl.x, y: pl.y, w: pl.w, h: pl.h, oneWay: false });
     }
+    // bridges are first-class one-way decks — the SAME collision path as tiles,
+    // so grounded/coyote/landing/drop-through all behave, and enemies cross too
+    for (const b of this.bridges) {
+      if (b.x + b.w < r.x - TILE || b.x > r.x + r.w + TILE) continue;
+      const by = b.y + b.sag;
+      if (by + 12 < r.y - TILE || by > r.y + r.h + TILE) continue;
+      out.push({ x: b.x, y: by, w: b.w, h: 12, oneWay: true });
+    }
     return out;
   }
   overlapsSolid(r: Rect, world: WorldState = this.world) {
@@ -464,11 +472,13 @@ export class Game {
     }
     return this.level.height * TILE;
   }
-  /** Is the entity standing on a one-way (jump-through) tile? */
+  /** Is the entity standing on a one-way (jump-through) surface — tile or bridge? */
   onOneWayGround(e: { x: number; y: number; w: number; h: number }) {
     const y = Math.floor((e.y + e.h + 2) / TILE);
     const x0 = Math.floor((e.x + 2) / TILE), x1 = Math.floor((e.x + e.w - 2) / TILE);
     for (let x = x0; x <= x1; x++) if (this.tileAt(x, y) === 'o') return true;
+    const feet = e.y + e.h;
+    for (const b of this.bridges) if (e.x + e.w > b.x && e.x < b.x + b.w && Math.abs(feet - (b.y + b.sag)) < 6) return true;
     return false;
   }
 
@@ -1266,19 +1276,15 @@ export class Game {
     }
   }
 
-  // Wooden bridges spanning gaps (AutoSprite 2D sprite; tiny springy give).
-  // Support uses the player's BOUNDING BOX (not centre) so there is never a
-  // dead seam between the platform edge and the deck.
+  // Bridge decks are real one-way solids (see solidsForRect) — physics handles
+  // standing/landing. This just drives the springy plank give underfoot.
   private updateBridges(dt: number) {
     const p = this.player, feet = p.y + p.h;
     for (const b of this.bridges) {
-      const onX = p.x + p.w > b.x - 2 && p.x < b.x + b.w + 2;
-      const surf = b.y + b.sag;
-      const grab = onX && feet >= surf - 12 && feet <= surf + 26 && p.vy >= -40;
-      const target = grab ? 3 : 0;                            // subtle plank give
+      const on = p.grounded && p.x + p.w > b.x && p.x < b.x + b.w && Math.abs(feet - (b.y + b.sag)) < 5;
+      const target = on ? 3 : 0;
       b.sagVel += (target - b.sag) * 130 * dt; b.sagVel *= Math.pow(0.03, dt);
       b.sag = clamp(b.sag + b.sagVel * dt, -2, 6);
-      if (grab) { p.y = surf - p.h; p.vy = 0; p.grounded = true; }
     }
   }
   // bridge sprite tinted to the level's palette + time of day so it belongs to

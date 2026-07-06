@@ -198,12 +198,18 @@ function buildLevel(spec, index) {
     if (spec.act >= 2 && w > 112 && !spec.boss)
         for (const spot of chasmSpots) {
             const gx = Math.floor(w * spot), gw = 6 + Math.floor(r() * 3), gt = topAt(segs, gx - 1);
+            // level the banks AND clear any old higher terrain above them (else the
+            // leftover ridge walls off the approach to the deck)
             for (let cx = gx - 2; cx < gx; cx++) {
+                for (let cy = 0; cy < gt; cy++)
+                    setTile(m, cx, cy, '.');
                 setTile(m, cx, gt, 'g');
                 for (let cy = gt + 1; cy < h; cy++)
                     setTile(m, cx, cy, '#');
             }
             for (let cx = gx + gw; cx < gx + gw + 2; cx++) {
+                for (let cy = 0; cy < gt; cy++)
+                    setTile(m, cx, cy, '.');
                 setTile(m, cx, gt, 'g');
                 for (let cy = gt + 1; cy < h; cy++)
                     setTile(m, cx, cy, '#');

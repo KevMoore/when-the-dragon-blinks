@@ -188,8 +188,10 @@ function buildLevel(spec: Spec, index: number): LevelData {
   const chasmSpots = arch === 'chasms' ? [0.32, 0.62] : [0.5];
   if (spec.act >= 2 && w > 112 && !spec.boss) for (const spot of chasmSpots) {
     const gx = Math.floor(w * spot), gw = 6 + Math.floor(r() * 3), gt = topAt(segs, gx - 1);
-    for (let cx = gx - 2; cx < gx; cx++) { setTile(m, cx, gt, 'g'); for (let cy = gt + 1; cy < h; cy++) setTile(m, cx, cy, '#'); }
-    for (let cx = gx + gw; cx < gx + gw + 2; cx++) { setTile(m, cx, gt, 'g'); for (let cy = gt + 1; cy < h; cy++) setTile(m, cx, cy, '#'); }
+    // level the banks AND clear any old higher terrain above them (else the
+    // leftover ridge walls off the approach to the deck)
+    for (let cx = gx - 2; cx < gx; cx++) { for (let cy = 0; cy < gt; cy++) setTile(m, cx, cy, '.'); setTile(m, cx, gt, 'g'); for (let cy = gt + 1; cy < h; cy++) setTile(m, cx, cy, '#'); }
+    for (let cx = gx + gw; cx < gx + gw + 2; cx++) { for (let cy = 0; cy < gt; cy++) setTile(m, cx, cy, '.'); setTile(m, cx, gt, 'g'); for (let cy = gt + 1; cy < h; cy++) setTile(m, cx, cy, '#'); }
     for (let cx = gx; cx < gx + gw; cx++) for (let cy = gt; cy < h; cy++) setTile(m, cx, cy, '.');
     row(m, gx, h - 2, gw, '^');
     bridges.push({ x: gx * TILE - 12, y: gt * TILE, w: gw * TILE + 24 });   // overlap the banks so no edge-gap
