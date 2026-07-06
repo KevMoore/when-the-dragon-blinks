@@ -46,13 +46,19 @@
   <div id="wrap"><canvas id="ed" width="1280" height="620"></canvas></div>
   <div id="hint">Paint: click/drag · Pan: arrows / WASD or the Pan tool · Bridge: click start then end · Draft autosaves</div>
   <div id="modal"><div class="card">
-    <h2>Publish your level</h2>
-    <p>1. <b>Export JSON</b> and save the file (e.g. <code>my-shrine.json</code>).</p>
-    <p>2. Add it to the repo at <code>assets/levels/my-shrine.json</code> and list it in <code>assets/levels/index.json</code>:</p>
-    <textarea readonly>{ "files": ["my-shrine.json"] }</textarea>
-    <p>3. Push to <code>main</code> — Render deploys it, and the level appears in the game's <b>Level Select</b> as a Custom Trail.</p>
-    <p style="opacity:.7">Or just send the JSON to Claude and ask it to publish it for you. 🐉</p>
-    <p style="text-align:right"><button onclick="document.getElementById('modal').style.display='none'">Close</button></p>
+    <h2>Publish to the game</h2>
+    <p>One click commits this level to the game repo — Render redeploys and it appears in <b>Level Select</b> as a Custom Trail (~2 min).</p>
+    <p>
+      <label>GitHub token <input id="gh-token" type="password" placeholder="fine-grained PAT, contents: read/write" style="width:260px" /></label><br /><br />
+      <label>Repo <input id="gh-repo" type="text" value="KevMoore/when-the-dragon-blinks" style="width:240px" /></label>
+      <label> Branch <input id="gh-branch" type="text" value="main" style="width:80px" /></label>
+    </p>
+    <p style="opacity:.7;font-size:12px">Create a token at github.com → Settings → Developer settings → Fine-grained tokens, scoped to this repo with <code>Contents: Read and write</code>. It is stored only in this browser.</p>
+    <p id="gh-status" style="color:#8fd9a8"></p>
+    <p style="text-align:right">
+      <button onclick="document.getElementById('modal').style.display='none'">Close</button>
+      <button id="gh-publish" style="background:#2c5a2c">🚀 Publish now</button>
+    </p>
   </div></div>
   <script type="module" src="dist/editor.js"></script>
 </body>

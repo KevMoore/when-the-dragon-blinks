@@ -6,6 +6,7 @@
   "scripts": {
     "build": "tsc",
     "build:site": "tsc && node scripts/build-site.mjs",
+    "build:editor": "tsc && node scripts/build-site.mjs && node scripts/build-editor.mjs",
     "dev": "npm run build && npx http-server . -p 5173 -c-1",
     "serve:python": "npm run build && python3 -m http.server 5173"
   },

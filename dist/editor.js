@@ -132,9 +132,56 @@ document.getElementById('export').onclick = () => {
 };
 document.getElementById('playtest').onclick = () => {
     localStorage.setItem(DRAFT_KEY, JSON.stringify(toLevelData()));
-    window.open('index.html?playtest=1', 'wtdb-playtest');
+    window.open('play.html?playtest=1', 'wtdb-playtest');
 };
-document.getElementById('publish').onclick = () => { document.getElementById('modal').style.display = 'grid'; };
+document.getElementById('publish').onclick = () => {
+    const t = document.getElementById('gh-token');
+    t.value = localStorage.getItem('wtdb-gh-token') || '';
+    document.getElementById('modal').style.display = 'grid';
+};
+// One-click publish: commit the level + manifest to the game repo via the
+// GitHub contents API — Render auto-deploys, the level goes live in Level Select.
+document.getElementById('gh-publish').onclick = async () => {
+    const status = document.getElementById('gh-status');
+    const token = document.getElementById('gh-token').value.trim();
+    const repo = document.getElementById('gh-repo').value.trim();
+    const branch = document.getElementById('gh-branch').value.trim() || 'main';
+    if (!token) {
+        status.textContent = 'Paste a GitHub token first.';
+        return;
+    }
+    localStorage.setItem('wtdb-gh-token', token);
+    const hdr = { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json' };
+    const api = (p) => `https://api.github.com/repos/${repo}/contents/${p}`;
+    const b64 = (s) => btoa(unescape(encodeURIComponent(s)));
+    const fname = st.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '.json';
+    const put = (path, content, sha) => fetch(api(path), { method: 'PUT', headers: hdr, body: JSON.stringify({ message: '⛩ Publish level: ' + st.name, content: b64(content), branch, ...(sha ? { sha } : {}) }) });
+    try {
+        status.textContent = 'Publishing…';
+        // level file (update in place if it exists)
+        const ex = await fetch(api('assets/levels/' + fname) + '?ref=' + branch, { headers: hdr });
+        const sha1 = ex.ok ? (await ex.json()).sha : undefined;
+        const r1 = await put('assets/levels/' + fname, JSON.stringify(toLevelData(), null, 1), sha1);
+        if (!r1.ok)
+            throw new Error('level upload: ' + r1.status);
+        // manifest
+        const ir = await fetch(api('assets/levels/index.json') + '?ref=' + branch, { headers: hdr });
+        if (!ir.ok)
+            throw new Error('manifest read: ' + ir.status);
+        const ij = await ir.json();
+        const manifest = JSON.parse(decodeURIComponent(escape(atob(ij.content.replace(/\n/g, '')))));
+        if (!manifest.files.includes(fname)) {
+            manifest.files.push(fname);
+            const r2 = await put('assets/levels/index.json', JSON.stringify(manifest, null, 1), ij.sha);
+            if (!r2.ok)
+                throw new Error('manifest update: ' + r2.status);
+        }
+        status.textContent = `✓ Published! “${st.name}” deploys in ~2 min → Level Select.`;
+    }
+    catch (e) {
+        status.textContent = '✗ ' + e.message + ' — check the token scope (Contents: read/write).';
+    }
+};
 document.getElementById('import').onclick = () => document.getElementById('file').click();
 document.getElementById('file').onchange = e => {
     const f = e.target.files?.[0];
