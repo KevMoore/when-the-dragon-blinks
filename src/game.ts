@@ -234,9 +234,7 @@ export class Game {
     for (const g of this.gems) {
       if (g.taken) continue;
       const x = g.x + 12 - this.camera.x, y = g.y + 12 - this.camera.y + Math.sin(this.time * 3 + g.x) * 5;
-      c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.45 + 0.22 * Math.sin(this.time * 5 + g.x);
-      const gl = c.createRadialGradient(x, y, 0, x, y, 24); gl.addColorStop(0, 'rgba(255,190,90,.85)'); gl.addColorStop(1, 'rgba(0,0,0,0)');
-      c.fillStyle = gl; c.beginPath(); c.arc(x, y, 24, 0, Math.PI * 2); c.fill(); c.restore();
+      bg.drawGlow(c, x, y, 24, 'rgba(255,190,90,.85)', 0.45 + 0.22 * Math.sin(this.time * 5 + g.x));
       c.save(); c.translate(x, y); c.rotate(Math.PI / 4); c.shadowColor = '#ffcf6a'; c.shadowBlur = 12;
       const grad = c.createLinearGradient(-8, -8, 8, 8); grad.addColorStop(0, '#fff1c0'); grad.addColorStop(0.5, '#ffb43c'); grad.addColorStop(1, '#d9541f');
       c.fillStyle = grad; c.fillRect(-8, -8, 16, 16);
@@ -980,10 +978,12 @@ export class Game {
   }
 
   // ---- render ------------------------------------------------------------
+  showFps = false; private _fpsMs = 0; private _fpsLast = 0;
   render() {
+    const t0 = this.showFps ? performance.now() : 0;
     const c = this.ctx;
     c.save();
-    c.clearRect(0, 0, LOGICAL_W, LOGICAL_H);
+    c.fillStyle = '#08050d'; c.fillRect(0, 0, LOGICAL_W, LOGICAL_H);   // opaque clear (alpha:false ctx)
     c.translate(this.camera.shakeX, this.camera.shakeY);
     switch (this.state) {
       case 'howto': bg.drawSky(this, c); bg.drawParallax(this, c); this.particles.draw(c, 0, 0, this.world); ui.drawHowTo(this, c); break;
@@ -1011,6 +1011,16 @@ export class Game {
     // toggle flash
     if (this.flash > 0.01) { c.globalAlpha = this.flash * 0.5; c.fillStyle = this.flashColor; c.fillRect(-40, -40, LOGICAL_W + 80, LOGICAL_H + 80); c.globalAlpha = 1; }
     c.restore();
+    if (this.showFps) {
+      const now = performance.now();
+      this._fpsMs = this._fpsMs * 0.95 + (now - t0) * 0.05;                             // render cost EMA
+      const frame = this._fpsLast ? now - this._fpsLast : 16.7; this._fpsLast = now;
+      (this as any)._frameMs = ((this as any)._frameMs ?? 16.7) * 0.95 + frame * 0.05;
+      c.save(); c.fillStyle = 'rgba(0,0,0,.6)'; c.fillRect(6, LOGICAL_H - 26, 210, 20);
+      c.fillStyle = '#8fd9a8'; c.font = '12px monospace'; c.textAlign = 'left';
+      c.fillText(`render ${this._fpsMs.toFixed(1)}ms · ${(1000 / (this as any)._frameMs).toFixed(0)}fps`, 12, LOGICAL_H - 12);
+      c.restore();
+    }
   }
 
   private drawWorld(c: CanvasRenderingContext2D) {
@@ -1258,10 +1268,7 @@ export class Game {
     for (const ht of this.hearts) {
       if (ht.taken) continue;
       const x = ht.x + 9 - this.camera.x, y = ht.y + 9 - this.camera.y + Math.sin(this.time * 3 + ht.x) * 4;
-      c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.5 + 0.25 * Math.sin(this.time * 5 + ht.x);
-      const g = c.createRadialGradient(x, y, 0, x, y, 22);
-      g.addColorStop(0, 'rgba(255,140,90,.9)'); g.addColorStop(1, 'rgba(0,0,0,0)');
-      c.fillStyle = g; c.beginPath(); c.arc(x, y, 22, 0, Math.PI * 2); c.fill(); c.restore();
+      bg.drawGlow(c, x, y, 22, 'rgba(255,140,90,.9)', 0.5 + 0.25 * Math.sin(this.time * 5 + ht.x));
       c.save(); c.translate(x, y);
       c.fillStyle = '#d94a3a'; c.shadowColor = '#ff8b5a'; c.shadowBlur = 10;
       c.beginPath(); c.ellipse(0, 0, 7.5, 9, 0, 0, Math.PI * 2); c.fill();

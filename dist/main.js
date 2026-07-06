@@ -6,7 +6,7 @@ import { loadSprites } from './spritedata.js';
 import { levels, loadCustomLevels } from './content.js';
 loadSprites();
 const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
+const ctx = canvas.getContext('2d', { alpha: false }); // opaque backbuffer — cheaper compositing
 // The logical resolution is fixed; we scale the backing buffer for crisp text
 // on high-DPI screens and let CSS `object-fit: contain` handle letterboxing.
 function resize() {
@@ -128,6 +128,8 @@ if (_q.has('dawn')) {
 if (_q.has('lantern')) {
     game.startLantern(1);
 }
+if (_q.has('fps'))
+    game.showFps = true;
 // dev aid: hold an aim pose for screenshots — ?pose=up|updiag|down|downdiag
 if (_q.has('pose')) {
     const m = { up: [0, -1], updiag: [0.7, -0.7], down: [0, 1], downdiag: [0.7, 0.7] };

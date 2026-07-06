@@ -225,18 +225,8 @@ let _tintCv: HTMLCanvasElement | null = null, _tintCtx: CanvasRenderingContext2D
 function drawPropImg(c: CanvasRenderingContext2D, name: string, cx: number, baseY: number, targetH: number, alpha: number, tint?: string, tintAmt = 0) {
   const img = propImgs[name]; if (!img || !propReady[name]) return;
   const scale = targetH / img.height, w = img.width * scale;
-  if (tint && tintAmt > 0) {
-    if (!_tintCv) { _tintCv = document.createElement('canvas'); _tintCtx = _tintCv.getContext('2d'); }
-    const tc = _tintCtx!, iw = img.width, ih = img.height;
-    if (_tintCv.width !== iw || _tintCv.height !== ih) { _tintCv.width = iw; _tintCv.height = ih; }
-    tc.clearRect(0, 0, iw, ih);
-    tc.globalCompositeOperation = 'source-over'; tc.globalAlpha = 1; tc.drawImage(img, 0, 0);
-    tc.globalCompositeOperation = 'source-atop'; tc.globalAlpha = tintAmt; tc.fillStyle = tint; tc.fillRect(0, 0, iw, ih);
-    tc.globalAlpha = 1; tc.globalCompositeOperation = 'source-over';
-    c.globalAlpha = alpha; c.drawImage(_tintCv, cx - w / 2, baseY - targetH, w, targetH); c.globalAlpha = 1;
-    return;
-  }
-  c.globalAlpha = alpha; c.drawImage(img, cx - w / 2, baseY - targetH, w, targetH); c.globalAlpha = 1;
+  const src = tint && tintAmt > 0 ? tintedSprite(img, name, tint, tintAmt) : img;   // cached — no per-frame re-tint
+  c.globalAlpha = alpha; c.drawImage(src, cx - w / 2, baseY - targetH, w, targetH); c.globalAlpha = 1;
 }
 
 // Three-slice: end caps render at native aspect, the middle TILES a clean strip
@@ -260,16 +250,46 @@ export function drawThreeSlice(
   }
 }
 
+// PERF: tinted-sprite cache. Re-tinting a full image per draw call was the #1
+// frame cost — now each (image, tint, amount) renders ONCE to its own canvas.
+const _tintCache = new Map<string, HTMLCanvasElement>();
+function tintedSprite(img: CanvasImageSource & { width: number; height: number }, name: string, tint: string, tintAmt: number): HTMLCanvasElement {
+  const key = name + '|' + tint + '|' + tintAmt.toFixed(2);
+  let cvs = _tintCache.get(key);
+  if (cvs) return cvs;
+  cvs = document.createElement('canvas');
+  cvs.width = img.width; cvs.height = img.height;
+  const tc = cvs.getContext('2d')!;
+  tc.drawImage(img, 0, 0);
+  tc.globalCompositeOperation = 'source-atop'; tc.globalAlpha = tintAmt; tc.fillStyle = tint; tc.fillRect(0, 0, cvs.width, cvs.height);
+  if (_tintCache.size > 220) _tintCache.clear();          // safety valve
+  _tintCache.set(key, cvs);
+  return cvs;
+}
 // draw an arbitrary image tinted toward a colour (atmospheric), at dw×dh
-function drawTintedStill(c: CanvasRenderingContext2D, img: CanvasImageSource & { width: number; height: number }, dx: number, dy: number, dw: number, dh: number, tint: string, tintAmt: number, alpha: number) {
-  if (!_tintCv) { _tintCv = document.createElement('canvas'); _tintCtx = _tintCv.getContext('2d'); }
-  const tc = _tintCtx!, iw = img.width, ih = img.height;
-  if (_tintCv.width !== iw || _tintCv.height !== ih) { _tintCv.width = iw; _tintCv.height = ih; }
-  tc.clearRect(0, 0, iw, ih);
-  tc.globalCompositeOperation = 'source-over'; tc.globalAlpha = 1; tc.drawImage(img, 0, 0);
-  tc.globalCompositeOperation = 'source-atop'; tc.globalAlpha = tintAmt; tc.fillStyle = tint; tc.fillRect(0, 0, iw, ih);
-  tc.globalAlpha = 1; tc.globalCompositeOperation = 'source-over';
-  c.globalAlpha = alpha; c.drawImage(_tintCv, dx, dy, dw, dh); c.globalAlpha = 1;
+function drawTintedStill(c: CanvasRenderingContext2D, img: CanvasImageSource & { width: number; height: number }, dx: number, dy: number, dw: number, dh: number, tint: string, tintAmt: number, alpha: number, name = 'img') {
+  c.globalAlpha = alpha; c.drawImage(tintedSprite(img, name, tint, tintAmt), dx, dy, dw, dh); c.globalAlpha = 1;
+}
+
+// PERF: cached radial glow sprites (one 96px canvas per colour) — replaces the
+// per-frame createRadialGradient calls that peppered the lighting/pickup paths.
+const _glowCache = new Map<string, HTMLCanvasElement>();
+export function glowSprite(color: string): HTMLCanvasElement {
+  let g = _glowCache.get(color);
+  if (g) return g;
+  g = document.createElement('canvas'); g.width = g.height = 96;
+  const gc = g.getContext('2d')!;
+  const grad = gc.createRadialGradient(48, 48, 0, 48, 48, 48);
+  grad.addColorStop(0, color); grad.addColorStop(1, 'rgba(0,0,0,0)');
+  gc.fillStyle = grad; gc.fillRect(0, 0, 96, 96);
+  _glowCache.set(color, g);
+  return g;
+}
+/** Additive glow at (x,y) radius r — cheap cached-sprite replacement for radial gradients. */
+export function drawGlow(c: CanvasRenderingContext2D, x: number, y: number, r: number, color: string, alpha: number) {
+  c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha = alpha;
+  c.drawImage(glowSprite(color), x - r, y - r, r * 2, r * 2);
+  c.restore();
 }
 // smooth multi-octave ridgeline height at world-x
 function ridgeH(wx: number, layer: number) {
@@ -281,6 +301,11 @@ export function drawParallax(game: Game, c: CanvasRenderingContext2D) {
   const th = theme(game), day = game.dayAmount;
   const haze = mixHex(th.hazeNight, th.haze, day);
   const ridge = mixHex(th.ridgeNight, th.ridge, day);
+  // PERF: tint colours for cached sprites use a QUANTIZED day (9 steps) so the
+  // cache stays small and stable through the day/night blink transition
+  const qday = Math.round(day * 8) / 8;
+  const hazeQ = mixHex(th.hazeNight, th.haze, qday);
+  const ridgeQ = mixHex(th.ridgeNight, th.ridge, qday);
 
   // Layer 4: distant MOUNTAINS — an AutoSprite ink-wash range (monochrome with
   // detail), tinted to the haze and tiled across, drifting slowly behind.
@@ -289,7 +314,7 @@ export function drawParallax(game: Game, c: CanvasRenderingContext2D) {
     const img = mtn.img, par = 0.07, sc = game.camera.x * par, voff = game.camera.y * par;
     const H = 216, W = img.width * (H / img.height), y0 = 300 - H - voff;
     const start = -(((sc % W) + W) % W);
-    for (let x = start; x < LOGICAL_W + W; x += W) drawTintedStill(c, img, x, y0, W, H, mixHex(ridge, haze, 0.72), 0.55, 1);
+    for (let x = start; x < LOGICAL_W + W; x += W) drawTintedStill(c, img, x, y0, W, H, mixHex(ridgeQ, hazeQ, 0.72), 0.55, 1, 'mtn');
   }
 
   // Layer 3: nearer HILLS — a single darker procedural ridge in front of the range.
@@ -358,7 +383,7 @@ export function drawParallax(game: Game, c: CanvasRenderingContext2D) {
   ];
   for (const b of propBands) {
     const sc = game.camera.x * b.par, voff = game.camera.y * b.par;
-    const tintCol = mixHex(ridge, haze, b.tintMix);
+    const tintCol = mixHex(ridgeQ, hazeQ, b.tintMix);
     const first = Math.floor((sc - 340) / b.step), last = Math.ceil((sc + LOGICAL_W + 340) / b.step);
     for (let i = first; i <= last; i++) {
       if (hash(i * 13 + b.seed) > b.skip) continue;
@@ -621,7 +646,8 @@ function drawSpan(game: Game, c: CanvasRenderingContext2D, th: Theme, a: number,
   // world-anchored texture coordinate so it never pops as the camera moves ----
   const topImg = propImgs['terrain_top'];
   if (topImg && propReady['terrain_top']) {
-    const dstH = 34, scale = dstH / topImg.height, step = 8, TW = topImg.width;
+    // PERF: 12px slices, rotation only on real slopes, no save/restore per slice
+    const dstH = 34, scale = dstH / topImg.height, step = 12, TW = topImg.width, TH = topImg.height;
     const surfAt = (sx: number) => {                      // interpolate the surface polyline at screen-x
       if (sx <= pts[0].x) return pts[0].y;
       for (let i = 1; i < pts.length; i++) if (sx <= pts[i].x) { const p0 = pts[i - 1], p1 = pts[i]; const t = (sx - p0.x) / Math.max(1e-6, p1.x - p0.x); return p0.y + (p1.y - p0.y) * t; }
@@ -634,14 +660,16 @@ function drawSpan(game: Game, c: CanvasRenderingContext2D, th: Theme, a: number,
       const ang = Math.atan2(y1 - y0, w2);
       let su = ((sx + camX) / scale) % TW; if (su < 0) su += TW;
       const srcW = (w2 + 1.5) / scale;                    // slight overlap hides slice joins
-      c.save(); c.translate(sx, y0); c.rotate(ang);
-      if (su + srcW <= TW) c.drawImage(topImg, su, 0, srcW, topImg.height, 0, -7, w2 + 1.5, dstH);
+      const flat = Math.abs(ang) < 0.03;                  // flats draw direct — no transform churn
+      if (!flat) { c.save(); c.translate(sx, y0); c.rotate(ang); }
+      const dx0 = flat ? sx : 0, dy0 = flat ? y0 - 7 : -7;
+      if (su + srcW <= TW) c.drawImage(topImg, su, 0, srcW, TH, dx0, dy0, w2 + 1.5, dstH);
       else {                                              // texture wrap: split the slice
         const w1s = (TW - su) * scale;
-        c.drawImage(topImg, su, 0, TW - su, topImg.height, 0, -7, w1s, dstH);
-        c.drawImage(topImg, 0, 0, srcW - (TW - su), topImg.height, w1s, -7, w2 + 1.5 - w1s, dstH);
+        c.drawImage(topImg, su, 0, TW - su, TH, dx0, dy0, w1s, dstH);
+        c.drawImage(topImg, 0, 0, srcW - (TW - su), TH, dx0 + w1s, dy0, w2 + 1.5 - w1s, dstH);
       }
-      c.restore();
+      if (!flat) c.restore();
     }
     // theme wash so the green strip follows each act's palette
     c.save(); c.beginPath(); traceTop();
@@ -813,11 +841,10 @@ export function drawLighting(game: Game, c: CanvasRenderingContext2D) {
     c.save();
     c.fillStyle = `rgba(6,8,20,${0.55 * night})`; c.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
     c.globalCompositeOperation = 'lighter';
+    // PERF: cached glow sprites — zero gradient allocation per frame
     const glow = (x: number, y: number, r: number, col: string, a: number) => {
-      const g = c.createRadialGradient(x, y, 0, x, y, r);
-      g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)');
-      c.globalAlpha = a * night; c.fillStyle = g;
-      c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
+      c.globalAlpha = a * night;
+      c.drawImage(glowSprite(col), x - r, y - r, r * 2, r * 2);
     };
     const p = game.player;
     glow(p.x - game.camera.x + p.w / 2, p.y - game.camera.y + p.h / 2, 150, 'rgba(150,200,255,.6)', 0.9);
@@ -830,9 +857,9 @@ export function drawLighting(game: Game, c: CanvasRenderingContext2D) {
     c.restore(); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
   } else {
     c.save(); c.globalCompositeOperation = 'lighter';
-    const g = c.createRadialGradient(772 - game.camera.x * 0.04, 92, 0, 772 - game.camera.x * 0.04, 92, 440);
-    g.addColorStop(0, 'rgba(255,200,120,.18)'); g.addColorStop(1, 'rgba(0,0,0,0)');
-    c.globalAlpha = game.dayAmount; c.fillStyle = g; c.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
+    const sx = 772 - game.camera.x * 0.04;
+    c.globalAlpha = game.dayAmount;
+    c.drawImage(glowSprite('rgba(255,200,120,.18)'), sx - 440, 92 - 440, 880, 880);
     c.restore(); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
   }
 }

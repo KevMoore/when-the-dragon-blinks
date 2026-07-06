@@ -160,10 +160,22 @@ function buildTools() {
   el.textContent = elite ? '★ elite' : '☆ elite'; el.className = elite ? 'on' : '';
   el.onclick = () => { elite = !elite; buildTools(); };
   toolsEl.appendChild(el);
-  const zb = document.createElement('button');
-  zb.textContent = zoom === 1 ? '🔍 50%' : '🔍 100%';
-  zb.onclick = () => { zoom = zoom === 1 ? 0.5 : 1; buildTools(); };
-  toolsEl.appendChild(zb);
+  const zo = document.createElement('button'); zo.textContent = '−'; zo.title = 'Zoom out'; zo.onclick = () => setZoom(zoom / 1.25); toolsEl.appendChild(zo);
+  const zl = document.createElement('button'); zl.textContent = Math.round(zoom * 100) + '%'; zl.title = 'Reset zoom'; zl.onclick = () => setZoom(1); toolsEl.appendChild(zl);
+  const zi = document.createElement('button'); zi.textContent = '+'; zi.title = 'Zoom in'; zi.onclick = () => setZoom(zoom * 1.25); toolsEl.appendChild(zi);
+  const zf = document.createElement('button'); zf.textContent = '⤢ Fit'; zf.title = 'Fit the whole level'; zf.onclick = fitZoom; toolsEl.appendChild(zf);
+}
+
+function setZoom(z: number, cx = cv.width / 2, cy = cv.height / 2) {
+  const nz = Math.max(0.1, Math.min(3, z));
+  // keep the point under (cx,cy) fixed while zooming
+  camX = camX + cx / zoom - cx / nz;
+  camY = camY + cy / zoom - cy / nz;
+  zoom = nz; clampCam(); buildTools();
+}
+function fitZoom() {
+  zoom = Math.max(0.1, Math.min(2, Math.min(cv.width / (st.w * TILE), cv.height / ((H + 2) * TILE))));
+  camX = 0; camY = -TILE; clampCam(); buildTools();
 }
 
 (document.getElementById('new') as HTMLButtonElement).onclick = () => {
@@ -271,6 +283,13 @@ function cellAt(e: PointerEvent) {
 }
 const isBrush = () => tool.length === 1 || tool === 'terrain' || tool === 'pit' || tool === 'island';
 cv.addEventListener('contextmenu', e => e.preventDefault());
+// wheel / trackpad-pinch zoom, centred on the cursor
+cv.addEventListener('wheel', e => {
+  e.preventDefault();
+  const r = cv.getBoundingClientRect();
+  const cx = (e.clientX - r.left) * (cv.width / r.width), cy = (e.clientY - r.top) * (cv.height / r.height);
+  setZoom(zoom * (e.deltaY < 0 ? 1.12 : 1 / 1.12), cx, cy);
+}, { passive: false });
 cv.addEventListener('pointerdown', e => {
   const p = cellAt(e);
   if (tool === 'Pan' || e.button === 1) { panning = true; panStart = { x: e.clientX, y: e.clientY, cx: camX, cy: camY }; return; }
@@ -323,8 +342,10 @@ window.addEventListener('keydown', e => {
   clampCam();
 });
 function clampCam() {
-  camX = Math.max(0, Math.min(st.w * TILE - cv.width / zoom, camX));
-  camY = Math.max(-40, Math.min(H * TILE - cv.height / zoom + 60, camY));
+  const maxX = Math.max(0, st.w * TILE - cv.width / zoom);
+  const maxY = Math.max(-60, H * TILE - cv.height / zoom + 60);
+  camX = Math.max(0, Math.min(maxX, camX));
+  camY = Math.max(-60, Math.min(maxY, camY));
 }
 
 // ---- ✂ Select: area move/delete ---------------------------------------------
