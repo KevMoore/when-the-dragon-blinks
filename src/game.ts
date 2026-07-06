@@ -1190,41 +1190,36 @@ export class Game {
     c.globalAlpha = 1;
   }
 
-  // Flat railed plank bridges spanning a chasm (deck level with the banks, with a
-  // tiny springy give underfoot). The player walks the deck like solid ground.
+  // Wooden bridges spanning gaps (AutoSprite 2D sprite; tiny springy give).
+  // Support uses the player's BOUNDING BOX (not centre) so there is never a
+  // dead seam between the platform edge and the deck.
   private updateBridges(dt: number) {
-    const p = this.player, pcx = p.x + p.w / 2, feet = p.y + p.h;
+    const p = this.player, feet = p.y + p.h;
     for (const b of this.bridges) {
-      const onX = pcx > b.x - 4 && pcx < b.x + b.w + 4;
+      const onX = p.x + p.w > b.x - 2 && p.x < b.x + b.w + 2;
       const surf = b.y + b.sag;
       const grab = onX && feet >= surf - 12 && feet <= surf + 26 && p.vy >= -40;
-      const target = grab ? 4 : 0;                            // subtle plank give
+      const target = grab ? 3 : 0;                            // subtle plank give
       b.sagVel += (target - b.sag) * 130 * dt; b.sagVel *= Math.pow(0.03, dt);
-      b.sag = clamp(b.sag + b.sagVel * dt, -2, 7);
+      b.sag = clamp(b.sag + b.sagVel * dt, -2, 6);
       if (grab) { p.y = surf - p.h; p.vy = 0; p.grounded = true; }
     }
   }
   private drawBridges(c: CanvasRenderingContext2D) {
+    const spr = stills.bridge;
     for (const b of this.bridges) {
       const x0 = b.x - this.camera.x, deckY = b.y - this.camera.y + b.sag, w = b.w;
       c.save();
-      // diagonal support struts from the deck down toward the banks
-      c.strokeStyle = '#5a3c22'; c.lineWidth = 5; c.lineCap = 'round';
-      for (const [sx, dir] of [[x0 + 18, -1], [x0 + w - 18, 1], [x0 + w * 0.5, 0]] as [number, number][]) {
-        c.beginPath(); c.moveTo(sx, deckY + 9); c.lineTo(sx + dir * 12, deckY + 74); c.stroke();
+      if (spr?.ready) {
+        // stretch the wooden bridge across the span; its walk surface sits at
+        // ~26% down the sprite (posts above, arched underside hanging below)
+        const dw = w + 26, dh = dw * (spr.img.height / spr.img.width);
+        c.shadowColor = 'rgba(0,0,0,.35)'; c.shadowBlur = 8;
+        c.drawImage(spr.img, x0 - 13, deckY - dh * 0.26, dw, dh);
+      } else {
+        c.fillStyle = '#6f5230'; c.fillRect(x0, deckY, w, 11);
+        c.fillStyle = '#8a6b45'; c.fillRect(x0, deckY, w, 4);
       }
-      // deck planks
-      c.fillStyle = '#6f5230'; c.fillRect(x0, deckY, w, 11);
-      c.fillStyle = '#8a6b45'; c.fillRect(x0, deckY, w, 4);
-      c.fillStyle = 'rgba(0,0,0,.28)'; for (let px = x0 + 8; px < x0 + w; px += 15) c.fillRect(px, deckY, 2, 11);
-      // railing: posts + top & mid rails on both banks' side
-      c.fillStyle = '#5a3c22';
-      const posts = Math.max(4, Math.round(w / 46));
-      for (let k = 0; k <= posts; k++) { const px = x0 + (w) * (k / posts) - 2; c.fillRect(px, deckY - 24, 4, 24); }
-      c.fillStyle = '#7a5a34'; c.fillRect(x0 - 2, deckY - 26, w + 4, 5);   // top rail
-      c.fillStyle = '#6a4526'; c.fillRect(x0 - 2, deckY - 14, w + 4, 4);   // mid rail
-      // end caps on the banks
-      c.fillStyle = '#4a3018'; c.fillRect(x0 - 6, deckY - 28, 8, 40); c.fillRect(x0 + w - 2, deckY - 28, 8, 40);
       c.restore();
     }
   }
