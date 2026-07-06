@@ -80,6 +80,7 @@ if (_q.has('nova')) { const h = () => { (game as any).novaT = 0.42; const p = ga
 if (_q.has('death')) { const h = () => { (game as any).deathT = 0.65; const p = game.player; (game as any).deathX = p.x + p.w / 2; (game as any).deathY = p.y + p.h / 2; requestAnimationFrame(h); }; h(); }
 if (_q.has('bridge')) { setTimeout(() => { const b = (game as any).bridges[0]; if (b) { game.player.x = b.x + b.w / 2; game.player.y = b.y - game.player.h; } }, 150); }
 if (_q.has('guqin')) { (game as any).startGuqin(1); }
+if (_q.has('dawn')) { (game as any).startDawn(1); }
 // dev aid: hold an aim pose for screenshots — ?pose=up|updiag|down|downdiag
 if (_q.has('pose')) {
   const m: Record<string, [number, number]> = { up: [0, -1], updiag: [0.7, -0.7], down: [0, 1], downdiag: [0.7, 0.7] };

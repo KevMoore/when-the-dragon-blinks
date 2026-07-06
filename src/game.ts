@@ -9,6 +9,7 @@ import { Camera } from './camera.js';
 import { Particles } from './particles.js';
 import { Player } from './player.js';
 import { GuqinGame } from './guqin.js';
+import { DawnGame } from './dawn.js';
 import { Enemy } from './enemy.js';
 import { LanternEater } from './boss.js';
 import { Platform } from './platform.js';
@@ -61,7 +62,8 @@ export class Game {
   nova = 0.35;               // 0..1 inner energy — full → hold fire to unleash a Nova burst
   novaT = 0; novaX = 0; novaY = 0;   // burst animation
   dragonSpawnT = 1.2;        // reinforcement timer while the dragon is loose
-  guqin: GuqinGame | null = null; guqinNext = 0;   // secret end-of-level mini-game
+  guqin: GuqinGame | null = null; guqinNext = 0;   // secret end-of-level mini-games
+  dawn: DawnGame | null = null; dawnNext = 0;
   gems: { x: number; y: number; taken: boolean; rt: number }[] = [];
   bridges: { x: number; y: number; w: number; sag: number; sagVel: number; loadU: number }[] = [];
   embers: Ember[] = [];
@@ -536,6 +538,7 @@ export class Game {
       case 'paused': this.updatePause(); break;
       case 'levelComplete': this.updateLevelComplete(); break;
       case 'guqin': this.guqin?.update(dt); break;
+      case 'dawn': this.dawn?.update(dt); break;
       case 'gameComplete': this.updateGameComplete(); break;
     }
 
@@ -833,22 +836,31 @@ export class Game {
   private updateLevelComplete() {
     if (this.input.just('confirm') || this.input.pointer?.clicked) {
       const next = this.level.hidden ? this.hiddenReturn : this.currentLevelIndex + 1;
-      // a hidden guqin rests at a few shrines — play it for bonus embers before moving on
+      // a hidden mini-game rests at a few shrines — play for bonus embers before moving on
       if (!this.level.hidden && this.guqinDueFor(this.currentLevelIndex)) { this.startGuqin(next); return; }
+      if (!this.level.hidden && this.dawnDueFor(this.currentLevelIndex)) { this.startDawn(next); return; }
       if (next >= 0 && next < levels.length && !levels[next].hidden) this.startLevel(next, true); else this.state = 'gameComplete';
     }
     if (this.input.just('back')) this.state = 'title';
   }
 
-  private guqinPlayed = new Set<number>();
-  private guqinDueFor(idx: number) { return [2, 7, 13, 19].includes(idx) && !this.guqinPlayed.has(idx); }
+  private minigamePlayed = new Set<string>();
+  private guqinDueFor(idx: number) { return [2, 7, 13, 19].includes(idx) && !this.minigamePlayed.has('g' + idx); }
+  private dawnDueFor(idx: number) { return [4, 10, 16, 21].includes(idx) && !this.minigamePlayed.has('d' + idx); }
   startGuqin(next: number) {
-    this.guqinPlayed.add(this.currentLevelIndex);
-    this.guqin = new GuqinGame(this); this.guqinNext = next; this.state = 'guqin';
-    this.audio.sfx('shrine');
+    this.minigamePlayed.add('g' + this.currentLevelIndex);
+    this.guqin = new GuqinGame(this); this.guqinNext = next; this.state = 'guqin'; this.audio.sfx('shrine');
   }
   finishGuqin() {
     const next = this.guqinNext; this.guqin = null; this.persistSave();
+    if (next >= 0 && next < levels.length && !levels[next].hidden) this.startLevel(next, true); else this.state = 'gameComplete';
+  }
+  startDawn(next: number) {
+    this.minigamePlayed.add('d' + this.currentLevelIndex);
+    this.dawn = new DawnGame(this); this.dawnNext = next; this.state = 'dawn'; this.audio.sfx('shrine');
+  }
+  finishDawn() {
+    const next = this.dawnNext; this.dawn = null; this.persistSave();
     if (next >= 0 && next < levels.length && !levels[next].hidden) this.startLevel(next, true); else this.state = 'gameComplete';
   }
   // Reaching a level's secret exit warps to a hidden level, resuming the normal
@@ -888,6 +900,7 @@ export class Game {
       case 'title': bg.drawSky(this, c); bg.drawParallax(this, c); this.particles.draw(c, 0, 0, this.world); ui.drawTitle(this, c); break;
       case 'levelSelect': bg.drawSky(this, c); bg.drawParallax(this, c); ui.drawLevelSelect(this, c); break;
       case 'guqin': bg.drawSky(this, c); bg.drawParallax(this, c); this.particles.draw(c, 0, 0, this.world); this.guqin?.draw(c); break;
+      case 'dawn': bg.drawSky(this, c); bg.drawParallax(this, c); this.particles.draw(c, 0, 0, this.world); this.dawn?.draw(c); break;
       case 'codex': bg.drawSky(this, c); bg.drawParallax(this, c); ui.drawCodex(this, c); break;
       case 'settings':
         if (this.settingsReturn === 'paused') this.drawWorld(c); else { bg.drawSky(this, c); bg.drawParallax(this, c); }

@@ -107,6 +107,9 @@ if (_q.has('bridge')) {
 if (_q.has('guqin')) {
     game.startGuqin(1);
 }
+if (_q.has('dawn')) {
+    game.startDawn(1);
+}
 // dev aid: hold an aim pose for screenshots — ?pose=up|updiag|down|downdiag
 if (_q.has('pose')) {
     const m = { up: [0, -1], updiag: [0.7, -0.7], down: [0, 1], downdiag: [0.7, 0.7] };
