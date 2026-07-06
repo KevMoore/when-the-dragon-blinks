@@ -67,6 +67,7 @@ export class Game {
         this.novaT = 0;
         this.novaX = 0;
         this.novaY = 0; // burst animation
+        this.dragonSpawnT = 1.2; // reinforcement timer while the dragon is loose
         this.gems = [];
         this.bridges = [];
         this.embers = [];
@@ -113,7 +114,7 @@ export class Game {
         this.audio.setWorld('day', true);
         this.player.reset(this.level.spawn);
         this.player.checkpoint = { ...this.level.spawn };
-        this.enemies = this.level.entities.map(e => new Enemy(e.kind, e.x, e.y));
+        this.enemies = this.level.entities.map(e => new Enemy(e.kind, e.x, e.y, e.elite));
         for (const en of this.enemies)
             this.snapEnemySpawn(en);
         this.platforms = (this.level.platforms || []).map(p => new Platform(p));
@@ -792,6 +793,21 @@ export class Game {
         if (this.player.dragonTime <= 0)
             this.nova = Math.min(1, this.nova + dt / 34); // inner energy creeps back
         this.novaT = Math.max(0, this.novaT - dt);
+        // Zhulong loose → the dark spirits summon reinforcements from off-screen to bring the dragon down
+        if (this.player.dragonTime > 0 && !this.boss) {
+            this.dragonSpawnT -= dt;
+            const alive = this.enemies.reduce((n, e) => n + (e.alive ? 1 : 0), 0);
+            if (this.dragonSpawnT <= 0 && alive < 16) {
+                this.dragonSpawnT = 1.1 + Math.random() * 0.8;
+                const side = Math.random() < 0.5 ? -1 : 1;
+                const ex = this.camera.x + (side < 0 ? -50 : LOGICAL_W + 50);
+                const pool = this.world === 'night' ? ['wisp', 'skull', 'wraith'] : ['moth', 'crow', 'sentry'];
+                for (let n = 0; n < 2; n++)
+                    this.spawnEnemy(pool[Math.floor(Math.random() * pool.length)], ex + n * 34 * side, this.camera.y + 110 + Math.random() * 180);
+            }
+        }
+        else if (this.player.dragonTime <= 0)
+            this.dragonSpawnT = 1.2;
         // boss-arena storm: periodic lightning strikes — near-constant flicker once
         // the Lantern Eater is in its final phase (flash + bolt + thunder + shake)
         if (this.level.isBoss) {
@@ -1815,72 +1831,62 @@ export class Game {
         }
         c.globalAlpha = 1;
     }
-    // Wobbling rope bridges: the plank under the player sags and springs (wobble);
-    // the player stands on the sagging surface.
+    // Flat railed plank bridges spanning a chasm (deck level with the banks, with a
+    // tiny springy give underfoot). The player walks the deck like solid ground.
     updateBridges(dt) {
         const p = this.player, pcx = p.x + p.w / 2, feet = p.y + p.h;
         for (const b of this.bridges) {
             const onX = pcx > b.x - 2 && pcx < b.x + b.w + 2;
-            const u = clamp((pcx - b.x) / b.w, 0, 1);
-            const base = Math.sin(u * Math.PI) * 5;
-            const surf = b.y + base + b.sag; // surface right under the player
-            const grab = onX && feet >= surf - 9 && feet <= surf + 28 && p.vy >= -40;
-            const target = grab ? 26 : 0;
-            b.sagVel += (target - b.sag) * 140 * dt;
-            b.sagVel *= Math.pow(0.02, dt); // damping → wobble decays
-            b.sag = clamp(b.sag + b.sagVel * dt, -7, 46);
+            const surf = b.y + b.sag;
+            const grab = onX && feet >= surf - 10 && feet <= surf + 22 && p.vy >= -40;
+            const target = grab ? 4 : 0; // subtle plank give
+            b.sagVel += (target - b.sag) * 130 * dt;
+            b.sagVel *= Math.pow(0.03, dt);
+            b.sag = clamp(b.sag + b.sagVel * dt, -2, 7);
             if (grab) {
                 p.y = surf - p.h;
                 p.vy = 0;
                 p.grounded = true;
-                b.loadU = u;
             }
-            else
-                b.loadU += (0.5 - b.loadU) * 0.06;
         }
     }
     drawBridges(c) {
-        const spr = stills.bridge;
         for (const b of this.bridges) {
-            const x0 = b.x - this.camera.x, y0 = b.y - this.camera.y;
-            const droop = (u) => Math.sin(u * Math.PI) * 5 + b.sag * Math.max(0, 1 - Math.abs(u - b.loadU) * 2.2);
+            const x0 = b.x - this.camera.x, deckY = b.y - this.camera.y + b.sag, w = b.w;
             c.save();
-            // anchor posts on both banks
-            c.fillStyle = '#4a3018';
-            c.fillRect(x0 - 6, y0 - 22, 7, 34);
-            c.fillRect(x0 + b.w - 1, y0 - 22, 7, 34);
-            c.fillStyle = '#6a4526';
-            c.fillRect(x0 - 6, y0 - 22, 7, 4);
-            c.fillRect(x0 + b.w - 1, y0 - 22, 7, 4);
-            if (spr?.ready) {
-                // bend the bridge sprite along the sag curve, drawn as vertical strips
-                const img = spr.img, BH = 54, strips = Math.max(28, Math.floor(b.w / 5)), sStep = img.width / strips, dStep = b.w / strips;
-                for (let i = 0; i < strips; i++) {
-                    const u = (i + 0.5) / strips, cy = y0 + droop(u);
-                    c.drawImage(img, i * sStep, 0, sStep + 0.8, img.height, x0 + u * b.w, cy - BH * 0.36, dStep + 0.8, BH);
-                }
-            }
-            else {
-                const N = Math.max(7, Math.floor(b.w / 15)), pts = [];
-                for (let i = 0; i <= N; i++) {
-                    const u = i / N;
-                    pts.push({ x: x0 + u * b.w, y: y0 + droop(u) });
-                }
-                c.strokeStyle = '#6b4a2a';
-                c.lineWidth = 2;
+            // diagonal support struts from the deck down toward the banks
+            c.strokeStyle = '#5a3c22';
+            c.lineWidth = 5;
+            c.lineCap = 'round';
+            for (const [sx, dir] of [[x0 + 18, -1], [x0 + w - 18, 1], [x0 + w * 0.5, 0]]) {
                 c.beginPath();
-                pts.forEach((pt, i) => i ? c.lineTo(pt.x, pt.y) : c.moveTo(pt.x, pt.y));
+                c.moveTo(sx, deckY + 9);
+                c.lineTo(sx + dir * 12, deckY + 74);
                 c.stroke();
-                for (let i = 0; i < N; i++) {
-                    const a = pts[i], d = pts[i + 1], mx = (a.x + d.x) / 2, my = (a.y + d.y) / 2;
-                    c.save();
-                    c.translate(mx, my);
-                    c.rotate(Math.atan2(d.y - a.y, d.x - a.x));
-                    c.fillStyle = '#8a6b45';
-                    c.fillRect(-8, -2, 16, 5);
-                    c.restore();
-                }
             }
+            // deck planks
+            c.fillStyle = '#6f5230';
+            c.fillRect(x0, deckY, w, 11);
+            c.fillStyle = '#8a6b45';
+            c.fillRect(x0, deckY, w, 4);
+            c.fillStyle = 'rgba(0,0,0,.28)';
+            for (let px = x0 + 8; px < x0 + w; px += 15)
+                c.fillRect(px, deckY, 2, 11);
+            // railing: posts + top & mid rails on both banks' side
+            c.fillStyle = '#5a3c22';
+            const posts = Math.max(4, Math.round(w / 46));
+            for (let k = 0; k <= posts; k++) {
+                const px = x0 + (w) * (k / posts) - 2;
+                c.fillRect(px, deckY - 24, 4, 24);
+            }
+            c.fillStyle = '#7a5a34';
+            c.fillRect(x0 - 2, deckY - 26, w + 4, 5); // top rail
+            c.fillStyle = '#6a4526';
+            c.fillRect(x0 - 2, deckY - 14, w + 4, 4); // mid rail
+            // end caps on the banks
+            c.fillStyle = '#4a3018';
+            c.fillRect(x0 - 6, deckY - 28, 8, 40);
+            c.fillRect(x0 + w - 2, deckY - 28, 8, 40);
             c.restore();
         }
     }

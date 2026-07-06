@@ -14,13 +14,13 @@ import type { Game } from './game.js';
 export class Enemy {
   kind: EntityKind;
   x: number; y: number; w = 28; h = 28; vx = 0; vy = 0;
-  alive = true; hp = 2; baseY: number; baseX: number;
+  alive = true; hp = 2; maxHp = 2; baseY: number; baseX: number;
   phase = Math.random() * 10; flash = 0; fireTimer = rand(1, 2.4);
-  points = 100; grounded = false; aggro = 340;
+  points = 100; grounded = false; aggro = 340; elite = false;
   brain: Brain;
   bb: Record<string, any> = {};
 
-  constructor(kind: EntityKind, x: number, y: number) {
+  constructor(kind: EntityKind, x: number, y: number, elite = false) {
     this.kind = kind; this.x = x; this.y = y; this.baseY = y; this.baseX = x;
     if (kind === 'moth') this.points = 100;
     if (kind === 'wisp') this.points = 120;
@@ -36,8 +36,21 @@ export class Enemy {
       : (kind === 'ghoul' || kind === 'crawler' || kind === 'guardian' || kind === 'sentinel') ? groundBrain()
         : flyerBrain();
     this.aggro = kind === 'sentry' ? 420 : kind === 'skull' ? 360 : (kind === 'ghoul' || kind === 'crawler' || kind === 'guardian' || kind === 'sentinel') ? 300 : 340;
+    // elite = end-of-level mini-boss: much bigger, tankier, hits harder, wider reach
+    this.elite = elite;
+    if (elite) { this.hp = Math.round(this.hp * 3.4); this.w = Math.round(this.w * 1.5); this.h = Math.round(this.h * 1.5); this.points *= 4; this.aggro = 640; }
+    this.maxHp = this.hp;
   }
   rect(): Rect { return { x: this.x, y: this.y, w: this.w, h: this.h }; }
+  private drawEliteBar(game: Game, c: CanvasRenderingContext2D, sx: number, sy: number) {
+    const bw = this.w + 22, bx = sx + this.w / 2 - bw / 2, by = sy - this.h - 12;
+    c.save();
+    c.fillStyle = 'rgba(0,0,0,.65)'; c.fillRect(bx, by, bw, 6);
+    c.strokeStyle = 'rgba(255,220,150,.5)'; c.lineWidth = 1; c.strokeRect(bx + .5, by + .5, bw, 6);
+    c.fillStyle = game.world === 'night' ? '#b07aff' : '#ff5a30';
+    c.fillRect(bx + 1, by + 1, (bw - 2) * Math.max(0, this.hp / this.maxHp), 4);
+    c.restore();
+  }
 
   // is there solid ground just ahead in `dir` (so a walker won't step into a pit)?
   private groundAhead(game: Game, dir: number): boolean {
@@ -131,6 +144,15 @@ export class Enemy {
     if (!this.alive) return;
     const sx = this.x - game.camera.x, sy = this.y - game.camera.y;
 
+    // elite mini-boss: a menacing pulsing aura beneath everything
+    if (this.elite) {
+      const cx = sx + this.w / 2, cy = sy + this.h / 2, gr = this.w * (2 + Math.sin(game.time * 4) * 0.12);
+      c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.5;
+      const eg = c.createRadialGradient(cx, cy, 0, cx, cy, gr);
+      eg.addColorStop(0, game.world === 'night' ? 'rgba(150,90,255,.6)' : 'rgba(255,90,40,.6)'); eg.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = eg; c.beginPath(); c.arc(cx, cy, gr, 0, Math.PI * 2); c.fill(); c.restore(); c.globalAlpha = 1;
+    }
+
     // aura so the enemy always reads against terrain (also myth-codes day/night)
     {
       const cx = sx + this.w / 2, cy = sy + this.h / 2, gr = this.w * 1.25;
@@ -158,6 +180,7 @@ export class Enemy {
       c.scale(face, 1);
       sheet.blit(c, sheet.frameAt(game.time + this.phase), targetH, grounded);
       c.restore(); c.globalAlpha = 1;
+      if (this.elite) this.drawEliteBar(game, c, sx, sy);
       return;
     }
 

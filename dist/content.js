@@ -150,7 +150,7 @@ function buildLevel(spec, index) {
         entities.push({ kind, x: ex * TILE, y: (isFlyer(kind) ? gr - 6 - Math.floor(r() * 3) : gr - 2) * TILE });
     }
     if (spec.miniBoss)
-        entities.push({ kind: 'sentinel', x: Math.floor(w * 0.84) * TILE, y: (gr - 2) * TILE });
+        entities.push({ kind: 'sentinel', x: Math.floor(w * 0.84) * TILE, y: (gr - 3) * TILE, elite: true });
     // vertical climb towers: zig-zag stacks of one-way + day/night platforms to
     // ascend, with a gem reward up top and enemies perched along the way
     const climbs = 1 + Math.floor(w / 68);
@@ -169,17 +169,27 @@ function buildLevel(spec, index) {
                 entities.push({ kind: spec.pal[Math.floor(r() * spec.pal.length)], x: (px + 1) * TILE, y: (py - 2) * TILE });
         }
     }
-    // a wobbling rope bridge over a carved chasm (Act II onward)
+    // a railed plank bridge spanning a real carved chasm (Act II onward)
     const bridges = [];
     if (spec.act >= 2 && w > 112 && !spec.boss) {
-        const gt = topAt(segs, Math.floor(w * 0.57) - 1), gx = Math.floor(w * 0.57), gw = 6 + Math.floor(r() * 2);
-        for (let cx = gx - 1; cx <= gx + gw; cx++) {
+        const gx = Math.floor(w * 0.52), gw = 6 + Math.floor(r() * 3), gt = topAt(segs, gx - 1);
+        // level the two banks to the same height so the deck sits flat
+        for (let cx = gx - 2; cx < gx; cx++) {
             setTile(m, cx, gt, 'g');
             for (let cy = gt + 1; cy < h; cy++)
-                setTile(m, cx, cy, cx < gx || cx >= gx + gw ? '#' : '.');
+                setTile(m, cx, cy, '#');
         }
+        for (let cx = gx + gw; cx < gx + gw + 2; cx++) {
+            setTile(m, cx, gt, 'g');
+            for (let cy = gt + 1; cy < h; cy++)
+                setTile(m, cx, cy, '#');
+        }
+        // carve the true gap in the middle (no surface at all) with spikes below
+        for (let cx = gx; cx < gx + gw; cx++)
+            for (let cy = gt; cy < h; cy++)
+                setTile(m, cx, cy, '.');
         row(m, gx, h - 2, gw, '^');
-        bridges.push({ x: gx * TILE, y: gt * TILE + 2, w: gw * TILE });
+        bridges.push({ x: gx * TILE, y: gt * TILE, w: gw * TILE });
     }
     // secret exit → a hidden level (a high night-ledge to find)
     let secretExit, secretExitTo;
