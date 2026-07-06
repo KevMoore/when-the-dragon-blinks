@@ -128,9 +128,42 @@ export class Game {
         if (!this.save.codex.includes(id))
             this.save.codex.push(id); this.persistSave(); }
     // ---- level lifecycle ---------------------------------------------------
+    // Fill 1-tile-wide surface cracks and shave 1-tile spikes — hairline notches
+    // from hand-drawn terrain caught players and read as rendering cracks.
+    smoothTerrain(level) {
+        const h = level.height, w = level.width;
+        const isT = (ch) => ch === '#' || ch === 'g';
+        const surf = (x) => { for (let y = 0; y < h; y++)
+            if (isT(level.tiles[y]?.[x] || '.'))
+                return y; return -1; };
+        const setT = (x, y, ch) => { const r = level.tiles[y]; level.tiles[y] = r.slice(0, x) + ch + r.slice(x + 1); };
+        for (let pass = 0; pass < 2; pass++) {
+            for (let x = 1; x < w - 1; x++) {
+                const s = surf(x), l = surf(x - 1), r = surf(x + 1);
+                if (s < 0 || l < 0 || r < 0)
+                    continue;
+                if (s > l && s > r) { // 1-wide crack → fill to the lower neighbour
+                    for (let y = Math.max(l, r); y < s; y++)
+                        setT(x, y, '#');
+                }
+                else if (s < l && s < r) { // 1-wide spike → shave to the higher neighbour
+                    for (let y = s; y < Math.min(l, r); y++)
+                        setT(x, y, '.');
+                }
+            }
+        }
+        // re-cap: terrain with air above becomes grass, the rest stone
+        for (let x = 0; x < w; x++)
+            for (let y = 0; y < h; y++) {
+                if (!isT(level.tiles[y]?.[x] || '.'))
+                    continue;
+                setT(x, y, y > 0 && isT(level.tiles[y - 1]?.[x] || '.') ? '#' : 'g');
+            }
+    }
     startLevel(i, withIntro = true) {
         this.currentLevelIndex = clamp(i, 0, levels.length - 1);
         this.level = levels[this.currentLevelIndex];
+        this.smoothTerrain(this.level);
         // rising stakes as you climb toward the eye (per-level, from the arc spec)
         this.difficulty = this.level.difficulty ?? 1.0;
         this.world = 'day';

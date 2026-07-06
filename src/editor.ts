@@ -121,6 +121,16 @@ function setSurface(x: number, y: number) {
 }
 function clearColumn(x: number) { for (let cy = 0; cy < H; cy++) if (isTerrainCh(tileAt(x, cy))) setTile(x, cy, '.'); }
 function normalize() {
+  // smooth hairline defects first: fill 1-wide cracks, shave 1-wide spikes
+  const surfT = (x: number) => { for (let y = 0; y < H; y++) if (isTerrainCh(tileAt(x, y))) return y; return -1; };
+  for (let pass = 0; pass < 2; pass++) {
+    for (let x = 1; x < st.w - 1; x++) {
+      const s = surfT(x), l = surfT(x - 1), r = surfT(x + 1);
+      if (s < 0 || l < 0 || r < 0) continue;
+      if (s > l && s > r) { for (let y = Math.max(l, r); y < s; y++) setTile(x, y, '#'); }
+      else if (s < l && s < r) { for (let y = s; y < Math.min(l, r); y++) setTile(x, y, '.'); }
+    }
+  }
   for (let x = 0; x < st.w; x++) for (let y = 0; y < H; y++) {
     if (!isTerrainCh(tileAt(x, y))) continue;
     setTile(x, y, isTerrainCh(tileAt(x, y - 1)) ? '#' : 'g');
