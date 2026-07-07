@@ -7,8 +7,10 @@
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; height: 100%; overflow: hidden; background: radial-gradient(circle at 50% 30%, #301226, #0a0611 70%); font-family: Georgia, 'Times New Roman', serif; color: white; }
-#game-shell { position: fixed; inset: 0; display: grid; place-items: center; touch-action: none; user-select: none; }
-#game { width: 100vw; height: 100vh; object-fit: contain; display: block; image-rendering: auto; touch-action: none; }
+/* fixed to the *visible* viewport: dvh tracks the mobile URL bar collapsing so
+   the game fills the screen and nothing hides behind browser chrome */
+#game-shell { position: fixed; inset: 0; height: 100vh; height: 100dvh; display: grid; place-items: center; touch-action: none; user-select: none; }
+#game { width: 100vw; width: 100dvw; height: 100vh; height: 100dvh; object-fit: contain; display: block; image-rendering: auto; touch-action: none; }
 /* kill double-tap-to-zoom / text selection on every interactive surface */
 #game, #touch-controls, #touch-controls button, #touch-pause, .rotate-card { touch-action: none; -webkit-user-select: none; user-select: none; }
 #rotate-overlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; padding: 24px; background: radial-gradient(circle at 50% 35%, #331329, #08050d); z-index: 10; }
@@ -64,3 +66,27 @@ body.lefty .touch-right button[data-action="toggle"] { right: auto; left: 59px; 
 @media (pointer: coarse) and (orientation: landscape) { body.playing #touch-controls { display: block; } body.playing #touch-pause, body.paused #touch-pause, body.playing #auto-fire { display: block; } }
 body.force-touch.playing #touch-controls, body.force-touch.playing #touch-pause, body.force-touch.paused #touch-pause, body.force-touch.playing #auto-fire { display: block; }
 @media (orientation: portrait) and (max-width: 900px) { #rotate-overlay { display: flex; } #touch-controls, #touch-pause { display: none; } }
+/* iPhone Safari immersive: scroll-to-hide the URL/tab bars, then lock the
+   collapsed state. Only main.ts toggles html.isl-open / html.isl-locked, and
+   only on iPhone in-browser. Adapted from Playgama/hide-mobile-safari-tabs —
+   simplified because #game-shell is position:fixed and stays pinned while the
+   page scrolls, so no sticky-holder reparenting is needed. */
+html.isl-open, html.isl-open body { overflow: visible; height: auto; min-height: 100%; }
+/* let a vertical swipe on the game surface scroll the page (collapsing the bars) */
+html.isl-open #game-shell, html.isl-open #game { touch-action: pan-y; }
+html.isl-locked, html.isl-locked body { overflow: hidden; height: 100dvh; overscroll-behavior: none; }
+/* tall, invisible, in-flow: gives the document something to scroll while open */
+#isl-spacer { display: none; width: 1px; height: 500vh; opacity: 0; pointer-events: none; }
+html.isl-open #isl-spacer { display: block; }
+#isl-hint { position: fixed; top: calc(env(safe-area-inset-top) + 10px); left: 50%; transform: translateX(-50%); z-index: 21; display: none; align-items: center; padding: 9px 18px; border-radius: 999px; background: rgba(12,6,18,.74); color: #fff1ca; border: 1px solid rgba(246,191,94,.42); font: 500 13px Georgia, serif; box-shadow: 0 8px 26px rgba(0,0,0,.5); backdrop-filter: blur(10px) saturate(150%); -webkit-backdrop-filter: blur(10px) saturate(150%); pointer-events: none; white-space: nowrap; }
+html.isl-open #isl-hint { display: flex; }
+/* "Add to Home Screen / Install for fullscreen" nudge — the only route to true
+   fullscreen from a shared link on iOS Safari; Android gets a real Install button.
+   Hidden by default; main.ts unhides it only in-browser on mobile. */
+#install-hint { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom) + 12px); z-index: 20; display: flex; align-items: center; gap: 12px; max-width: min(92vw, 560px); padding: 10px 12px 10px 16px; border-radius: 16px; border: 1px solid rgba(246,191,94,.4); background: rgba(16,8,22,.86); color: #fff1ca; font: 500 13px/1.35 Georgia, serif; box-shadow: 0 10px 34px rgba(0,0,0,.5); backdrop-filter: blur(12px) saturate(150%); -webkit-backdrop-filter: blur(12px) saturate(150%); }
+#install-hint[hidden] { display: none; }
+#install-text { flex: 1; }
+#install-hint b { color: #ffd777; }
+#install-go { flex: none; padding: 8px 14px; border-radius: 12px; border: 1px solid rgba(255,210,120,.7); color: #1a0c04; font: 700 13px Georgia, serif; background: linear-gradient(150deg, #ffd88a, #f6bf5e); cursor: pointer; }
+#install-go[hidden] { display: none; }
+#install-dismiss { flex: none; width: 30px; height: 30px; border-radius: 999px; border: 1px solid rgba(255,255,255,.22); background: rgba(255,255,255,.08); color: #fff1ca; font-size: 13px; cursor: pointer; }

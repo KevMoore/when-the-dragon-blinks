@@ -37,7 +37,10 @@ function resize() {
   // noise along the canvas edges — so WebKit keeps the original, long-proven
   // `object-fit: contain` path untouched.
   if (!/Chrome\//.test(navigator.userAgent)) return;
-  const vw = window.innerWidth, vh = window.innerHeight;
+  // visualViewport tracks the *visible* area as the mobile URL bar collapses;
+  // innerWidth/Height lag behind it. Fall back when it's unavailable.
+  const vp = window.visualViewport;
+  const vw = Math.round(vp?.width || window.innerWidth), vh = Math.round(vp?.height || window.innerHeight);
   if (!(vw > 0 && vh > 0)) return;   // can report 0 mid-rotation — keep the previous geometry
   const s = Math.min(vw / LOGICAL_W, vh / LOGICAL_H);
   const w = Math.floor(LOGICAL_W * s), h = Math.floor(LOGICAL_H * s);
@@ -47,6 +50,8 @@ function resize() {
   canvas.style.top = Math.round((vh - h) / 2) + 'px';
 }
 window.addEventListener('resize', resize);
+// Re-fit as the URL bar shows/hides (fires without a full 'resize' on mobile).
+window.visualViewport?.addEventListener('resize', resize);
 resize();
 
 // Mobile: kill double-tap-to-zoom and pinch-zoom. iOS Safari ignores both
@@ -74,13 +79,142 @@ if (_coarse) {
       }
     } catch {}
     try { (screen.orientation as any)?.lock?.('landscape')?.catch?.(() => {}); } catch {}
-    window.scrollTo(0, 1);   // nudge older mobile browsers to hide the URL bar
+    // nudge older mobile browsers to hide the URL bar — but not on iPhone, where
+    // the scroll-to-hide module below owns the scroll position
+    if (!(window as any).__islActive) window.scrollTo(0, 1);
   };
   const arm = () => goFullscreen();
   window.addEventListener('pointerdown', arm, { passive: true });
   window.addEventListener('touchend', arm, { passive: true });
   window.addEventListener('orientationchange', () => setTimeout(goFullscreen, 250));
 }
+
+// iPhone Safari / iOS Chrome, in-browser (NOT installed): reclaim the URL + tab
+// bars without requiring Add-to-Home-Screen. iOS exposes no Fullscreen API for
+// elements, but the bars auto-minimize when a scrollable page is scrolled — so
+// we make the document scrollable (a tall spacer), prompt one upward swipe, then
+// LOCK the collapsed state (overflow:hidden; height:100dvh) so the bars can't
+// creep back. Adapted from Playgama/hide-mobile-safari-tabs; simplified because
+// #game-shell is position:fixed and stays pinned during the scroll, so we skip
+// their sticky-holder reparenting. Runs on iPhone AND iPad (iPadOS Safari
+// masquerades as "Macintosh", so we detect it via touch points). The Fullscreen
+// API path above still fires on iPad and, if it succeeds, simply makes measure()
+// see a full viewport and lock immediately. Portrait defers to the Rotate overlay.
+(() => {
+  const ua = navigator.userAgent;
+  // iPadOS Safari reports UA "Macintosh" (desktop-class); detect it via touch.
+  const isIPad = /iPad/.test(ua) || (navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1);
+  const isIOS = /iPhone|iPod/.test(ua) || isIPad;
+  const installed = (navigator as any).standalone === true
+    || window.matchMedia('(display-mode: standalone)').matches
+    || window.matchMedia('(display-mode: fullscreen)').matches;
+  const vp = window.visualViewport;
+  const hint = document.getElementById('isl-hint');
+  if (!isIOS || installed || !vp) return;
+  (window as any).__islActive = true;
+
+  const root = document.documentElement;
+  let open = true, rafId = 0, lockTimer = 0;
+
+  const apply = (o: boolean) => {
+    root.classList.toggle('isl-open', o);
+    root.classList.toggle('isl-locked', !o);
+    hint?.classList.toggle('is-visible', o);
+    if (typeof resize === 'function') resize();   // refit the canvas to the new viewport height
+  };
+
+  const measure = () => {
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(() => {
+      // portrait → the Rotate overlay covers the screen; go neutral, don't fight the bars
+      if (window.matchMedia('(orientation: portrait)').matches) {
+        root.classList.remove('isl-open', 'isl-locked');
+        hint?.classList.remove('is-visible');
+        open = false;   // re-evaluates on the next landscape measure
+        return;
+      }
+      const screenShort = Math.min(screen.width, screen.height);   // = landscape viewport height at full screen
+      // TOLERANCE: how much shorter than full the viewport must be to count as
+      // "bars showing". Bigger = locks with a sliver of bar still up. Tune on-device.
+      const TOLERANCE = 30;
+      const nowOpen = vp.height + vp.offsetTop < screenShort - TOLERANCE;
+      if (nowOpen === open) return;
+      open = nowOpen;
+      // settle before locking so the height we freeze is the fully-collapsed one
+      if (lockTimer) clearTimeout(lockTimer);
+      lockTimer = window.setTimeout(() => apply(open), open ? 0 : 120);
+    });
+  };
+
+  apply(true);   // start scrollable + prompting; measure() corrects if already collapsed
+  for (const ev of ['resize', 'orientationchange', 'scroll'] as const) {
+    window.addEventListener(ev, measure, { passive: true });
+  }
+  vp.addEventListener('resize', measure, { passive: true });
+  vp.addEventListener('scroll', measure, { passive: true });
+  measure();
+})();
+
+// Install / Add-to-Home-Screen nudge. In-browser from a shared link, mobile
+// browsers keep their URL + tab bars — the only way to a truly chrome-free,
+// landscape-locked window is to INSTALL the app (manifest display:fullscreen).
+// Android exposes a real install prompt; iOS Safari has no API, so we point the
+// user at Share → Add to Home Screen. Never shown once already installed.
+(() => {
+  const hint = document.getElementById('install-hint');
+  const text = document.getElementById('install-text');
+  const goBtn = document.getElementById('install-go') as HTMLButtonElement | null;
+  const dismissBtn = document.getElementById('install-dismiss');
+  if (!hint || !text || !goBtn || !dismissBtn) return;
+
+  const coarse = !!window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  const installed = window.matchMedia('(display-mode: standalone)').matches
+    || window.matchMedia('(display-mode: fullscreen)').matches
+    || (navigator as any).standalone === true;
+  let dismissed = false;
+  try { dismissed = localStorage.getItem('wtdb-install-dismissed') === '1'; } catch { /* private mode */ }
+  if (!coarse || installed || dismissed) return;
+
+  const ua = navigator.userAgent;
+  const isiOS = /iP(hone|ad|od)/.test(ua)
+    || (navigator.platform === 'MacIntel' && (navigator as any).maxTouchPoints > 1); // iPadOS masquerades as Mac
+
+  let killed = false;   // once the user acts, don't let the delayed iOS nudge reappear
+  const hide = () => { killed = true; hint.setAttribute('hidden', ''); };
+  const remember = () => { try { localStorage.setItem('wtdb-install-dismissed', '1'); } catch { /* ignore */ } };
+  dismissBtn.addEventListener('click', () => { hide(); remember(); });
+  // tapping into the game (to start playing) also dismisses it, without nagging again this session
+  canvas.addEventListener('pointerdown', hide, { once: true, passive: true });
+
+  let deferredPrompt: any = null;
+  window.addEventListener('beforeinstallprompt', (e: any) => {
+    e.preventDefault();               // suppress Chrome's mini-infobar; drive it ourselves
+    deferredPrompt = e;
+    text.innerHTML = 'Install <b>When the Dragon Blinks</b> for full-screen play.';
+    goBtn.removeAttribute('hidden');
+    hint.removeAttribute('hidden');
+  });
+  goBtn.addEventListener('click', async () => {
+    if (!deferredPrompt) return;
+    goBtn.setAttribute('hidden', '');
+    try { deferredPrompt.prompt(); await deferredPrompt.userChoice; } catch { /* dismissed */ }
+    deferredPrompt = null;
+    hide(); remember();
+  });
+  window.addEventListener('appinstalled', () => { hide(); remember(); });
+
+  // iOS can't prompt — instruct the manual gesture after the page settles. Skip
+  // on iPhone, where the scroll-to-hide module already reclaims the bars; this is
+  // the fallback for iPad (whose Fullscreen path covers most cases anyway).
+  if (isiOS && !(window as any).__islActive) {
+    setTimeout(() => {
+      if (!killed && hint.hasAttribute('hidden') && !deferredPrompt) {
+        text.innerHTML = 'For full-screen play: tap <b>Share</b> then <b>Add to Home Screen</b>.';
+        hint.removeAttribute('hidden');
+      }
+    }, 1400);
+  }
+})();
 
 const game = new Game(ctx);
 

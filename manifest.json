@@ -1,0 +1,20 @@
+{
+  "name": "When the Dragon Blinks",
+  "short_name": "Dragon Blinks",
+  "description": "A shrine-path action platformer — blink between day and night to survive the climb.",
+  "start_url": "./index.html?src=pwa",
+  "scope": "./",
+  "id": "when-the-dragon-blinks",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone", "minimal-ui"],
+  "orientation": "landscape",
+  "background_color": "#0b0610",
+  "theme_color": "#110711",
+  "categories": ["games"],
+  "icons": [
+    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "assets/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

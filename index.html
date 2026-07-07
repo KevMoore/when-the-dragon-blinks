@@ -9,6 +9,13 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="When the Dragon Blinks" />
+  <!-- installable full-screen game: manifest drives Android "Add to Home screen"
+       (fullscreen, landscape) and the install prompt; apple-touch-icon does the
+       same for iOS "Add to Home Screen" -->
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+  <link rel="icon" type="image/svg+xml" href="assets/icon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png" />
   <title>When the Dragon Blinks</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -40,6 +47,19 @@
       </div>
     </div>
   </main>
+  <!-- iPhone Safari immersive (main.ts): a scrollable spacer lets the URL/tab
+       bars auto-minimize on swipe, then we lock that state. The bubble prompts
+       the one-time swipe. Both are inert until main.ts adds the html.isl-* class. -->
+  <div id="isl-spacer" aria-hidden="true"></div>
+  <div id="isl-hint"><span>Swipe up once to hide the bars ✦ full screen</span></div>
+  <!-- Shown only in-browser on mobile (never once installed): the one reliable
+       route to true fullscreen on iOS is Add to Home Screen; Android gets a real
+       install button. Wired up in main.ts. -->
+  <div id="install-hint" hidden>
+    <span id="install-text"></span>
+    <button id="install-go" type="button" hidden>Install</button>
+    <button id="install-dismiss" type="button" aria-label="Dismiss">✕</button>
+  </div>
   <script type="module" src="dist/main.js"></script>
 </body>
 </html>

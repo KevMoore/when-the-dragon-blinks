@@ -11,7 +11,7 @@ const out = join(root, 'public');
 await rm(out, { recursive: true, force: true });
 await mkdir(out, { recursive: true });
 
-for (const entry of ['index.html', 'editor.html', 'styles.css', 'dist', 'assets']) {
+for (const entry of ['index.html', 'editor.html', 'styles.css', 'manifest.json', 'dist', 'assets']) {
   await cp(join(root, entry), join(out, entry), { recursive: true });
 }
 // play.html is the game under a stable name on BOTH instances, so the editor's

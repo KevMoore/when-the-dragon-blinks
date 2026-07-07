@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="40%" r="75%">
+      <stop offset="0%" stop-color="#3a1530"/>
+      <stop offset="60%" stop-color="#160a1f"/>
+      <stop offset="100%" stop-color="#08050d"/>
+    </radialGradient>
+    <radialGradient id="iris" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#fff1c4"/>
+      <stop offset="14%" stop-color="#ffe19a"/>
+      <stop offset="34%" stop-color="#f6bf5e"/>
+      <stop offset="62%" stop-color="#d94a3a"/>
+      <stop offset="100%" stop-color="#5a130f"/>
+    </radialGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="10" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <!-- full-bleed background keeps this valid as a maskable icon -->
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <g filter="url(#glow)">
+    <!-- almond eye outline (kept inside the maskable safe zone) -->
+    <path d="M116 256 Q256 150 396 256 Q256 362 116 256 Z"
+          fill="#1a0913" stroke="#f6bf5e" stroke-width="7" stroke-linejoin="round"/>
+    <!-- iris -->
+    <circle cx="256" cy="256" r="70" fill="url(#iris)"/>
+    <!-- vertical dragon slit -->
+    <ellipse cx="256" cy="256" rx="10" ry="52" fill="#1a0206"/>
+    <!-- specular highlight -->
+    <circle cx="234" cy="234" r="12" fill="#fff6dd" opacity="0.85"/>
+  </g>
+</svg>
