@@ -77,11 +77,11 @@ function threatened(c: Ctx) {
 
 // gravity + edge-aware horizontal step for walkers, with auto step-up over low
 // ledges, tolerance for small drops, and a stuck-escape hop.
-function groundStep(c: Ctx, desiredVx: number, dt: number, commit = false) {
+function groundStep(c: Ctx, desiredVx: number, dt: number, commit = false, airVx = Math.abs(desiredVx)) {
   const e = c.e, game = c.game, bb = c.bb;
   if (e.dropThrough) e.dropThrough = Math.max(0, e.dropThrough - dt);
   const dir = Math.sign(desiredVx);
-  if (dir !== 0 && e.grounded && !commit) {
+  if (dir !== 0 && e.grounded) {
     const foot = e.y + e.h;
     const frontX = dir > 0 ? e.x + e.w - 2 : e.x - 4;
     // ground within ~1.3 tiles ahead (so small step-downs are fine, only real pits stop us)
@@ -90,15 +90,32 @@ function groundStep(c: Ctx, desiredVx: number, dt: number, commit = false) {
     const stepBlocked = game.overlapsSolid({ x: frontX, y: foot - 18, w: 6, h: 16 });
     const tallBlocked = game.overlapsSolid({ x: frontX, y: foot - 52, w: 6, h: 30 });
     const headClear = !game.overlapsSolid({ x: e.x - 2, y: foot - 50, w: e.w + 4, h: 26 });
-    if (stepBlocked && !tallBlocked && headClear) e.vy = Math.min(e.vy, -300);   // hop a low ledge
-    else if (stepBlocked && tallBlocked) e.vy = Math.min(e.vy, -470);            // full jump over a tall obstacle
-    else if (!groundAhead && !stepBlocked) {
-      // a gap: look for a landing within ~4 tiles and LEAP it instead of stopping
-      let landing = false;
-      for (let k = 2; k <= 4; k++) if (game.overlapsSolid({ x: frontX + dir * k * TILE, y: foot - 6, w: TILE * 0.8, h: 60 })) { landing = true; break; }
-      if (landing) e.vy = Math.min(e.vy, -400);
-      else if (c.dy > 40) { /* prey is below — drop off the ledge after it */ }
-      else desiredVx = 0;                                                        // bottomless & nothing below — hold the edge
+    if (!groundAhead && !stepBlocked) {
+      // An edge ahead. Only leave it if there is REAL footing to land on. This
+      // brake runs even on a committed path step, so a walker can never be
+      // marched off into a bottomless column (enemy.ts:69). Two survivable
+      // landings exist: a floor straight down (step-down / drop / a lower ledge
+      // to chase onto), or a solid 2..4 tiles across to leap to.
+      const floorY = game.level.height * TILE;
+      // probe the front edge AND the next column, so a committed A* drop onto the
+      // adjacent lower cell isn't mistaken for a bottomless edge
+      const groundBelow = game.groundYBelow(frontX, 6, foot + 2) < floorY
+        || game.groundYBelow(frontX + dir * TILE, 6, foot + 2) < floorY;
+      let landK = 0;
+      for (let k = 2; k <= 4; k++) if (game.overlapsSolid({ x: frontX + dir * k * TILE, y: foot - 6, w: TILE * 0.8, h: 60 })) { landK = k; break; }
+      if (landK) {
+        // Size the hop to the walker's ACTUAL airborne speed (approach() boosts
+        // pursuit to >=165; a patrolling/un-pathed slow walker keeps its own
+        // speed), so an enemy that cannot span the gap holds instead of leaping
+        // short into it. Cap at the 680 impulse used elsewhere.
+        const needV = ((landK + 0.5) * TILE * GRAVITY) / (2 * Math.max(1, airVx));
+        if (needV <= 680) e.vy = Math.min(e.vy, -needV);                        // leap it
+        else if (!groundBelow) desiredVx = 0;                                   // too far to clear and bottomless — hold
+      } else if (!groundBelow) desiredVx = 0;                                   // bottomless & nothing across — hold the edge
+      else if (!commit && c.dy <= 40) desiredVx = 0;                            // survivable drop, but only take it when committed or chasing the player down
+    } else if (!commit) {
+      if (stepBlocked && !tallBlocked && headClear) e.vy = Math.min(e.vy, -300);   // hop a low ledge
+      else if (stepBlocked && tallBlocked) e.vy = Math.min(e.vy, -470);            // full jump over a tall obstacle
     }
   }
   e.vx = desiredVx; e.vy += GRAVITY * dt;
@@ -240,7 +257,7 @@ export function groundBrain(): Brain {
         // airborne pursuit gets a horizontal boost so slow walkers can carry
         // an up-leap across the gap they planned
         const vmag = e.grounded ? speed(c) : Math.max(speed(c), 165);
-        groundStep(c, Math.sign(dxw) * vmag, dt, wp.kind === 'drop' || wp.y > erow);
+        groundStep(c, Math.sign(dxw) * vmag, dt, wp.kind === 'drop' || wp.y > erow, Math.max(speed(c), 165));
         return c.dist < NEAR;
       } },
     { name: 'strike', cost: 1, pre: { near: true, threatened: false }, post: { attacked: true },
