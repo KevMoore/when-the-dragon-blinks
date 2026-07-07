@@ -271,23 +271,48 @@ function drawPropImg(c: CanvasRenderingContext2D, name: string, cx: number, base
 
 // Three-slice: end caps render at native aspect, the middle TILES a clean strip
 // — any width renders without stretching (a mini sprite-kit from one image).
-export function drawThreeSlice(
+function bakeThreeSlice(
   c: CanvasRenderingContext2D, img: CanvasImageSource & { width: number; height: number },
-  x: number, y: number, w: number, h: number, capFrac = 0.26, mid: [number, number] = [0.4, 0.6],
+  x: number, y: number, w: number, h: number, capFrac: number, mid: [number, number],
 ) {
   const iw = img.width, ih = img.height, s = h / ih;
   const srcCap = iw * capFrac;
   let capW = srcCap * s;
   if (capW * 2 > w) capW = w / 2;
-  c.drawImage(img, 0, 0, srcCap, ih, x, y, capW, h);                              // left cap
-  c.drawImage(img, iw - srcCap, 0, srcCap, ih, x + w - capW, y, capW, h);         // right cap
-  // the strips' mid regions are pre-processed tile-seamless (roll + crossfade
-  // in the asset), so plain repetition is join-free
+  // middle first, caps over its ragged ends — joins are overdraw, never a butt
+  // joint that can leak a hairline at a fractional destination
   const m0 = iw * mid[0], mw = iw * (mid[1] - mid[0]), dstMw = Math.max(4, mw * s);
-  for (let dx2 = x + capW; dx2 < x + w - capW - 0.5; dx2 += dstMw) {              // tiled middle
-    const dw2 = Math.min(dstMw, x + w - capW - dx2);
+  for (let dx2 = x + capW - 1; dx2 < x + w - capW + 1; dx2 += dstMw) {            // tiled middle (1px into each cap)
+    const dw2 = Math.min(dstMw, x + w - capW + 1 - dx2);
     c.drawImage(img, m0, 0, mw * (dw2 / dstMw), ih, dx2, y, dw2, h);
   }
+  c.drawImage(img, 0, 0, srcCap, ih, x, y, capW, h);                              // left cap
+  c.drawImage(img, iw - srcCap, 0, srcCap, ih, x + w - capW, y, capW, h);         // right cap
+}
+// The composite is baked ONCE per (sprite, size) into an offscreen at integer
+// coords, then blitted as a single image. Chrome resamples every internal
+// cap/middle joint independently at fractional camera offsets — visible as
+// per-tile seams on platforms/bridges — and translucent ghosts double-blend
+// where segments overlap. A single blit has neither problem.
+const _sliceCache = new Map<string, HTMLCanvasElement>();
+export function drawThreeSlice(
+  c: CanvasRenderingContext2D, img: CanvasImageSource & { width: number; height: number },
+  x: number, y: number, w: number, h: number, capFrac = 0.26, mid: [number, number] = [0.4, 0.6], name = '',
+) {
+  if (!name) { bakeThreeSlice(c, img, x, y, w, h, capFrac, mid); return; }
+  const cw = Math.max(1, Math.round(w)), ch = Math.max(1, Math.round(h));
+  const key = name + '|' + cw + 'x' + ch;
+  let cvs = _sliceCache.get(key);
+  if (!cvs) {
+    cvs = document.createElement('canvas'); cvs.width = cw; cvs.height = ch;
+    const tc = cvs.getContext('2d');
+    if (!tc) { bakeThreeSlice(c, img, x, y, w, h, capFrac, mid); return; }        // no ctx this frame — draw direct
+    bakeThreeSlice(tc, img, 0, 0, cw, ch, capFrac, mid);
+    if (!bakeLanded(tc, cw, ch)) { bakeThreeSlice(c, img, x, y, w, h, capFrac, mid); return; }  // empty bake — don't cache
+    if (_sliceCache.size > 300) _sliceCache.clear();                              // safety valve
+    _sliceCache.set(key, cvs);
+  }
+  c.drawImage(cvs, x, y, w, h);
 }
 
 // PERF: tinted-sprite cache. Re-tinting a full image per draw call was the #1
@@ -617,21 +642,33 @@ export function drawTiles(game: Game, c: CanvasRenderingContext2D) {
     const ch = game.tileAt(x, y); if (ch === '.' || ch === '#' || ch === 'g') continue;
     const sx = x * TILE - game.camera.x, sy = y * TILE - game.camera.y;
     if (ch === 'o') {
-      // one-way platform → grassy terrain island sprite spanning the whole run
-      if (game.tileAt(x - 1, y) === 'o') continue;              // draw once per run, at its left end
-      let run = 1; while (game.tileAt(x + run, y) === 'o') run++;
+      // one-way platform → grassy terrain island sprite spanning the whole run.
+      // Drawn once per run at its start — but a run whose start scrolled past
+      // the cull edge must still draw, so at the scan's first column walk LEFT
+      // to the true start (skipping here made whole platforms vanish once
+      // their first tile left the viewport).
+      if (game.tileAt(x - 1, y) === 'o' && x > x0) continue;
+      let s = x; while (game.tileAt(s - 1, y) === 'o') s--;
+      let run = 1; while (game.tileAt(s + run, y) === 'o') run++;
       const runW = run * TILE, spr = stills.platform;
+      const rx = s * TILE - game.camera.x;
       if (spr?.ready) {
         // three-slice strip: caps keep shape, middle tiles — no stretching at any width
         c.save(); c.shadowColor = 'rgba(0,0,0,.35)'; c.shadowBlur = 8;
-        drawThreeSlice(c, spr.img, sx - 6, sy - 2, runW + 12, 44, 0.15, [0.3, 0.7]); c.restore();
+        drawThreeSlice(c, spr.img, rx - 6, sy - 2, runW + 12, 44, 0.15, [0.3, 0.7], 'platform'); c.restore();
       } else {
-        c.fillStyle = mixHex(tt.soilTop, tt.soilBot, 0.4); c.fillRect(sx, sy + 4, runW, 8);
-        c.fillStyle = tt.grass; c.fillRect(sx, sy, runW, 5);
+        c.fillStyle = mixHex(tt.soilTop, tt.soilBot, 0.4); c.fillRect(rx, sy + 4, runW, 8);
+        c.fillStyle = tt.grass; c.fillRect(rx, sy, runW, 5);
       }
     }
-    else if (ch === 'D') drawStatePlatform(game, c, sx, sy, 'day');
-    else if (ch === 'N') drawStatePlatform(game, c, sx, sy, 'night');
+    else if (ch === 'D' || ch === 'N') {
+      // coalesce runs into ONE fill — per-tile fills butt-join at fractional
+      // camera offsets and Chrome renders a hairline seam every 32px
+      if (game.tileAt(x - 1, y) === ch && x > x0) continue;
+      let s = x; while (game.tileAt(s - 1, y) === ch) s--;
+      let run = 1; while (game.tileAt(s + run, y) === ch) run++;
+      drawStatePlatform(game, c, s * TILE - game.camera.x, sy, run * TILE, ch === 'D' ? 'day' : 'night');
+    }
     else if (ch === '^' || ch === 'F' || ch === 'S') drawHazard(game, c, sx, sy, ch);
   }
 }
@@ -695,7 +732,9 @@ function drawSpan(game: Game, c: CanvasRenderingContext2D, th: Theme, a: number,
     // the CanvasPattern itself is cached — this pass was pattern + wash (two
     // large clipped fills per span per frame); now it's one.
     const pat = terrainPattern(c, game.level.theme, th, fillImg);
-    const ox = -(((camX % 256) + 256) % 256), oy = -(((camY % 256) + 256) % 256);
+    // integer pattern phase: a fractional translate makes the repeat interpolate
+    // across tile boundaries — a hairline seam every 256px that reads as a grid
+    const ox = -Math.round(((camX % 256) + 256) % 256), oy = -Math.round(((camY % 256) + 256) % 256);
     if (pat) {
       c.save(); c.translate(ox, oy);
       c.fillStyle = pat; c.fillRect(leftX - ox - 8, minY - 24 - oy, rightX - leftX + 16, bottom - minY + 60);
@@ -840,7 +879,7 @@ function drawDecor(game: Game, c: CanvasRenderingContext2D, th: Theme, x: number
   c.restore();
 }
 
-function drawStatePlatform(game: Game, c: CanvasRenderingContext2D, x: number, y: number, state: 'day' | 'night') {
+function drawStatePlatform(game: Game, c: CanvasRenderingContext2D, x: number, y: number, w: number, state: 'day' | 'night') {
   const active = game.world === state;
   c.globalAlpha = active ? 1 : 0.22;
   c.save();
@@ -848,8 +887,8 @@ function drawStatePlatform(game: Game, c: CanvasRenderingContext2D, x: number, y
   const g = c.createLinearGradient(0, y, 0, y + TILE);
   if (state === 'day') { g.addColorStop(0, '#f0b45a'); g.addColorStop(1, '#a9662a'); }
   else { g.addColorStop(0, '#7fa8d6'); g.addColorStop(1, '#3e5f8a'); }
-  c.fillStyle = g; c.fillRect(x, y + 4, TILE, TILE - 8);
-  c.fillStyle = state === 'day' ? '#ffe6a4' : '#d3f0ff'; c.fillRect(x + 2, y + 6, TILE - 4, 3);
+  c.fillStyle = g; c.fillRect(x, y + 4, w, TILE - 8);
+  c.fillStyle = state === 'day' ? '#ffe6a4' : '#d3f0ff'; c.fillRect(x + 2, y + 6, w - 4, 3);
   c.restore(); c.globalAlpha = 1;
 }
 

@@ -541,7 +541,10 @@ export class Game {
         if (!overlap(rect, s)) continue;
         if (s.oneWay) {
           const dropping = (e.dropThrough || 0) > 0;
-          if (sy > 0 && prevBottom <= s.y + 2 && !dropping) {
+          // 8px forgiveness: a loaded bridge deck sags up to 6px below the
+          // island top it meets, so a 2px window let you walk off the deck
+          // STRAIGHT THROUGH the one-way island at the junction
+          if (sy > 0 && prevBottom <= s.y + 8 && !dropping) {
             e.y = s.y - e.h; e.vy = 0; if (e.grounded !== undefined) e.grounded = true;
             rect = { x: e.x, y: e.y, w: e.w, h: e.h };
           }
@@ -1098,7 +1101,7 @@ export class Game {
       const sprite = stills.platform;
       if (sprite?.ready) {
         if (active) { c.shadowColor = pl.crumble ? '#c98a3a' : (this.world === 'day' ? '#ffcf7a' : '#a9d6ff'); c.shadowBlur = 12; }
-        bg.drawThreeSlice(c, sprite.img, x - 6, y - 2, pl.w + 12, 44, 0.15, [0.3, 0.7]);   // caps + tiled middle, no stretch
+        bg.drawThreeSlice(c, sprite.img, x - 6, y - 2, pl.w + 12, 44, 0.15, [0.3, 0.7], 'platform');   // caps + tiled middle, no stretch
         if (pl.crumble) { c.strokeStyle = 'rgba(30,10,4,.5)'; c.lineWidth = 2; c.beginPath(); c.moveTo(x + pl.w * 0.42, y - 2); c.lineTo(x + pl.w * 0.52, y + pl.h + 10); c.stroke(); }
       } else {
         if (active) { c.shadowColor = pl.crumble ? '#c98a3a' : (this.world === 'day' ? '#ffcf7a' : '#a9d6ff'); c.shadowBlur = 12; }
@@ -1373,9 +1376,11 @@ export class Game {
       c.save();
       if (spr) {
         // three-slice the flat bridge strip: fixed height, end caps at native
-        // shape, tiled plank middle; ends tuck BEHIND the banks/islands
+        // shape, tiled plank middle; ends tuck BEHIND the banks/islands.
+        // Deck sits 1px BELOW the collision top so its plank line meets the
+        // island grass line instead of hovering above it at the junction.
         c.shadowColor = 'rgba(0,0,0,.35)'; c.shadowBlur = 8;
-        bg.drawThreeSlice(c, spr, x0 - 22, deckY - 3, w + 44, 40, 0.14, [0.32, 0.68]);
+        bg.drawThreeSlice(c, spr, x0 - 22, deckY + 1, w + 44, 36, 0.14, [0.32, 0.68], 'bridge');
       } else {
         c.fillStyle = '#6f5230'; c.fillRect(x0, deckY, w, 11);
         c.fillStyle = '#8a6b45'; c.fillRect(x0, deckY, w, 4);
