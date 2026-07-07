@@ -646,6 +646,7 @@ export class Game {
     this.camera.enabled = this.save.settings.shake && !this.save.settings.reducedMotion;
     if (this.message) { this.message.t += dt; if (this.message.t > this.message.max) this.message = null; }
     if (this.state === 'playing') document.body.classList.add('playing'); else document.body.classList.remove('playing');
+    document.body.classList.toggle('lefty', !!this.save.settings.leftHanded);
     this.updateMusic();
     this.input.endFrame();
   }
@@ -904,7 +905,7 @@ export class Game {
   }
   private updateSettings() {
     if (this.input.just('back')) { this.state = this.settingsReturn; return; }
-    const n = 5;
+    const n = 6;
     if (this.input.just('up')) { this.settingsSelection = (this.settingsSelection + n - 1) % n; this.audio.sfx('menu'); }
     if (this.input.just('down')) { this.settingsSelection = (this.settingsSelection + 1) % n; this.audio.sfx('menu'); }
     const s = this.save.settings;
@@ -916,7 +917,8 @@ export class Game {
     } else if (this.settingsSelection === 1 && (left || right || confirm)) { s.music = !s.music; this.audio.applySettings(); this.persistSave(); this.audio.sfx('menu'); }
     else if (this.settingsSelection === 2 && (left || right || confirm)) { s.shake = !s.shake; this.persistSave(); this.audio.sfx('menu'); }
     else if (this.settingsSelection === 3 && (left || right || confirm)) { s.reducedMotion = !s.reducedMotion; this.persistSave(); this.audio.sfx('menu'); }
-    else if (this.settingsSelection === 4 && confirm) { this.state = this.settingsReturn; this.audio.sfx('menu'); }
+    else if (this.settingsSelection === 4 && (left || right || confirm)) { s.leftHanded = !s.leftHanded; this.persistSave(); this.audio.sfx('menu'); }
+    else if (this.settingsSelection === 5 && confirm) { this.state = this.settingsReturn; this.audio.sfx('menu'); }
   }
   private updateLore(dt: number) {
     this.loreAnim = Math.min(1, this.loreAnim + dt * 5);

@@ -6,6 +6,7 @@ export type Settings = {
   music: boolean;
   shake: boolean;   // screen shake enabled
   reducedMotion: boolean;
+  leftHanded: boolean;   // mirror the touch controls (stick right, buttons left)
 };
 export type SaveData = {
   highestUnlocked: number;
@@ -28,7 +29,7 @@ const fallback = (): SaveData => ({
   highScore: 0,
   seenIntro: false,
   foundHidden: [],
-  settings: { master: 0.7, music: true, shake: true, reducedMotion: false },
+  settings: { master: 0.7, music: true, shake: true, reducedMotion: false, leftHanded: false },
 });
 
 // A clean save (keeps the player's audio/settings prefs) — for "Start Fresh".

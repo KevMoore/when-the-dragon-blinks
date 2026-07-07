@@ -280,7 +280,7 @@ export function drawCodex(game: Game, c: CanvasRenderingContext2D) {
 // ---- Settings --------------------------------------------------------------
 export function drawSettings(game: Game, c: CanvasRenderingContext2D) {
   c.save();
-  panel(c, LOGICAL_W / 2 - 260, 110, 520, 320, 0.82);
+  panel(c, LOGICAL_W / 2 - 260, 110, 520, 370, 0.82);
   c.textAlign = 'center'; c.fillStyle = '#ffe3a0'; c.font = '38px Georgia'; c.fillText('Settings', LOGICAL_W / 2, 168);
   const s = game.save.settings;
   const rows = [
@@ -288,6 +288,7 @@ export function drawSettings(game: Game, c: CanvasRenderingContext2D) {
     { label: 'Music', value: s.music ? 'On' : 'Off' },
     { label: 'Screen Shake', value: s.shake ? 'On' : 'Off' },
     { label: 'Reduced Motion', value: s.reducedMotion ? 'On' : 'Off' },
+    { label: 'Touch Layout', value: s.leftHanded ? 'Left-handed' : 'Right-handed' },
     { label: 'Back', value: '' },
   ];
   rows.forEach((r, i) => {
@@ -305,7 +306,7 @@ export function drawSettings(game: Game, c: CanvasRenderingContext2D) {
     }
   });
   c.textAlign = 'center'; c.fillStyle = 'rgba(255,255,255,.64)'; c.font = '14px Georgia';
-  c.fillText('↑/↓ choose · ←/→ or Enter adjust · Esc back', LOGICAL_W / 2, 414);
+  c.fillText('↑/↓ choose · ←/→ or Enter adjust · Esc back', LOGICAL_W / 2, 462);
   c.restore();
 }
 
