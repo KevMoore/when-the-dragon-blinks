@@ -37,8 +37,9 @@ export class Input {
       if (this.taps.length < 8) this.taps.push({ x: p.x, y: p.y });
     }, { passive: false });
 
-    const controls = document.getElementById('touch-controls');
-    controls?.querySelectorAll('button[data-action]').forEach(btn => {
+    // NOTE: #touch-pause sits OUTSIDE #touch-controls in the DOM — selecting
+    // only inside the controls container left the pause button doing nothing
+    document.querySelectorAll('#touch-controls button[data-action], #touch-pause').forEach(btn => {
       const action = (btn as HTMLElement).dataset.action!;
       const down = (e: Event) => {
         e.preventDefault();

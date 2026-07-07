@@ -58,6 +58,6 @@ body.lefty .touch-right button[data-action="toggle"] { right: auto; left: 59px; 
 #touch-pause:active { background: rgba(217,74,58,.6); }
 /* touch controls only while actually PLAYING — menus and mini-games need the
    canvas to receive taps directly (the stick-zone was eating them) */
-@media (pointer: coarse) and (orientation: landscape) { body.playing #touch-controls { display: block; } body.playing #touch-pause { display: block; } }
-body.force-touch.playing #touch-controls, body.force-touch.playing #touch-pause { display: block; }
+@media (pointer: coarse) and (orientation: landscape) { body.playing #touch-controls { display: block; } body.playing #touch-pause, body.paused #touch-pause { display: block; } }
+body.force-touch.playing #touch-controls, body.force-touch.playing #touch-pause, body.force-touch.paused #touch-pause { display: block; }
 @media (orientation: portrait) and (max-width: 900px) { #rotate-overlay { display: flex; } #touch-controls, #touch-pause { display: none; } }

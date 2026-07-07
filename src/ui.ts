@@ -332,14 +332,21 @@ export function drawLore(game: Game, c: CanvasRenderingContext2D) {
 // ---- Pause -----------------------------------------------------------------
 export function drawPause(game: Game, c: CanvasRenderingContext2D) {
   c.save(); c.fillStyle = 'rgba(4,2,7,.62)'; c.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
-  panel(c, LOGICAL_W / 2 - 165, 150, 330, 240);
-  c.textAlign = 'center'; c.fillStyle = '#ffe3a0'; c.font = '40px Georgia'; c.fillText('Paused', LOGICAL_W / 2, 206);
+  panel(c, LOGICAL_W / 2 - 165, 138, 330, 252);
+  c.textAlign = 'center'; c.fillStyle = '#ffe3a0'; c.font = '40px Georgia'; c.fillText('Paused', LOGICAL_W / 2, 194);
+  // where the run rests — the level's name under the seal
+  c.fillStyle = 'rgba(255,240,200,.55)'; c.font = '14px Georgia';
+  c.fillText(game.level.title, LOGICAL_W / 2, 218);
   const opts = ['Resume', 'Restart Level', 'Settings', 'Return to Title'];
   opts.forEach((o, i) => {
     const y = 250 + i * 34; const sel = i === game.pauseSelection;
+    if (sel) { c.fillStyle = 'rgba(246,191,94,.13)'; c.fillRect(LOGICAL_W / 2 - 140, y - 21, 280, 29); }
     c.fillStyle = sel ? GOLD : PAPER; c.font = sel ? '22px Georgia' : '19px Georgia';
     c.fillText((sel ? '▸ ' : '') + o, LOGICAL_W / 2, y);
   });
+  const touch = typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  c.fillStyle = 'rgba(255,255,255,.5)'; c.font = '13px Georgia';
+  c.fillText(touch ? 'Tap an option · ▶ resumes' : 'Esc / P to resume', LOGICAL_W / 2, 412);
   c.restore();
 }
 

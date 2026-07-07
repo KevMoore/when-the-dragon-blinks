@@ -107,6 +107,7 @@ export class Game {
         this.dashHintShown = false;
         this.howtoT = 0;
         this.howtoReturn = 'title';
+        this._pausedUi = false; // tracks the body.paused class + ❚❚/▶ glyph
         this.hiddenReturn = 0; // level index to resume after a hidden level
         this.minigamePlayed = new Set();
         // ---- render ------------------------------------------------------------
@@ -946,6 +947,15 @@ export class Game {
         else
             document.body.classList.remove('playing');
         document.body.classList.toggle('lefty', !!this.save.settings.leftHanded);
+        // keep the ❚❚ button on screen while paused (flipped to ▶) so it toggles
+        const paused = this.state === 'paused';
+        if (paused !== this._pausedUi) {
+            this._pausedUi = paused;
+            document.body.classList.toggle('paused', paused);
+            const pb = document.getElementById('touch-pause');
+            if (pb)
+                pb.textContent = paused ? '▶' : '❚❚';
+        }
         this.updateMusic();
         this.input.endFrame();
     }
