@@ -31,10 +31,16 @@ function resize() {
   // canvas at a fractional scale/offset, and Chrome's compositor shows hairline
   // seams and edge artifacts on fractionally-placed canvas layers (Safari
   // doesn't). Size and position the element to whole CSS pixels ourselves.
+  // Explicit integer display geometry is a CHROMIUM fix (its compositor shows
+  // hairline seams on fractionally-placed canvas layers). Safari never had the
+  // seams, and on iOS the explicit sizing surfaced uninitialized-GPU-memory
+  // noise along the canvas edges — so WebKit keeps the original, long-proven
+  // `object-fit: contain` path untouched.
+  if (!/Chrome\//.test(navigator.userAgent)) return;
   const vw = window.innerWidth, vh = window.innerHeight;
-  if (!(vw > 0 && vh > 0)) return;   // iOS can report 0 mid-rotation — keep the previous geometry
+  if (!(vw > 0 && vh > 0)) return;   // can report 0 mid-rotation — keep the previous geometry
   const s = Math.min(vw / LOGICAL_W, vh / LOGICAL_H);
-  const w = Math.round(LOGICAL_W * s), h = Math.round(LOGICAL_H * s);
+  const w = Math.floor(LOGICAL_W * s), h = Math.floor(LOGICAL_H * s);
   canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
   canvas.style.position = 'absolute';
   canvas.style.left = Math.round((vw - w) / 2) + 'px';
