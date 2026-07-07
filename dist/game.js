@@ -2178,6 +2178,10 @@ export class Game {
         if (!this._bridgeCv)
             this._bridgeCv = document.createElement('canvas');
         const cv = this._bridgeCv, g = cv.getContext('2d');
+        if (!g) {
+            this._bridgeCv = null;
+            return spr.img;
+        } // untinted this frame, retry next
         cv.width = spr.img.width;
         cv.height = spr.img.height;
         g.clearRect(0, 0, cv.width, cv.height);

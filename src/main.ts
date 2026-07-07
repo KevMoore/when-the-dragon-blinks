@@ -32,6 +32,7 @@ function resize() {
   // seams and edge artifacts on fractionally-placed canvas layers (Safari
   // doesn't). Size and position the element to whole CSS pixels ourselves.
   const vw = window.innerWidth, vh = window.innerHeight;
+  if (!(vw > 0 && vh > 0)) return;   // iOS can report 0 mid-rotation — keep the previous geometry
   const s = Math.min(vw / LOGICAL_W, vh / LOGICAL_H);
   const w = Math.round(LOGICAL_W * s), h = Math.round(LOGICAL_H * s);
   canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
@@ -149,26 +150,37 @@ function tuneQuality(dt: number, now: number): boolean {
   return false;
 }
 
+// An uncaught exception in a rAF callback kills the loop PERMANENTLY — the
+// game freezes on a half-painted frame (seen on iOS, where getContext / image
+// decodes can transiently fail under memory pressure). Contain the blast: log,
+// skip the frame, keep the loop alive. Give up only on a sustained crash-loop.
+let frameErrors = 0;
 function loop(now: number) {
-  let dt = (now - last) / 1000;
-  last = now;
-  // avoid spiral-of-death after a tab is backgrounded
-  if (dt > 0.25) dt = STEP;
-  const resized = tuneQuality(dt, now);
-  accumulator += dt;
-  let guard = 0, stepped = false;
-  while (accumulator >= STEP && guard++ < 5) { game.update(STEP); accumulator -= STEP; stepped = true; }
-  // Only paint when the simulation advanced: on 120Hz displays (where Chrome
-  // runs rAF at full rate but Safari caps at 60) re-rendering an unchanged
-  // world would double the fill cost for nothing. A resize is the exception —
-  // it wipes the backing buffer, and the wiped canvas must NEVER reach the
-  // compositor, so repaint in the same task.
-  if (stepped || resized) game.render();
+  try {
+    let dt = (now - last) / 1000;
+    last = now;
+    // avoid spiral-of-death after a tab is backgrounded
+    if (dt > 0.25) dt = STEP;
+    const resized = tuneQuality(dt, now);
+    accumulator += dt;
+    let guard = 0, stepped = false;
+    while (accumulator >= STEP && guard++ < 5) { game.update(STEP); accumulator -= STEP; stepped = true; }
+    // Only paint when the simulation advanced: on 120Hz displays (where Chrome
+    // runs rAF at full rate but Safari caps at 60) re-rendering an unchanged
+    // world would double the fill cost for nothing. A resize is the exception —
+    // it wipes the backing buffer, and the wiped canvas must NEVER reach the
+    // compositor, so repaint in the same task.
+    if (stepped || resized) game.render();
+    frameErrors = 0;
+  } catch (err) {
+    if (++frameErrors <= 10 || frameErrors % 300 === 0) console.error('[dragon] frame error', err);
+    if (frameErrors > 1800) return;          // ~30s of failing every frame — stop burning battery
+  }
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
 // window resizes also reallocate (and wipe) the buffer — repaint immediately
-window.addEventListener('resize', () => game.render());
+window.addEventListener('resize', () => { try { game.render(); } catch (err) { console.error('[dragon] resize render', err); } });
 
 // expose for quick console debugging
 (window as any).__dragon = game;

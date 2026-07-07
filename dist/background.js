@@ -36,17 +36,28 @@ function skyCanvas(game, th, qday, qcx, cy, storm) {
     const key = game.level.theme + '|' + qday + '|' + qcx + (storm ? '|s' : '');
     if (_skyBufs[_skyCur] && key === _skyKey)
         return _skyBufs[_skyCur];
-    _skyKey = key;
-    _skyCur = 1 - _skyCur;
-    let _sky = _skyBufs[_skyCur];
+    const flip = 1 - _skyCur;
+    let _sky = _skyBufs[flip];
     if (!_sky) {
-        _sky = _skyBufs[_skyCur] = document.createElement('canvas');
+        _sky = document.createElement('canvas');
         _sky.width = LOGICAL_W;
         _sky.height = LOGICAL_H;
     }
-    const c = _sky.getContext('2d');
-    const day = qday;
-    c.clearRect(0, 0, LOGICAL_W, LOGICAL_H);
+    const c2 = _sky.getContext('2d');
+    if (!c2) {
+        _skyKey = '';
+        return null;
+    } // iOS memory pressure — caller paints direct this frame
+    _skyBufs[flip] = _sky;
+    _skyCur = flip;
+    _skyKey = key;
+    c2.clearRect(0, 0, LOGICAL_W, LOGICAL_H);
+    paintSky(c2, game, th, qday, qcx, cy, storm);
+    return _sky;
+}
+// Paints the full slow-changing sky stack. Normally targets the cache buffer;
+// also the direct-to-frame fallback when a cache context can't be created.
+function paintSky(c, game, th, day, qcx, cy, storm) {
     c.fillStyle = '#08060d';
     c.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
     const grad = (stops) => {
@@ -110,7 +121,6 @@ function skyCanvas(game, th, qday, qcx, cy, storm) {
         c.fillStyle = 'rgba(8,12,26,0.4)';
         c.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
     }
-    return _sky;
 }
 export function drawSky(game, c) {
     const th = theme(game), day = game.dayAmount;
@@ -118,7 +128,11 @@ export function drawSky(game, c) {
     const storm = !!game.level.isBoss;
     const qday = Math.round(day * 32) / 32;
     const qcx = Math.round(cx / 2) * 2; // 2px steps: sun drift stays smooth-enough, few re-renders/sec at sprint
-    c.drawImage(skyCanvas(game, th, qday, qcx, cy, storm), 0, 0);
+    const cached = skyCanvas(game, th, qday, qcx, cy, storm);
+    if (cached)
+        c.drawImage(cached, 0, 0);
+    else
+        paintSky(c, game, th, day, qcx, cy, storm); // cache unavailable — paint direct
     // the animated layers stay live on top of the cached sky
     drawClouds(game, c, day, storm);
     drawDragonEye(game, c, day);
@@ -444,12 +458,16 @@ function tintedSprite(img, name, tint, tintAmt) {
     cvs = document.createElement('canvas');
     cvs.width = img.width;
     cvs.height = img.height;
-    const tc = cvs.getContext('2d');
+    const tc = cvs.width && cvs.height ? cvs.getContext('2d') : null;
+    if (!tc)
+        return cvs; // blank this frame, retried next (not cached)
     tc.drawImage(img, 0, 0);
     tc.globalCompositeOperation = 'source-atop';
     tc.globalAlpha = tintAmt;
     tc.fillStyle = tint;
     tc.fillRect(0, 0, cvs.width, cvs.height);
+    if (!bakeLanded(tc, cvs.width, cvs.height))
+        return cvs; // empty bake (iOS memory pressure) — don't cache it
     if (_tintCache.size > 220)
         _tintCache.clear(); // safety valve
     _tintCache.set(key, cvs);
@@ -471,6 +489,8 @@ export function glowSprite(color) {
     g = document.createElement('canvas');
     g.width = g.height = 96;
     const gc = g.getContext('2d');
+    if (!gc)
+        return g; // blank this frame, retried next (not cached)
     const grad = gc.createRadialGradient(48, 48, 0, 48, 48, 48);
     grad.addColorStop(0, color);
     grad.addColorStop(1, 'rgba(0,0,0,0)');
@@ -487,6 +507,22 @@ export function drawGlow(c, x, y, r, color, alpha) {
     c.drawImage(glowSprite(color), x - r, y - r, r * 2, r * 2);
     c.restore();
 }
+// A freshly-baked canvas can come out empty on iOS (transiently failed
+// getContext or a silently-dropped image decode under memory pressure); a
+// permanently cached empty bake turns terrain/turf invisible for the session.
+// Cheap one-time check: any opaque pixel in a sparse sample grid.
+function bakeLanded(tc, w, h) {
+    try {
+        const d = tc.getImageData(0, 0, Math.min(w, 64), Math.min(h, 64)).data;
+        for (let i = 3; i < d.length; i += 64)
+            if (d[i] > 0)
+                return true;
+        return false;
+    }
+    catch {
+        return true;
+    } // unreadable (shouldn't happen with local assets) — assume fine
+}
 // PERF: cached terrain-fill pattern, theme wash pre-baked into the tile so the
 // rock body needs one pattern fill instead of pattern + wash every frame.
 const _terrainPat = new Map();
@@ -497,14 +533,19 @@ function terrainPattern(c, themeName, th, img) {
     const tile = document.createElement('canvas');
     tile.width = img.width;
     tile.height = img.height;
-    const tc = tile.getContext('2d');
+    const tc = tile.width && tile.height ? tile.getContext('2d') : null;
+    if (!tc)
+        return c.createPattern(img, 'repeat'); // uncached fallback, retries next frame
     tc.drawImage(img, 0, 0);
     tc.globalCompositeOperation = 'source-atop';
     tc.globalAlpha = 0.42;
     tc.fillStyle = mixHex(th.soilTop, th.soilBot, 0.45);
     tc.fillRect(0, 0, tile.width, tile.height);
+    if (!bakeLanded(tc, tile.width, tile.height))
+        return c.createPattern(img, 'repeat');
     pat = c.createPattern(tile, 'repeat');
-    _terrainPat.set(themeName, pat);
+    if (pat)
+        _terrainPat.set(themeName, pat);
     return pat;
 }
 // smooth multi-octave ridgeline height at world-x
@@ -943,11 +984,13 @@ function drawSpan(game, c, th, a, b, camX, camY, bottom, topY) {
         // large clipped fills per span per frame); now it's one.
         const pat = terrainPattern(c, game.level.theme, th, fillImg);
         const ox = -(((camX % 256) + 256) % 256), oy = -(((camY % 256) + 256) % 256);
-        c.save();
-        c.translate(ox, oy);
-        c.fillStyle = pat;
-        c.fillRect(leftX - ox - 8, minY - 24 - oy, rightX - leftX + 16, bottom - minY + 60);
-        c.restore();
+        if (pat) {
+            c.save();
+            c.translate(ox, oy);
+            c.fillStyle = pat;
+            c.fillRect(leftX - ox - 8, minY - 24 - oy, rightX - leftX + 16, bottom - minY + 60);
+            c.restore();
+        }
         // darken with depth
         const dg = c.createLinearGradient(0, minY, 0, minY + 320);
         dg.addColorStop(0, 'rgba(0,0,0,0)');
@@ -1343,6 +1386,10 @@ export function drawVignette(c) {
         _vignette.width = LOGICAL_W;
         _vignette.height = LOGICAL_H;
         const vc = _vignette.getContext('2d');
+        if (!vc) {
+            _vignette = null;
+            return;
+        } // no vignette this frame, retry next
         const g = vc.createRadialGradient(LOGICAL_W / 2, LOGICAL_H / 2, LOGICAL_H * 0.42, LOGICAL_W / 2, LOGICAL_H / 2, LOGICAL_H * 0.9);
         g.addColorStop(0, 'rgba(0,0,0,0)');
         g.addColorStop(1, 'rgba(0,0,0,.36)');

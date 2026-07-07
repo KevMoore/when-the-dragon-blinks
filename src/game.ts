@@ -1346,12 +1346,13 @@ export class Game {
   // bridge sprite tinted to the level's palette + time of day so it belongs to
   // the landscape instead of reading as bright foreground timber (cached)
   private _bridgeCv: HTMLCanvasElement | null = null; private _bridgeKey = '';
-  private tintedBridge(): HTMLCanvasElement | null {
+  private tintedBridge(): HTMLCanvasElement | HTMLImageElement | null {
     const spr = stills.bridge; if (!spr?.ready) return null;
     const key = this.level.theme + '|' + this.world;
     if (this._bridgeCv && this._bridgeKey === key) return this._bridgeCv;
     if (!this._bridgeCv) this._bridgeCv = document.createElement('canvas');
-    const cv = this._bridgeCv, g = cv.getContext('2d')!;
+    const cv = this._bridgeCv, g = cv.getContext('2d');
+    if (!g) { this._bridgeCv = null; return spr.img; }   // untinted this frame, retry next
     cv.width = spr.img.width; cv.height = spr.img.height;
     g.clearRect(0, 0, cv.width, cv.height);
     g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1; g.drawImage(spr.img, 0, 0);
