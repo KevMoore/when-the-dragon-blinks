@@ -186,7 +186,7 @@ export class Input {
             return Math.max(-1, Math.min(1, this.axisX));
         const k = this.keys;
         let v = 0;
-        if (k.has('arrowleft') || this.touch.has('left') || !!this.gpButtons[14])
+        if (k.has('a') || k.has('arrowleft') || this.touch.has('left') || !!this.gpButtons[14])
             v -= 1;
         if (k.has('d') || k.has('arrowright') || this.touch.has('right') || !!this.gpButtons[15])
             v += 1;
@@ -195,16 +195,17 @@ export class Input {
     down(action) {
         const k = this.keys;
         if (action === 'left')
-            return k.has('arrowleft') || this.touch.has('left') || this.stickX < -0.3 || this.axisX < -0.25 || !!this.gpButtons[14];
+            return k.has('a') || k.has('arrowleft') || this.touch.has('left') || this.stickX < -0.3 || this.axisX < -0.25 || !!this.gpButtons[14];
         if (action === 'right')
             return k.has('d') || k.has('arrowright') || this.touch.has('right') || this.stickX > 0.3 || this.axisX > 0.25 || !!this.gpButtons[15];
+        // W is jump, so keyboard aim-up is ArrowUp (stick/d-pad still aim)
         if (action === 'up')
-            return k.has('w') || k.has('arrowup') || this.touch.has('up') || this.stickY < -0.5 || this.axisY < -0.4 || !!this.gpButtons[12];
+            return k.has('arrowup') || this.touch.has('up') || this.stickY < -0.5 || this.axisY < -0.4 || !!this.gpButtons[12];
         if (action === 'down')
             return k.has('s') || k.has('arrowdown') || this.touch.has('down') || this.stickY > 0.5 || this.axisY > 0.4 || !!this.gpButtons[13];
         // jump is a dedicated button so Up can be used to aim shots upward
         if (action === 'jump')
-            return k.has('a') || this.touch.has('jump') || !!this.gpButtons[0];
+            return k.has('w') || this.touch.has('jump') || !!this.gpButtons[0];
         if (action === 'attack')
             return k.has('j') || k.has('x') || this.touch.has('attack') || !!this.gpButtons[2];
         if (action === 'dash')
@@ -225,11 +226,11 @@ export class Input {
         if (action === 'down')
             return p.has('arrowdown') || p.has('s') || gpJust(13) || this.stickNav.has('down');
         if (action === 'left')
-            return p.has('arrowleft') || gpJust(14) || this.stickNav.has('left');
+            return p.has('arrowleft') || p.has('a') || gpJust(14) || this.stickNav.has('left');
         if (action === 'right')
             return p.has('arrowright') || p.has('d') || gpJust(15) || this.stickNav.has('right');
         if (action === 'jump')
-            return p.has('a') || t.has('jump') || gpJust(0);
+            return p.has('w') || t.has('jump') || gpJust(0);
         if (action === 'attack')
             return p.has('j') || p.has('x') || t.has('attack') || gpJust(2);
         if (action === 'dash')

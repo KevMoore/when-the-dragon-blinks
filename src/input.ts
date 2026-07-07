@@ -148,19 +148,20 @@ export class Input {
     if (Math.abs(s) > 0.12) return Math.sign(s) * Math.min(1, (Math.abs(s) - 0.12) / 0.86);
     if (Math.abs(this.axisX) > 0.05) return Math.max(-1, Math.min(1, this.axisX));
     const k = this.keys; let v = 0;
-    if (k.has('arrowleft') || this.touch.has('left') || !!this.gpButtons[14]) v -= 1;
+    if (k.has('a') || k.has('arrowleft') || this.touch.has('left') || !!this.gpButtons[14]) v -= 1;
     if (k.has('d') || k.has('arrowright') || this.touch.has('right') || !!this.gpButtons[15]) v += 1;
     return v;
   }
 
   down(action: string): boolean {
     const k = this.keys;
-    if (action === 'left') return k.has('arrowleft') || this.touch.has('left') || this.stickX < -0.3 || this.axisX < -0.25 || !!this.gpButtons[14];
+    if (action === 'left') return k.has('a') || k.has('arrowleft') || this.touch.has('left') || this.stickX < -0.3 || this.axisX < -0.25 || !!this.gpButtons[14];
     if (action === 'right') return k.has('d') || k.has('arrowright') || this.touch.has('right') || this.stickX > 0.3 || this.axisX > 0.25 || !!this.gpButtons[15];
-    if (action === 'up') return k.has('w') || k.has('arrowup') || this.touch.has('up') || this.stickY < -0.5 || this.axisY < -0.4 || !!this.gpButtons[12];
+    // W is jump, so keyboard aim-up is ArrowUp (stick/d-pad still aim)
+    if (action === 'up') return k.has('arrowup') || this.touch.has('up') || this.stickY < -0.5 || this.axisY < -0.4 || !!this.gpButtons[12];
     if (action === 'down') return k.has('s') || k.has('arrowdown') || this.touch.has('down') || this.stickY > 0.5 || this.axisY > 0.4 || !!this.gpButtons[13];
     // jump is a dedicated button so Up can be used to aim shots upward
-    if (action === 'jump') return k.has('a') || this.touch.has('jump') || !!this.gpButtons[0];
+    if (action === 'jump') return k.has('w') || this.touch.has('jump') || !!this.gpButtons[0];
     if (action === 'attack') return k.has('j') || k.has('x') || this.touch.has('attack') || !!this.gpButtons[2];
     if (action === 'dash') return k.has('shift') || k.has('k') || this.touch.has('dash') || !!this.gpButtons[1];
     if (action === 'toggle') return k.has('e') || k.has('c') || k.has('l') || this.touch.has('toggle') || !!this.gpButtons[3] || !!this.gpButtons[4] || !!this.gpButtons[5];
@@ -174,9 +175,9 @@ export class Input {
     if (action === 'back') return p.has('escape') || t.has('pause') || gpJust(1);
     if (action === 'up') return p.has('arrowup') || p.has('w') || gpJust(12) || this.stickNav.has('up');
     if (action === 'down') return p.has('arrowdown') || p.has('s') || gpJust(13) || this.stickNav.has('down');
-    if (action === 'left') return p.has('arrowleft') || gpJust(14) || this.stickNav.has('left');
+    if (action === 'left') return p.has('arrowleft') || p.has('a') || gpJust(14) || this.stickNav.has('left');
     if (action === 'right') return p.has('arrowright') || p.has('d') || gpJust(15) || this.stickNav.has('right');
-    if (action === 'jump') return p.has('a') || t.has('jump') || gpJust(0);
+    if (action === 'jump') return p.has('w') || t.has('jump') || gpJust(0);
     if (action === 'attack') return p.has('j') || p.has('x') || t.has('attack') || gpJust(2);
     if (action === 'dash') return p.has('shift') || p.has('k') || t.has('dash') || gpJust(1);
     if (action === 'toggle') return p.has('e') || p.has('c') || p.has('l') || t.has('toggle') || gpJust(3) || gpJust(4) || gpJust(5);

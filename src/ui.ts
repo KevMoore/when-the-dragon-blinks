@@ -172,8 +172,8 @@ export function drawHowTo(game: Game, c: CanvasRenderingContext2D) {
        ['▲', 'Jump', 'Tap Jump · tap twice in the air for a double jump'],
        ['✦', 'Fire', 'Tap to loose dragon-light · hold to charge a blast'],
        ['☯', 'Blink', 'Switch Day ⟷ Night — your sharpest weapon']]
-    : [['← →', 'Move', 'Move · ← → arrows (a gamepad stick runs analog)'],
-       ['A', 'Jump', 'A · tap twice in the air for a double jump'],
+    : [['A D', 'Move', 'Move · A/D or ← → (a gamepad stick runs analog)'],
+       ['W', 'Jump', 'W · tap twice in the air for a double jump'],
        ['J', 'Fire', 'J or X to loose dragon-light · hold to charge a blast'],
        ['E', 'Blink', 'E / C — switch Day ⟷ Night, your sharpest weapon']];
   const rx = px + 60, startY = py + 118, rh = 46;
