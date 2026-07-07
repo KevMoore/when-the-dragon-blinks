@@ -41,7 +41,7 @@ export class GuqinGame {
     if (this.done) {
       this.finishT += dt;
       for (const tile of this.tiles) tile.fx += dt;
-      if (this.finishT > 0.7 && (input.just('confirm') || input.pointer?.clicked)) this.game.finishGuqin();
+      if (this.finishT > 0.7 && (input.just('confirm') || input.taps.length > 0)) this.game.finishGuqin();
       return;
     }
     this.t += dt;
@@ -65,8 +65,10 @@ export class GuqinGame {
   private laneTriggered(l: number): boolean {
     const input = this.game.input;
     if (input.pressed.has(LANE_KEY[l])) return true;
-    const p = input.pointer;
-    if (p && p.clicked) { const x = this.laneX(l); if (p.x >= x && p.x <= x + this.laneW && p.y > this.hitY - 260) return true; }
+    // whole lane is tappable (tapping the falling tile itself must count), and
+    // every queued tap is checked so two-finger play never loses a note
+    const x = this.laneX(l);
+    for (const t of input.taps) if (t.x >= x && t.x <= x + this.laneW && t.y > 84) return true;
     return false;
   }
 

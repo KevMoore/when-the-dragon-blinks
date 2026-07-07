@@ -11,6 +11,10 @@ export class Input {
   axisX = 0;
   axisY = 0;
   pointer: { x: number; y: number; clicked: boolean } | null = null;
+  // Every pointerdown this frame, oldest first. `pointer` is last-write-wins, so
+  // near-simultaneous touches (two-finger play on the mini-games) lose taps —
+  // consumers that care about every tap read this queue instead.
+  taps: { x: number; y: number }[] = [];
   stickX = 0; stickY = 0;    // left-thumb drag joystick (-1..1)
   stickNav = new Set<string>();          // edge-detected stick presses for menu nav
   private prevStickNav = { x: 0, y: 0 };
@@ -27,9 +31,11 @@ export class Input {
     window.addEventListener('blur', () => this.keys.clear());
 
     canvas.addEventListener('pointerdown', e => {
+      e.preventDefault();   // keep iOS from running any native tap behaviour on the canvas
       const p = this.toCanvasPoint(e.clientX, e.clientY);
       this.pointer = { x: p.x, y: p.y, clicked: true };
-    });
+      if (this.taps.length < 8) this.taps.push({ x: p.x, y: p.y });
+    }, { passive: false });
 
     const controls = document.getElementById('touch-controls');
     controls?.querySelectorAll('button[data-action]').forEach(btn => {
@@ -186,5 +192,6 @@ export class Input {
     this.pressed.clear();
     this.touchPressed.clear();
     if (this.pointer) this.pointer.clicked = false;
+    this.taps.length = 0;
   }
 }

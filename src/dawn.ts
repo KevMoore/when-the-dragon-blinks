@@ -10,6 +10,7 @@ export class DawnGame {
   round = 0;
   private pos = 0; private dir = 1; private speed = 0.85;
   private stopped = false; private stopT = 0; private lastQuality = 0;
+  private armT = 0;          // brief tap-deadzone per round so a stray double-tap can't burn it
   hits = 0; bonus = 0;
   done = false; finishT = 0;
   private eyeOpen = 0;
@@ -21,6 +22,7 @@ export class DawnGame {
   private beginRound() {
     this.pos = 0; this.dir = 1; this.stopped = false; this.stopT = 0;
     this.speed = 0.8 + this.round * 0.32;
+    this.armT = 0.25;
   }
 
   update(dt: number) {
@@ -29,7 +31,7 @@ export class DawnGame {
     const near = 1 - Math.min(1, Math.abs(this.pos - 0.5) / 0.5);
     this.eyeOpen += ((this.stopped ? this.lastQuality : near) - this.eyeOpen) * Math.min(1, dt * 10);
 
-    if (this.done) { this.finishT += dt; if (this.finishT > 0.7 && (input.just('confirm') || input.pointer?.clicked)) this.game.finishDawn(); return; }
+    if (this.done) { this.finishT += dt; if (this.finishT > 0.7 && (input.just('confirm') || input.taps.length > 0)) this.game.finishDawn(); return; }
 
     if (this.stopped) {
       this.stopT += dt;
@@ -38,7 +40,8 @@ export class DawnGame {
     }
     this.pos += this.dir * this.speed * dt;
     if (this.pos >= 1) { this.pos = 1; this.dir = -1; } else if (this.pos <= 0) { this.pos = 0; this.dir = 1; }
-    if (input.just('confirm') || input.just('jump') || input.pointer?.clicked) this.stop();
+    this.armT = Math.max(0, this.armT - dt);
+    if (input.just('confirm') || input.just('jump') || (input.taps.length > 0 && this.armT <= 0)) this.stop();
   }
 
   private stop() {
