@@ -78,10 +78,12 @@ function threatened(c) {
 }
 // gravity + edge-aware horizontal step for walkers, with auto step-up over low
 // ledges, tolerance for small drops, and a stuck-escape hop.
-function groundStep(c, desiredVx, dt) {
+function groundStep(c, desiredVx, dt, commit = false) {
     const e = c.e, game = c.game, bb = c.bb;
+    if (e.dropThrough)
+        e.dropThrough = Math.max(0, e.dropThrough - dt);
     const dir = Math.sign(desiredVx);
-    if (dir !== 0 && e.grounded) {
+    if (dir !== 0 && e.grounded && !commit) {
         const foot = e.y + e.h;
         const frontX = dir > 0 ? e.x + e.w - 2 : e.x - 4;
         // ground within ~1.3 tiles ahead (so small step-downs are fine, only real pits stop us)
@@ -125,6 +127,123 @@ function groundStep(c, desiredVx, dt) {
     else
         bb.stuckT = 0;
 }
+// ---- surface-graph pathfinding for walkers ----------------------------------
+// Nodes are "standable" cells (air with head-room and solid/one-way support
+// beneath). Edges: walk (±1 col, small rise/fall), jump up (≤3 rows, with a
+// clear vertical corridor), drop off an edge (≤6 rows), and leap a 2–4 tile
+// gap. A* over this graph gives walkers real routes to a player on another
+// ledge instead of pacing into the wall below him.
+function standable(game, x, y) {
+    if (x < 0 || y < 1 || x >= game.level.width || y >= game.level.height - 1)
+        return false;
+    const open = (ch) => ch !== '#' && ch !== 'g';
+    const t = game.tileAt(x, y), a = game.tileAt(x, y - 1), b = game.tileAt(x, y + 1);
+    const sup = b === '#' || b === 'g' || b === 'o' || (b === 'D' && game.world === 'day') || (b === 'N' && game.world === 'night');
+    return open(t) && open(a) && sup;
+}
+function corridorOpen(game, x, yTop, yBot) {
+    const open = (ch) => ch !== '#' && ch !== 'g';
+    for (let y = yTop; y <= yBot; y++)
+        if (!open(game.tileAt(x, y)))
+            return false;
+    return true;
+}
+export function findGroundPath(game, sx, sy, tx, ty, maxNodes = 600) {
+    if (!standable(game, sx, sy) || !standable(game, tx, ty))
+        return null;
+    const W = game.level.width;
+    const id = (x, y) => y * W + x;
+    const h = (x, y) => Math.abs(tx - x) + Math.abs(ty - y);
+    const nodes = new Map();
+    const open = [{ x: sx, y: sy, g: 0, f: h(sx, sy), from: -1, kind: 'walk' }];
+    nodes.set(id(sx, sy), open[0]);
+    let expanded = 0;
+    const push = (x, y, g, from, kind) => {
+        const k = id(x, y), prev = nodes.get(k);
+        if (prev && prev.g <= g)
+            return;
+        const n = { x, y, g, f: g + h(x, y), from, kind };
+        nodes.set(k, n);
+        open.push(n);
+    };
+    while (open.length && expanded++ < maxNodes) {
+        open.sort((a, b) => a.f - b.f);
+        const n = open.shift();
+        if (n.x === tx && n.y === ty) {
+            const path = [];
+            let cur = n;
+            while (cur && cur.from !== -1) {
+                path.unshift({ x: cur.x, y: cur.y, kind: cur.kind });
+                cur = nodes.get(cur.from);
+            }
+            return path;
+        }
+        const from = id(n.x, n.y);
+        for (const dir of [-1, 1]) {
+            const nx = n.x + dir;
+            // walk / small step
+            for (let k = -1; k <= 1; k++)
+                if (standable(game, nx, n.y + k)) {
+                    push(nx, n.y + k, n.g + 1 + Math.abs(k) * 0.3, from, 'walk');
+                    break;
+                }
+            // drop off an edge (2..6 rows down)
+            for (let d = 2; d <= 6; d++) {
+                if (!corridorOpen(game, nx, n.y, n.y + d - 1))
+                    break;
+                if (standable(game, nx, n.y + d)) {
+                    push(nx, n.y + d, n.g + 1.4 + d * 0.25, from, 'drop');
+                    break;
+                }
+            }
+            // leap a gap (2..4 columns, near-level landing)
+            for (let g2 = 2; g2 <= 4; g2++) {
+                const lx = n.x + dir * g2;
+                for (let k = -1; k <= 1; k++)
+                    if (standable(game, lx, n.y + k)) {
+                        push(lx, n.y + k, n.g + 1.6 + g2 * 0.6, from, 'leap');
+                        break;
+                    }
+            }
+            // up-leap: a parabolic hop 1-3 rows up AND 2-4 columns across (ramp →
+            // floating platform); requires launch headroom
+            for (let u = 1; u <= 3; u++) {
+                if (!corridorOpen(game, n.x, n.y - u, n.y - 1))
+                    break;
+                for (let g2 = 2; g2 <= 4; g2++) {
+                    const lx = n.x + dir * g2;
+                    if (standable(game, lx, n.y - u))
+                        push(lx, n.y - u, n.g + 1.9 + u * 0.7 + g2 * 0.5, from, 'leap');
+                }
+            }
+            // jump up (2..3 rows, onto this or a neighbouring column)
+            for (let u = 2; u <= 3; u++) {
+                if (!corridorOpen(game, n.x, n.y - u, n.y - 1))
+                    break;
+                for (const jx of [n.x, nx])
+                    if (standable(game, jx, n.y - u))
+                        push(jx, n.y - u, n.g + 1.8 + u * 0.8, from, 'jump');
+            }
+        }
+        // climb straight up through a one-way platform overhead
+        for (let u = 2; u <= 3; u++) {
+            if (!corridorOpen(game, n.x, n.y - u, n.y - 1))
+                break;
+            if (standable(game, n.x, n.y - u))
+                push(n.x, n.y - u, n.g + 1.6 + u * 0.8, from, 'jump');
+        }
+    }
+    return null;
+}
+/** The cell an entity is standing in (support may be a row or two below its feet). */
+export function cellUnder(game, ex, ey, w, h2) {
+    const cx = Math.floor((ex + w / 2) / TILE);
+    const cy = Math.floor((ey + h2 - 4) / TILE);
+    for (let d = 0; d <= 3; d++)
+        if (standable(game, cx, cy + d))
+            return { x: cx, y: cy + d };
+    return null;
+}
 // ---- brain factories -------------------------------------------------------
 export function groundBrain() {
     const NEAR = 48;
@@ -136,7 +255,49 @@ export function groundBrain() {
                 return true;
             } return false; } },
         { name: 'approach', cost: 2, pre: { near: false, threatened: false }, post: { near: true },
-            run(c, dt) { groundStep(c, Math.sign(c.dx) * speed(c), dt); return c.dist < NEAR; } },
+            run(c, dt) {
+                const e = c.e, game = c.game, bb = c.bb;
+                // (re)plan a route to the player's ledge about once a second
+                bb.pathT = (bb.pathT ?? 0) - dt;
+                const goal = cellUnder(game, game.player.x, game.player.y, game.player.w, game.player.h);
+                if (goal && (bb.pathT <= 0 || !bb.path || bb.pathI >= bb.path.length ||
+                    !bb.goal || Math.abs(goal.x - bb.goal.x) + Math.abs(goal.y - bb.goal.y) > 2)) {
+                    const start = cellUnder(game, e.x, e.y, e.w, e.h);
+                    bb.path = start ? findGroundPath(game, start.x, start.y, goal.x, goal.y) : null;
+                    bb.pathI = 0;
+                    bb.goal = goal;
+                    bb.pathT = 0.9;
+                }
+                const wp = bb.path?.[bb.pathI];
+                if (!wp) {
+                    groundStep(c, Math.sign(c.dx) * speed(c), dt);
+                    return c.dist < NEAR;
+                } // no route — old heuristics
+                const wx = (wp.x + 0.5) * TILE, ex = e.x + e.w / 2;
+                const erow = Math.floor((e.y + e.h - 4) / TILE);
+                const dxw = wx - ex;
+                if (Math.abs(dxw) < 12 && Math.abs(erow - wp.y) <= 1) {
+                    bb.pathI++;
+                    return c.dist < NEAR;
+                }
+                // vertical intent: jump when the waypoint is above and lined up
+                // (up-leaps launch from further out), drop through one-way footing
+                // when it is below
+                const above = wp.y < erow;
+                if (above && e.grounded && Math.abs(dxw) < TILE * (wp.kind === 'leap' ? 3.4 : 1.4)) {
+                    e.vy = -Math.min(680, Math.sqrt(2 * GRAVITY * ((erow - wp.y) * TILE + 24)));
+                }
+                if (wp.y > erow + 1 && e.grounded) {
+                    const below = game.tileAt(Math.floor(ex / TILE), erow + 1);
+                    if (below === 'o' || below === 'D' || below === 'N')
+                        e.dropThrough = 0.18;
+                }
+                // airborne pursuit gets a horizontal boost so slow walkers can carry
+                // an up-leap across the gap they planned
+                const vmag = e.grounded ? speed(c) : Math.max(speed(c), 165);
+                groundStep(c, Math.sign(dxw) * vmag, dt, wp.kind === 'drop' || wp.y > erow);
+                return c.dist < NEAR;
+            } },
         { name: 'strike', cost: 1, pre: { near: true, threatened: false }, post: { attacked: true },
             run(c, dt) { groundStep(c, Math.sign(c.dx) * 130, dt); c.bb.st = (c.bb.st || 0) + dt; if (c.bb.st > 0.4) {
                 c.bb.st = 0;

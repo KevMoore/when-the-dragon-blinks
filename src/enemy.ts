@@ -17,6 +17,7 @@ export class Enemy {
   alive = true; hp = 2; maxHp = 2; baseY: number; baseX: number;
   phase = Math.random() * 10; flash = 0; fireTimer = rand(1, 2.4);
   points = 100; grounded = false; aggro = 340; elite = false;
+  dropThrough = 0;   // brief window to fall through one-way footing (path descent)
   stuckT = 0; lastPX = 0; lastPY = 0;      // unstick watchdog
   brain: Brain;
   bb: Record<string, any> = {};

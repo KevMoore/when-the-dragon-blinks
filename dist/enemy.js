@@ -23,6 +23,7 @@ export class Enemy {
         this.grounded = false;
         this.aggro = 340;
         this.elite = false;
+        this.dropThrough = 0; // brief window to fall through one-way footing (path descent)
         this.stuckT = 0;
         this.lastPX = 0;
         this.lastPY = 0; // unstick watchdog
