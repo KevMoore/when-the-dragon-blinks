@@ -95,9 +95,13 @@ export function drawSky(game: Game, c: CanvasRenderingContext2D) {
   const storm = !!game.level.isBoss;
   const qday = Math.round(day * 32) / 32;
   const qcx = Math.round(cx / 2) * 2;   // 2px steps: sun drift stays smooth-enough, few re-renders/sec at sprint
+  // counter-shift the shake: the distant sky staying screen-static is both
+  // parallax-correct and guarantees the frame is fully painted under shake
+  // (the render translate otherwise leaves unpainted strips at the edges)
+  const shx = -Math.round(game.camera.shakeX), shy = -Math.round(game.camera.shakeY);
   const cached = skyCanvas(game, th, qday, qcx, cy, storm);
-  if (cached) c.drawImage(cached, 0, 0);
-  else paintSky(c, game, th, day, qcx, cy, storm);   // cache unavailable — paint direct
+  if (cached) c.drawImage(cached, shx, shy);
+  else { c.save(); c.translate(shx, shy); paintSky(c, game, th, day, qcx, cy, storm); c.restore(); }   // cache unavailable — paint direct
 
   // the animated layers stay live on top of the cached sky
   drawClouds(game, c, day, storm);
@@ -280,14 +284,42 @@ function bakeThreeSlice(
   let capW = srcCap * s;
   if (capW * 2 > w) capW = w / 2;
   // middle first, caps over its ragged ends — joins are overdraw, never a butt
-  // joint that can leak a hairline at a fractional destination
-  const m0 = iw * mid[0], mw = iw * (mid[1] - mid[0]), dstMw = Math.max(4, mw * s);
-  for (let dx2 = x + capW - 1; dx2 < x + w - capW + 1; dx2 += dstMw) {            // tiled middle (1px into each cap)
-    const dw2 = Math.min(dstMw, x + w - capW + 1 - dx2);
-    c.drawImage(img, m0, 0, mw * (dw2 / dstMw), ih, dx2, y, dw2, h);
+  // joint that can leak a hairline at a fractional destination.
+  // Every other middle tile is MIRRORED so tile joins are continuous by
+  // construction (an edge always meets its own reflection) — repetition of a
+  // not-quite-seamless strip was reading as a line at every tile boundary.
+  const m0 = iw * mid[0], m1 = iw * mid[1], mw = m1 - m0, dstMw = Math.max(4, mw * s);
+  // the middle must run under the caps' whole feathered zone, else the fade
+  // would reveal holes instead of crossfading onto plank/turf texture
+  const feather = Math.max(6, Math.round(capW * 0.45));
+  let flip = false;
+  for (let dx2 = x + capW - feather; dx2 < x + w - capW + feather; dx2 += dstMw, flip = !flip) {
+    const dw2 = Math.min(dstMw, x + w - capW + feather - dx2);
+    const srcW = mw * (dw2 / dstMw);
+    if (!flip) c.drawImage(img, m0, 0, srcW, ih, dx2, y, dw2, h);
+    else {
+      // partial mirrored tiles sample right-aligned so the visible LEFT edge
+      // is always the m1 edge the previous tile ended on
+      c.save(); c.translate(dx2 + dw2 / 2, 0); c.scale(-1, 1);
+      c.drawImage(img, m1 - srcW, 0, srcW, ih, -dw2 / 2, y, dw2, h);
+      c.restore();
+    }
   }
-  c.drawImage(img, 0, 0, srcCap, ih, x, y, capW, h);                              // left cap
-  c.drawImage(img, iw - srcCap, 0, srcCap, ih, x + w - capW, y, capW, h);         // right cap
+  // caps with a feathered inner edge — a hard cap/middle boundary jumps
+  // texture content (source 15% → 30%) and read as the "kit separation" line
+  const cap = (srcX: number, dstX: number, fadeLeft: boolean) => {
+    const t = document.createElement('canvas');
+    t.width = Math.max(1, Math.round(capW)); t.height = Math.max(1, Math.round(h));
+    const tc = t.getContext('2d'); if (!tc) { c.drawImage(img, srcX, 0, srcCap, ih, dstX, y, capW, h); return; }
+    tc.drawImage(img, srcX, 0, srcCap, ih, 0, 0, t.width, t.height);
+    const g = tc.createLinearGradient(fadeLeft ? 0 : t.width - feather, 0, fadeLeft ? feather : t.width, 0);
+    g.addColorStop(fadeLeft ? 0 : 1, 'rgba(0,0,0,1)'); g.addColorStop(fadeLeft ? 1 : 0, 'rgba(0,0,0,0)');
+    tc.globalCompositeOperation = 'destination-out'; tc.fillStyle = g;
+    tc.fillRect(fadeLeft ? 0 : t.width - feather, 0, feather, t.height);
+    c.drawImage(t, dstX, y, capW, h);
+  };
+  cap(0, x, false);                                                               // left cap, right edge feathered
+  cap(iw - srcCap, x + w - capW, true);                                           // right cap, left edge feathered
 }
 // The composite is baked ONCE per (sprite, size) into an offscreen at integer
 // coords, then blitted as a single image. Chrome resamples every internal

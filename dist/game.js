@@ -1579,14 +1579,11 @@ export class Game {
         const t0 = this.showFps ? performance.now() : 0;
         const c = this.ctx;
         c.save();
-        // PERF (Chrome): every state paints an opaque sky over the whole frame, so
-        // a full clear is pure wasted fill rate — only needed while camera shake
-        // shifts the scene and would otherwise leave stale edge pixels behind.
-        if (Math.abs(this.camera.shakeX) + Math.abs(this.camera.shakeY) > 0.01) {
-            c.fillStyle = '#08050d';
-            c.fillRect(0, 0, LOGICAL_W, LOGICAL_H); // opaque clear (alpha:false ctx)
-        }
-        c.translate(this.camera.shakeX, this.camera.shakeY);
+        // Shake translates the scene by WHOLE pixels (fractional offsets resample
+        // every cached layer — the frame visibly softened/shimmered during bursts),
+        // and the distant sky is counter-shifted inside drawSky so the frame stays
+        // fully painted: no clear pass, no dark strips flashing at the edges.
+        c.translate(Math.round(this.camera.shakeX), Math.round(this.camera.shakeY));
         switch (this.state) {
             case 'howto':
                 bg.drawSky(this, c);
