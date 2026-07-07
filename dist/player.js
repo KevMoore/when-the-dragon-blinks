@@ -239,6 +239,10 @@ export class Player {
             this.charging = true;
             this.chargeT = 0;
         }
+        // auto-fire: steady bolts hands-free — but never while the fire button is
+        // held, so tap/hold-to-charge (blast + nova) behaves exactly as before
+        if (game.save.settings.autoFire && !atkDown && !this.charging && this.shootCd <= 0 && this.dashTime <= 0)
+            this.fireBolt(game);
         if (this.charging) {
             if (atkDown) {
                 this.chargeT += dt;

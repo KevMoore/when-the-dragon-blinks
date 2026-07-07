@@ -39,7 +39,7 @@ export class Input {
 
     // NOTE: #touch-pause sits OUTSIDE #touch-controls in the DOM — selecting
     // only inside the controls container left the pause button doing nothing
-    document.querySelectorAll('#touch-controls button[data-action], #touch-pause').forEach(btn => {
+    document.querySelectorAll('#touch-controls button[data-action], #touch-pause, #auto-fire').forEach(btn => {
       const action = (btn as HTMLElement).dataset.action!;
       const down = (e: Event) => {
         e.preventDefault();
@@ -183,6 +183,7 @@ export class Input {
     if (action === 'dash') return p.has('shift') || p.has('k') || t.has('dash') || gpJust(1);
     if (action === 'toggle') return p.has('e') || p.has('c') || p.has('l') || t.has('toggle') || gpJust(3) || gpJust(4) || gpJust(5);
     if (action === 'pause') return p.has('escape') || p.has('p') || t.has('pause') || gpJust(9);
+    if (action === 'autofire') return t.has('autofire');
     if (action === 'interact') return p.has('f') || t.has('interact') || gpJust(12) || gpJust(3);
     if (action === 'debug') return p.has('f1');
     if (action === 'codex') return p.has('h');

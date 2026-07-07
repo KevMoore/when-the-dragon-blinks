@@ -121,6 +121,12 @@ export class Game {
         this.save = loadSave();
         this.audio = new AudioManager(this.save.settings);
         this.state = this.save.seenIntro ? 'title' : 'howto';
+        // reflect the persisted auto-fire state on its toggle button
+        const af = document.getElementById('auto-fire');
+        if (af && this.save.settings.autoFire) {
+            af.classList.add('on');
+            af.setAttribute('aria-pressed', 'true');
+        }
     }
     totalRelics() { return levels.reduce((n, l) => n + l.relics.length, 0); }
     // ---- persistence -------------------------------------------------------
@@ -1009,6 +1015,18 @@ export class Game {
             this.pauseSelection = 0;
             return;
         }
+        if (this.input.just('autofire')) {
+            const s = this.save.settings;
+            s.autoFire = !s.autoFire;
+            this.persistSave();
+            this.audio.sfx('menu');
+            const b = document.getElementById('auto-fire');
+            if (b) {
+                b.classList.toggle('on', s.autoFire);
+                b.setAttribute('aria-pressed', String(s.autoFire));
+            }
+            this.flashText(s.autoFire ? 'Auto-fire kindled — hold ✦ to charge as before.' : 'Auto-fire rests.');
+        }
         if (this.input.just('toggle'))
             this.tryToggleWorld();
         if (this.hitstop > 0) {
@@ -1385,7 +1403,24 @@ export class Game {
             this.audio.sfx('menu');
         }
         const s = this.save.settings;
-        const left = this.input.just('left'), right = this.input.just('right'), confirm = this.input.just('confirm');
+        // touch: tap a row to select+toggle it (volume: left half −, right half +) —
+        // the stick that usually drives menus is hidden outside gameplay
+        let tapAdjust = 0, tapConfirm = false;
+        if (this.input.pointer?.clicked) {
+            const px = this.input.pointer.x, py = this.input.pointer.y;
+            for (let i = 0; i < n; i++) {
+                const y = 220 + i * 42;
+                if (py > y - 24 && py < y + 12 && px > LOGICAL_W / 2 - 240 && px < LOGICAL_W / 2 + 240) {
+                    this.settingsSelection = i;
+                    if (i === 0)
+                        tapAdjust = px > LOGICAL_W / 2 ? 1 : -1;
+                    else
+                        tapConfirm = true;
+                    break;
+                }
+            }
+        }
+        const left = this.input.just('left') || tapAdjust < 0, right = this.input.just('right') || tapAdjust > 0, confirm = this.input.just('confirm') || tapConfirm;
         if (this.settingsSelection === 0) {
             if (left)
                 s.master = clamp(Math.round((s.master - 0.1) * 10) / 10, 0, 1);

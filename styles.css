@@ -58,6 +58,9 @@ body.lefty .touch-right button[data-action="toggle"] { right: auto; left: 59px; 
 #touch-pause:active { background: rgba(217,74,58,.6); }
 /* touch controls only while actually PLAYING — menus and mini-games need the
    canvas to receive taps directly (the stick-zone was eating them) */
-@media (pointer: coarse) and (orientation: landscape) { body.playing #touch-controls { display: block; } body.playing #touch-pause, body.paused #touch-pause { display: block; } }
-body.force-touch.playing #touch-controls, body.force-touch.playing #touch-pause, body.force-touch.paused #touch-pause { display: block; }
+/* auto-fire toggle: pause button's sibling; gold ring while engaged */
+#auto-fire { position: fixed; top: max(14px, env(safe-area-inset-top)); right: calc(max(14px, env(safe-area-inset-right)) + 56px); z-index: 8; display: none; pointer-events: auto; width: 46px; height: 46px; border-radius: 14px; border: 1px solid rgba(255,255,255,.28); color: rgba(255,255,255,.75); background: linear-gradient(150deg, rgba(255,255,255,.16), rgba(255,255,255,.04)); box-shadow: inset 0 1.5px 1px rgba(255,255,255,.4), 0 4px 14px rgba(0,0,0,.24); font: 700 11px Georgia, serif; letter-spacing: .5px; text-shadow: 0 1px 2px rgba(0,0,0,.4); backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%); }
+#auto-fire.on { color: #ffe3a0; border-color: rgba(255,210,120,.85); background: linear-gradient(150deg, rgba(255,190,130,.4), rgba(217,74,58,.28)); box-shadow: inset 0 1.5px 1px rgba(255,255,255,.45), 0 0 14px rgba(255,180,90,.45); }
+@media (pointer: coarse) and (orientation: landscape) { body.playing #touch-controls { display: block; } body.playing #touch-pause, body.paused #touch-pause, body.playing #auto-fire { display: block; } }
+body.force-touch.playing #touch-controls, body.force-touch.playing #touch-pause, body.force-touch.paused #touch-pause, body.force-touch.playing #auto-fire { display: block; }
 @media (orientation: portrait) and (max-width: 900px) { #rotate-overlay { display: flex; } #touch-controls, #touch-pause { display: none; } }
