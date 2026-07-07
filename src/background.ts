@@ -95,13 +95,9 @@ export function drawSky(game: Game, c: CanvasRenderingContext2D) {
   const storm = !!game.level.isBoss;
   const qday = Math.round(day * 32) / 32;
   const qcx = Math.round(cx / 2) * 2;   // 2px steps: sun drift stays smooth-enough, few re-renders/sec at sprint
-  // counter-shift the shake: the distant sky staying screen-static is both
-  // parallax-correct and guarantees the frame is fully painted under shake
-  // (the render translate otherwise leaves unpainted strips at the edges)
-  const shx = -Math.round(game.camera.shakeX), shy = -Math.round(game.camera.shakeY);
   const cached = skyCanvas(game, th, qday, qcx, cy, storm);
-  if (cached) c.drawImage(cached, shx, shy);
-  else { c.save(); c.translate(shx, shy); paintSky(c, game, th, day, qcx, cy, storm); c.restore(); }   // cache unavailable — paint direct
+  if (cached) c.drawImage(cached, 0, 0);
+  else paintSky(c, game, th, day, qcx, cy, storm);   // cache unavailable — paint direct
 
   // the animated layers stay live on top of the cached sky
   drawClouds(game, c, day, storm);

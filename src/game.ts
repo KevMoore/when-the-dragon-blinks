@@ -1025,11 +1025,12 @@ export class Game {
     const t0 = this.showFps ? performance.now() : 0;
     const c = this.ctx;
     c.save();
-    // Shake translates the scene by WHOLE pixels (fractional offsets resample
-    // every cached layer — the frame visibly softened/shimmered during bursts),
-    // and the distant sky is counter-shifted inside drawSky so the frame stays
-    // fully painted: no clear pass, no dark strips flashing at the edges.
-    c.translate(Math.round(this.camera.shakeX), Math.round(this.camera.shakeY));
+    // Shake is applied to the CAMERA position, not a canvas translate: every
+    // layer repaints the full frame exactly as in a calm frame, so there are
+    // no shifted-edge strips for any compositor (Safari showed stale bands
+    // under the translate approach), no resampling, and the HUD stays still.
+    const shx = Math.round(this.camera.shakeX), shy = Math.round(this.camera.shakeY);
+    this.camera.x += shx; this.camera.y += shy;
     switch (this.state) {
       case 'howto': bg.drawSky(this, c); bg.drawParallax(this, c); this.particles.draw(c, 0, 0, this.world); ui.drawHowTo(this, c); break;
       case 'title': bg.drawSky(this, c); bg.drawParallax(this, c); this.particles.draw(c, 0, 0, this.world); ui.drawTitle(this, c); break;
@@ -1055,6 +1056,7 @@ export class Game {
     if (this.clearT > 0) this.drawMangaClear(c);
     // toggle flash
     if (this.flash > 0.01) { c.globalAlpha = this.flash * 0.5; c.fillStyle = this.flashColor; c.fillRect(-40, -40, LOGICAL_W + 80, LOGICAL_H + 80); c.globalAlpha = 1; }
+    this.camera.x -= shx; this.camera.y -= shy;   // undo the render-only shake offset
     c.restore();
     if (this.showFps) {
       const now = performance.now();
