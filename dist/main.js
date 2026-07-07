@@ -27,6 +27,18 @@ function resize() {
     canvas.height = Math.round(LOGICAL_H * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.imageSmoothingEnabled = true;
+    // Integer-snapped display geometry: `object-fit: contain` alone leaves the
+    // canvas at a fractional scale/offset, and Chrome's compositor shows hairline
+    // seams and edge artifacts on fractionally-placed canvas layers (Safari
+    // doesn't). Size and position the element to whole CSS pixels ourselves.
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const s = Math.min(vw / LOGICAL_W, vh / LOGICAL_H);
+    const w = Math.round(LOGICAL_W * s), h = Math.round(LOGICAL_H * s);
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    canvas.style.position = 'absolute';
+    canvas.style.left = Math.round((vw - w) / 2) + 'px';
+    canvas.style.top = Math.round((vh - h) / 2) + 'px';
 }
 window.addEventListener('resize', resize);
 resize();
@@ -155,7 +167,9 @@ let last = performance.now();
 let accumulator = 0;
 // Adaptive quality: watch real frame spacing and shrink the backing buffer
 // while the browser can't hold ~60fps (recovering back up when it clearly can).
-let frameCount = 0, slowFrames = 0, fastFrames = 0, lastQualityChange = 0;
+// Stepping up is deliberately sticky (3 consecutive fast windows + 30s apart):
+// an oscillating resolution reads as the whole scene "re-rendering".
+let frameCount = 0, slowFrames = 0, fastFrames = 0, lastQualityChange = 0, fastWindows = 0;
 function tuneQuality(dt, now) {
     frameCount++;
     if (dt > 0.021)
@@ -163,19 +177,24 @@ function tuneQuality(dt, now) {
     if (dt < 0.0175)
         fastFrames++;
     if (frameCount < 90)
-        return; // judge over ~1.5s windows
+        return false; // judge over ~1.5s windows
     const slow = slowFrames / frameCount, fast = fastFrames / frameCount;
     frameCount = slowFrames = fastFrames = 0;
-    if (slow > 0.2 && dprScale > 0.5) { // struggling → drop resolution a notch
-        dprScale = Math.max(0.5, dprScale - 0.25);
+    fastWindows = fast > 0.95 ? fastWindows + 1 : 0;
+    if (slow > 0.2 && dprScale > 0.5 && now - lastQualityChange > 5000) {
+        dprScale = Math.max(0.5, dprScale - 0.25); // struggling → drop resolution a notch
         lastQualityChange = now;
         resize();
+        return true;
     }
-    else if (fast > 0.95 && dprScale < 1 && now - lastQualityChange > 10000) {
+    if (fastWindows >= 3 && dprScale < 1 && now - lastQualityChange > 30000) {
         dprScale = Math.min(1, dprScale + 0.25); // comfortably fast → try stepping back up
         lastQualityChange = now;
+        fastWindows = 0;
         resize();
+        return true;
     }
+    return false;
 }
 function loop(now) {
     let dt = (now - last) / 1000;
@@ -183,7 +202,7 @@ function loop(now) {
     // avoid spiral-of-death after a tab is backgrounded
     if (dt > 0.25)
         dt = STEP;
-    tuneQuality(dt, now);
+    const resized = tuneQuality(dt, now);
     accumulator += dt;
     let guard = 0, stepped = false;
     while (accumulator >= STEP && guard++ < 5) {
@@ -193,12 +212,16 @@ function loop(now) {
     }
     // Only paint when the simulation advanced: on 120Hz displays (where Chrome
     // runs rAF at full rate but Safari caps at 60) re-rendering an unchanged
-    // world would double the fill cost for nothing.
-    if (stepped)
+    // world would double the fill cost for nothing. A resize is the exception —
+    // it wipes the backing buffer, and the wiped canvas must NEVER reach the
+    // compositor, so repaint in the same task.
+    if (stepped || resized)
         game.render();
     requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
+// window resizes also reallocate (and wipe) the buffer — repaint immediately
+window.addEventListener('resize', () => game.render());
 // expose for quick console debugging
 window.__dragon = game;
 //# sourceMappingURL=main.js.map

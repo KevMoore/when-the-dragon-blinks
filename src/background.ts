@@ -31,13 +31,19 @@ function hash(n: number): number {
 // each frame pays a single opaque blit. Keyed by theme + quantized day/night
 // mix + quantized sun position (the sun drifts at 0.04× camera speed, so a
 // 4px key step re-renders only a few times per second at full sprint).
-let _sky: HTMLCanvasElement | null = null;
+// Double-buffered: re-renders go to the OTHER canvas, never mutating the one
+// the main context blitted last frame (mutating a just-drawn source canvas is
+// a known stale-texture hazard in Chrome's accelerated canvas).
+const _skyBufs: (HTMLCanvasElement | null)[] = [null, null];
+let _skyCur = 0;
 let _skyKey = '';
 function skyCanvas(game: Game, th: Theme, qday: number, qcx: number, cy: number, storm: boolean): HTMLCanvasElement {
   const key = game.level.theme + '|' + qday + '|' + qcx + (storm ? '|s' : '');
-  if (_sky && key === _skyKey) return _sky;
+  if (_skyBufs[_skyCur] && key === _skyKey) return _skyBufs[_skyCur]!;
   _skyKey = key;
-  if (!_sky) { _sky = document.createElement('canvas'); _sky.width = LOGICAL_W; _sky.height = LOGICAL_H; }
+  _skyCur = 1 - _skyCur;
+  let _sky = _skyBufs[_skyCur];
+  if (!_sky) { _sky = _skyBufs[_skyCur] = document.createElement('canvas'); _sky.width = LOGICAL_W; _sky.height = LOGICAL_H; }
   const c = _sky.getContext('2d')!;
   const day = qday;
   c.clearRect(0, 0, LOGICAL_W, LOGICAL_H);
@@ -82,7 +88,7 @@ export function drawSky(game: Game, c: CanvasRenderingContext2D) {
   const cx = 772 - game.camera.x * 0.04, cy = 96;
   const storm = !!game.level.isBoss;
   const qday = Math.round(day * 32) / 32;
-  const qcx = Math.round(cx / 4) * 4;
+  const qcx = Math.round(cx / 2) * 2;   // 2px steps: sun drift stays smooth-enough, few re-renders/sec at sprint
   c.drawImage(skyCanvas(game, th, qday, qcx, cy, storm), 0, 0);
 
   // the animated layers stay live on top of the cached sky
@@ -848,9 +854,14 @@ function drawHazard(game: Game, c: CanvasRenderingContext2D, x: number, y: numbe
   if (img && propReady[key]) {
     const ti = Math.round((x + game.camera.x) / TILE);
     const per = 6, sw = img.width / per, si = ((ti % per) + per) % per;
-    const dh = 30, wob = active && ch === 'S' ? Math.sin(game.time * 4 + x) * 1 : 0;
+    // wobble phase is WORLD-anchored (screen-x phase made the shards writhe
+    // whenever the camera panned), and the blit is pixel-snapped with a
+    // half-texel source inset — fractional destinations resample the sprite
+    // strip differently every frame in Chrome, bleeding neighbouring variants
+    // in at the edges, which read as the spikes "re-rendering" while walking.
+    const dh = 30, wob = active && ch === 'S' ? Math.sin(game.time * 4 + (x + game.camera.x) * 0.03) * 1 : 0;
     if (active && ch === 'S') { c.shadowColor = '#8ed7ff'; c.shadowBlur = 8; }
-    c.drawImage(img, si * sw, 0, sw, img.height, x - 2, y + TILE - dh + wob, TILE + 4, dh);
+    c.drawImage(img, si * sw + 0.5, 0, sw - 1, img.height, Math.round(x) - 2, Math.round(y + TILE - dh + wob), TILE + 4, dh);
   } else {
     c.fillStyle = ch === 'S' ? '#8ed7ff' : '#8a7c7c';
     for (let i = 0; i < 4; i++) { c.beginPath(); c.moveTo(x + i * 8, y + TILE); c.lineTo(x + i * 8 + 4, y + 6); c.lineTo(x + i * 8 + 8, y + TILE); c.fill(); }
