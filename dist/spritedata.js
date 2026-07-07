@@ -21,11 +21,15 @@ export function loadSprites() {
     loadStill('aimdowndiag', 'assets/sprites/player/aimdowndiag.png');
     const S = 'assets/sprites/';
     const add = (key, path, fw, fps, loop) => sprites.add(key, { src: S + path, fw, fh: fw, frames: 8, cols: 3, fps, loop });
-    // player
+    // player — walk/run/attack/fire are the smooth 12-frame / 4-column AutoSprite
+    // sheets; the rest keep the original 8-frame / 3-column format
+    const addP = (key, path, fps, loop) => sprites.add(key, { src: S + path, fw: 256, fh: 256, frames: 12, cols: 4, fps, loop });
     add('player/idle', 'player/idle.png', 128, 8, true);
-    add('player/run', 'player/run.png', 128, 14, true);
+    addP('player/walk', 'player/walk.png', 13, true);
+    addP('player/run', 'player/run.png', 18, true);
     add('player/jump', 'player/jump.png', 128, 12, false);
-    add('player/attack', 'player/attack.png', 128, 18, false);
+    addP('player/attack', 'player/attack.png', 26, false);
+    addP('player/fire', 'player/fire.png', 22, false);
     add('player/summon', 'player/summon.png', 128, 12, false);
     add('player/crouch', 'player/crouch.png', 128, 14, false);
     // enemies — silky 12-frame / 4-column flight for the airborne ones

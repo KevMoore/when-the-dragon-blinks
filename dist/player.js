@@ -30,6 +30,7 @@ export class Player {
         this.maxHp = 5;
         this.checkpoint = { x: 64, y: 430 };
         this.attackTimer = 0; // shoot animation / muzzle timer
+        this.lastShot = 'bolt'; // picks the attack vs fire sheet
         this.shootCd = 0;
         this.charging = false;
         this.chargeT = 0;
@@ -296,11 +297,12 @@ export class Player {
         for (const a of this.afterimages)
             a.life -= dt;
         this.afterimages = this.afterimages.filter(a => a.life > 0);
-        // animation state for sprite playback
+        // animation state for sprite playback (walk below ~55% speed, run above)
         const desired = this.crouching ? 'crouch'
-            : this.attackTimer > 0 ? 'attack'
+            : this.attackTimer > 0 ? (this.lastShot === 'blast' ? 'fire' : 'attack')
                 : !this.grounded ? 'jump'
-                    : Math.abs(this.vx) > 26 ? 'run' : 'idle';
+                    : Math.abs(this.vx) > MAX_SPEED * 0.55 ? 'run'
+                        : Math.abs(this.vx) > 26 ? 'walk' : 'idle';
         if (desired !== this.animName) {
             this.animName = desired;
             this.animClock = 0;
@@ -324,13 +326,22 @@ export class Player {
     spawnAfterimage() {
         this.afterimages.push({ x: this.x, y: this.y, life: 0.22, facing: this.facing });
     }
+    /** Vertical centre of the DRAWN sprite (anchored feet-down at y+h), not the
+     *  physics box — bolts visibly leaving the chest, not the hips. Crouching
+     *  keeps the low fire line (the crouch pose sits in the frame's lower half). */
+    spriteCenterY(game) {
+        if (this.crouching)
+            return this.y + this.h * 0.45;
+        return this.y + this.h - (72 * game.spriteScale) / 2;
+    }
     fireBolt(game) {
         const [dx, dy] = this.aim(game);
         const sp = 660;
-        const mx = this.x + this.w / 2 + dx * 18, my = this.y + this.h * 0.42 + dy * 12;
+        const mx = this.x + this.w / 2 + dx * 18, my = this.spriteCenterY(game) + dy * 12;
         game.projectiles.push({ x: mx, y: my, vx: dx * sp, vy: dy * sp, r: 6, life: 1.1, kind: 'bolt', hostile: false, dmg: 1 });
         this.shootCd = 0.16;
         this.attackTimer = 0.14;
+        this.lastShot = 'bolt';
         if (dx !== 0)
             this.facing = dx < 0 ? -1 : 1;
         this.stretch(1.12, 0.92);
@@ -341,9 +352,10 @@ export class Player {
     fireBlast(game) {
         const [dx, dy] = this.aim(game);
         const sp = 540;
-        const mx = this.x + this.w / 2 + dx * 20, my = this.y + this.h * 0.42 + dy * 12;
+        const mx = this.x + this.w / 2 + dx * 20, my = this.spriteCenterY(game) + dy * 12;
         game.projectiles.push({ x: mx, y: my, vx: dx * sp, vy: dy * sp, r: 16, life: 1.5, kind: 'blast', hostile: false, dmg: 4, pierce: true, hit: new Set() });
         this.attackTimer = 0.24;
+        this.lastShot = 'blast';
         if (dx !== 0)
             this.facing = dx < 0 ? -1 : 1;
         this.stretch(1.3, 0.8);
@@ -652,7 +664,13 @@ export class Player {
             return;
         }
         // ---- Sprite path: use AutoSprite sheet when loaded ----
-        const sheet = sprites.get('player/' + this.animName);
+        // graceful chain (walk→run, fire→attack, →idle) so a sheet that hasn't
+        // loaded never drops the player back to the procedural fallback figure
+        let sheet = sprites.get('player/' + this.animName);
+        if (!sheet?.ready)
+            sheet = sprites.get('player/' + (this.animName === 'walk' ? 'run' : this.animName === 'fire' ? 'attack' : this.animName));
+        if (!sheet?.ready)
+            sheet = sprites.get('player/idle');
         if (sheet && sheet.ready) {
             const targetH = 72 * game.spriteScale; // constant so crouch doesn't shrink the sprite
             c.save();
@@ -740,9 +758,9 @@ export class Player {
         return '';
     }
     drawShotFx(game, c) {
-        const sx = this.x - game.camera.x, sy = this.y - game.camera.y;
+        const sx = this.x - game.camera.x;
         const [dx, dy] = this.aim(game);
-        const cx = sx + this.w / 2, cy = sy + this.h * 0.42;
+        const cx = sx + this.w / 2, cy = this.spriteCenterY(game) - game.camera.y; // matches the projectile origin
         // aim reticle: show the exact line dragon-light will travel while aiming
         const aiming = this.attackTimer > 0 || Math.hypot(game.input.stickX, game.input.stickY) > 0.3;
         if (aiming) {
