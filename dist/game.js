@@ -942,6 +942,7 @@ export class Game {
             document.body.classList.add('playing');
         else
             document.body.classList.remove('playing');
+        document.body.classList.toggle('lefty', !!this.save.settings.leftHanded);
         this.updateMusic();
         this.input.endFrame();
     }
@@ -1361,7 +1362,7 @@ export class Game {
             this.state = this.settingsReturn;
             return;
         }
-        const n = 5;
+        const n = 6;
         if (this.input.just('up')) {
             this.settingsSelection = (this.settingsSelection + n - 1) % n;
             this.audio.sfx('menu');
@@ -1399,7 +1400,12 @@ export class Game {
             this.persistSave();
             this.audio.sfx('menu');
         }
-        else if (this.settingsSelection === 4 && confirm) {
+        else if (this.settingsSelection === 4 && (left || right || confirm)) {
+            s.leftHanded = !s.leftHanded;
+            this.persistSave();
+            this.audio.sfx('menu');
+        }
+        else if (this.settingsSelection === 5 && confirm) {
             this.state = this.settingsReturn;
             this.audio.sfx('menu');
         }

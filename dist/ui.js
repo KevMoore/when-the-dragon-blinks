@@ -276,8 +276,8 @@ export function drawHowTo(game, c) {
             ['▲', 'Jump', 'Tap Jump · tap twice in the air for a double jump'],
             ['✦', 'Fire', 'Tap to loose dragon-light · hold to charge a blast'],
             ['☯', 'Blink', 'Switch Day ⟷ Night — your sharpest weapon']]
-        : [['A D', 'Move', 'Move · A/D or ← → (a gamepad stick runs analog)'],
-            ['␣', 'Jump', 'Space · tap twice in the air for a double jump'],
+        : [['← →', 'Move', 'Move · ← → arrows (a gamepad stick runs analog)'],
+            ['A', 'Jump', 'A · tap twice in the air for a double jump'],
             ['J', 'Fire', 'J or X to loose dragon-light · hold to charge a blast'],
             ['E', 'Blink', 'E / C — switch Day ⟷ Night, your sharpest weapon']];
     const rx = px + 60, startY = py + 118, rh = 46;
@@ -452,7 +452,7 @@ export function drawCodex(game, c) {
 // ---- Settings --------------------------------------------------------------
 export function drawSettings(game, c) {
     c.save();
-    panel(c, LOGICAL_W / 2 - 260, 110, 520, 320, 0.82);
+    panel(c, LOGICAL_W / 2 - 260, 110, 520, 370, 0.82);
     c.textAlign = 'center';
     c.fillStyle = '#ffe3a0';
     c.font = '38px Georgia';
@@ -463,6 +463,7 @@ export function drawSettings(game, c) {
         { label: 'Music', value: s.music ? 'On' : 'Off' },
         { label: 'Screen Shake', value: s.shake ? 'On' : 'Off' },
         { label: 'Reduced Motion', value: s.reducedMotion ? 'On' : 'Off' },
+        { label: 'Touch Layout', value: s.leftHanded ? 'Left-handed' : 'Right-handed' },
         { label: 'Back', value: '' },
     ];
     rows.forEach((r, i) => {
@@ -492,7 +493,7 @@ export function drawSettings(game, c) {
     c.textAlign = 'center';
     c.fillStyle = 'rgba(255,255,255,.64)';
     c.font = '14px Georgia';
-    c.fillText('↑/↓ choose · ←/→ or Enter adjust · Esc back', LOGICAL_W / 2, 414);
+    c.fillText('↑/↓ choose · ←/→ or Enter adjust · Esc back', LOGICAL_W / 2, 462);
     c.restore();
 }
 // ---- Lore panel ------------------------------------------------------------

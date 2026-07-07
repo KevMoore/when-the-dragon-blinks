@@ -9,7 +9,7 @@ const fallback = () => ({
     highScore: 0,
     seenIntro: false,
     foundHidden: [],
-    settings: { master: 0.7, music: true, shake: true, reducedMotion: false },
+    settings: { master: 0.7, music: true, shake: true, reducedMotion: false, leftHanded: false },
 });
 // A clean save (keeps the player's audio/settings prefs) — for "Start Fresh".
 export function freshSave(settings) { return { ...fallback(), settings: { ...settings } }; }

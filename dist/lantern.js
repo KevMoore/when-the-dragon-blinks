@@ -39,7 +39,7 @@ export class LanternGame {
             this.lit[i] = Math.max(0, this.lit[i] - dt * 3.2);
         if (this.phase === 'done') {
             this.finishT += dt;
-            if (this.finishT > 0.7 && (input.just('confirm') || input.pointer?.clicked))
+            if (this.finishT > 0.7 && (input.just('confirm') || input.taps.length > 0))
                 this.game.finishLantern();
             return;
         }
@@ -103,13 +103,14 @@ export class LanternGame {
         for (let i = 0; i < N; i++)
             if (input.pressed.has(keys[i]))
                 return i;
-        const p = input.pointer;
-        if (p && p.clicked)
+        // check every queued tap with a generous radius — lost taps read as "broken"
+        for (const t of input.taps) {
             for (let i = 0; i < N; i++) {
-                const dx = p.x - this.lanternX(i), dy = p.y - this.lanternY();
-                if (dx * dx + dy * dy < (this.lr + 14) ** 2)
+                const dx = t.x - this.lanternX(i), dy = t.y - this.lanternY();
+                if (dx * dx + dy * dy < (this.lr + 26) ** 2)
                     return i;
             }
+        }
         return -1;
     }
     finish() {
